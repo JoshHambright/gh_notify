@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GhNotify.Ado/GhNotify.Ado.csproj" />
+    <Project Path="src/GhNotify.Agents/GhNotify.Agents.csproj" />
+    <Project Path="src/GhNotify.Core/GhNotify.Core.csproj" />
+    <Project Path="src/GhNotify.GitHub/GhNotify.GitHub.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GhNotify.Tests/GhNotify.Tests.csproj" />
+  </Folder>
+</Solution>
