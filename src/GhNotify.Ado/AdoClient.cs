@@ -10,14 +10,19 @@ public sealed class AdoClient(HttpClient http, ITokenProvider tokens, TimeProvid
     readonly TimeProvider _time = time ?? TimeProvider.System;
     DateTimeOffset _blockedUntil;
 
-    public async Task<JsonElement> GetAsync(string absoluteUrl, CancellationToken ct)
+    public Task<JsonElement> GetAsync(string absoluteUrl, CancellationToken ct) =>
+        SendAsync(HttpMethod.Get, absoluteUrl, null, ct);
+
+    public async Task<JsonElement> SendAsync(HttpMethod method, string absoluteUrl, object? body, CancellationToken ct)
     {
         var now = _time.GetUtcNow();
         if (now < _blockedUntil) throw new RateLimitedException(_blockedUntil);
         for (var attempt = 0; ; attempt++)
         {
             var token = await tokens.GetTokenAsync(attempt > 0, ct);
-            using var req = new HttpRequestMessage(HttpMethod.Get, absoluteUrl);
+            using var req = new HttpRequestMessage(method, absoluteUrl);
+            if (body is not null)
+                req.Content = new StringContent(JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json");
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             req.Headers.Accept.ParseAdd("application/json");
             using var resp = await http.SendAsync(req, ct);
@@ -36,6 +41,7 @@ public sealed class AdoClient(HttpClient http, ITokenProvider tokens, TimeProvid
                 throw new HttpRequestException(
                     $"Azure DevOps {(int)resp.StatusCode} for {new Uri(absoluteUrl).AbsolutePath}: {(text.Length > 300 ? text[..300] + "…" : text)}",
                     null, resp.StatusCode);
+            if (string.IsNullOrWhiteSpace(text)) return default;
             using var doc = JsonDocument.Parse(text);
             return doc.RootElement.Clone();
         }
