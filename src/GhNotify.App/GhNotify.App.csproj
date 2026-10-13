@@ -29,7 +29,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Resource Include="Fonts*.ttf" />
+    <Resource Include="Fonts\*.ttf" />
     <InternalsVisibleTo Include="GhNotify.App.Tests" />
   </ItemGroup>
 

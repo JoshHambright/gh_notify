@@ -10,6 +10,7 @@ public sealed class ThemeService : IDisposable
     const string DarkSource = "Themes/Dark.xaml";
     const string LightSource = "Themes/Light.xaml";
     readonly Func<ThemeMode> _mode;
+    volatile bool _disposed;
 
     public ThemeService(Func<ThemeMode> mode)
     {
@@ -49,9 +50,16 @@ public sealed class ThemeService : IDisposable
     void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
         if (e.Category is not (UserPreferenceCategory.General or UserPreferenceCategory.Color)) return;
-        if (_mode() != ThemeMode.System) return;
-        Application.Current?.Dispatcher.InvokeAsync(Apply);
+        Application.Current?.Dispatcher.InvokeAsync(() =>
+        {
+            if (_disposed || _mode() != ThemeMode.System) return;
+            Apply();
+        });
     }
 
-    public void Dispose() => SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+    public void Dispose()
+    {
+        _disposed = true;
+        SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+    }
 }
