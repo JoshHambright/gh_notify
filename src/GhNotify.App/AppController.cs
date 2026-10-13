@@ -34,13 +34,15 @@ public sealed class AppController : IDisposable
         var runner = new ProcessRunner();
         var ghSource = new GitHubSource(
             new GitHubClient(new HttpClient { Timeout = TimeSpan.FromSeconds(25) }, new GhTokenProvider(runner)),
-            () => _config.Current.GitHub);
+            () => _config.Current.GitHub,
+            () => _reconciler.ItemsFor("GitHub"));
         var adoClient = new AdoClient(new HttpClient { Timeout = TimeSpan.FromSeconds(25) }, new AzTokenProvider(runner));
         var directory = new AdoDirectory(adoClient);
         var catalog = new CompositeCatalog(
             new StaticCatalog(() => _config.Current.GitHub.Enabled ? [ghSource] : []),
             new AdoSourceCatalog(directory, () => _config.Current.Ado,
-                org => new AdoOrgSource(org, adoClient, directory, () => _config.Current.Ado)));
+                org => new AdoOrgSource(org, adoClient, directory, () => _config.Current.Ado,
+                    () => _reconciler.ItemsFor($"ADO:{org}"))));
         _poller = new Poller(catalog, _reconciler, TimeSpan.FromSeconds(30));
         _poller.Polled += HandleDiff;
 

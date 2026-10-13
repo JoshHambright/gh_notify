@@ -5,12 +5,15 @@ using GhNotify.Core;
 
 namespace GhNotify.GitHub;
 
-public sealed class GitHubApprovals(GitHubClient client, TimeProvider? time = null)
+/// <param name="lastKnown">The reconciler's last-known items for the GitHub source (e.g. restored from state). Used when a repo
+/// or the notifications call fails before it has ever succeeded in this process, so a restart does not drop approvals.</param>
+public sealed class GitHubApprovals(GitHubClient client, TimeProvider? time = null, Func<IReadOnlyList<InboxItem>>? lastKnown = null)
 {
     readonly TimeProvider _time = time ?? TimeProvider.System;
     // Last successful results, so one failing repo or notifications call does not drop approvals every poll.
     readonly ConcurrentDictionary<string, IReadOnlyList<InboxItem>> _lastByRepo = new();
     IReadOnlyCollection<string> _lastNotificationRepos = [];
+    bool _notificationsSeeded;
 
     public async Task<IReadOnlyList<InboxItem>> FetchAsync(IEnumerable<string> extraRepos, CancellationToken ct)
     {
@@ -41,7 +44,10 @@ public sealed class GitHubApprovals(GitHubClient client, TimeProvider? time = nu
         catch (Exception ex) when (ex is HttpRequestException or JsonException)
         {
             Log.Error("approval notifications skipped this poll; using last known repos", ex);
+            if (!_notificationsSeeded && _lastNotificationRepos.Count == 0)
+                _lastNotificationRepos = LastKnownApprovals().Select(i => i.Repo).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
+        _notificationsSeeded = true;
         return _lastNotificationRepos;
     }
 
@@ -57,6 +63,17 @@ public sealed class GitHubApprovals(GitHubClient client, TimeProvider? time = nu
         {
             Log.Error($"approvals for {repo} skipped this poll", ex);
             if (_lastByRepo.TryGetValue(repo, out var last)) return last;
+            return LastKnownApprovals().Where(i => string.Equals(i.Repo, repo, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+    }
+
+    IEnumerable<InboxItem> LastKnownApprovals()
+    {
+        if (lastKnown is null) return [];
+        try { return lastKnown().Where(i => i.Kind == ItemKind.ApprovalPending).ToList(); }
+        catch (Exception ex)
+        {
+            Log.Error("could not read last-known approvals", ex);
             return [];
         }
     }

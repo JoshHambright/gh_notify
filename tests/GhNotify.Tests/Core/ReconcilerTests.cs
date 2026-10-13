@@ -12,6 +12,16 @@ public class ReconcilerTests
     static Dictionary<string, SourceResult> R(string source, params InboxItem[] items) => new() { [source] = SourceResult.Ok(items) };
 
     [Fact]
+    public void ItemsFor_returns_a_sources_current_items_or_empty()
+    {
+        var r = new Reconciler(new Dictionary<string, IReadOnlyList<InboxItem>> { ["ADO:contoso"] = [I("x")] });
+        r.Apply(R("GitHub", I("a"), I("b")), T0);
+        Assert.Equal(["x"], r.ItemsFor("ADO:contoso").Select(i => i.Key));
+        Assert.Equal(2, r.ItemsFor("GitHub").Count);
+        Assert.Empty(r.ItemsFor("ADO:other"));
+    }
+
+    [Fact]
     public void First_poll_of_a_source_is_initial_load()
     {
         var r = new Reconciler();

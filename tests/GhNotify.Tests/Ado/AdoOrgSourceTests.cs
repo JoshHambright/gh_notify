@@ -25,10 +25,33 @@ public class AdoOrgSourceTests
                 : FakeHttpHandler.Respond(HttpStatusCode.OK, LegacyPrs))
         .On("/Legacy/_apis/pipelines/approvals", """{"value":[]}""");
 
-    static AdoOrgSource Make(FakeHttpHandler http)
+    static AdoOrgSource Make(FakeHttpHandler http, Func<IReadOnlyList<InboxItem>>? lastKnown = null)
     {
         var client = new AdoClient(new HttpClient(http), new FakeTokenProvider());
-        return new AdoOrgSource("contoso", client, new AdoDirectory(client), () => new AdoConfig());
+        return new AdoOrgSource("contoso", client, new AdoDirectory(client), () => new AdoConfig(), lastKnown);
+    }
+
+    static InboxItem Restored(string key, string repo, ItemKind kind = ItemKind.ReviewRequested) =>
+        new(key, Provider.Ado, kind, repo, "t", "https://dev.azure.com/x", "a", DateTimeOffset.UnixEpoch, null, null, null);
+
+    [Fact]
+    public async Task Failing_project_on_first_poll_after_restart_keeps_last_known_items()
+    {
+        var restored = new List<InboxItem>
+        {
+            Restored("ado:review:contoso/Legacy/old#201", "contoso/Legacy/old"),
+            Restored("ado:approval:contoso/Legacy/77", "contoso/Legacy", ItemKind.ApprovalPending),
+            Restored("ado:review:contoso/LegacyOther/x#5", "contoso/LegacyOther/x"),
+        };
+        var source = Make(Http(() => true), () => restored);
+
+        var result = await source.FetchAsync(default);
+
+        Assert.True(result.Healthy);
+        Assert.Contains(result.Items, i => i.Key == "ado:review:contoso/Legacy/old#201");
+        Assert.Contains(result.Items, i => i.Key == "ado:approval:contoso/Legacy/77");
+        Assert.DoesNotContain(result.Items, i => i.Key == "ado:review:contoso/LegacyOther/x#5");
+        Assert.Contains(result.Items, i => i.Key == "ado:review:contoso/Core Platform/api#101");
     }
 
     [Fact]

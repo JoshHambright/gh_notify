@@ -5,7 +5,11 @@ using GhNotify.Core;
 
 namespace GhNotify.Ado;
 
-public sealed class AdoOrgSource(string org, AdoClient client, AdoDirectory directory, Func<AdoConfig> config) : IInboxSource
+/// <param name="lastKnown">The reconciler's last-known items for this source (e.g. restored from state), used when a project
+/// fails before it has ever succeeded in this process, so a restart plus one failing project does not remove its items.</param>
+public sealed class AdoOrgSource(
+    string org, AdoClient client, AdoDirectory directory, Func<AdoConfig> config,
+    Func<IReadOnlyList<InboxItem>>? lastKnown = null) : IInboxSource
 {
     readonly ConcurrentDictionary<string, IReadOnlyList<InboxItem>> _lastByProject = new();
 
@@ -30,7 +34,7 @@ public sealed class AdoOrgSource(string org, AdoClient client, AdoDirectory dire
                 catch (Exception ex) when (ex is HttpRequestException or JsonException)
                 {
                     Log.Error($"ADO {org}/{p.Name} skipped this poll: {ex.Message}");
-                    items = _lastByProject.GetValueOrDefault(p.Id) ?? [];
+                    items = _lastByProject.GetValueOrDefault(p.Id) ?? LastKnownFor(p);
                 }
                 foreach (var i in items) all.Add(i);
             });
@@ -39,6 +43,24 @@ public sealed class AdoOrgSource(string org, AdoClient client, AdoDirectory dire
         catch (Exception ex) when (ex is SourceAuthException or RateLimitedException or HttpRequestException or JsonException)
         {
             return SourceResult.Fail(ex.Message);
+        }
+    }
+
+    IReadOnlyList<InboxItem> LastKnownFor(AdoProject p)
+    {
+        if (lastKnown is null) return [];
+        var prefix = $"{org}/{p.Name}";
+        try
+        {
+            return lastKnown()
+                .Where(i => string.Equals(i.Repo, prefix, StringComparison.OrdinalIgnoreCase) ||
+                            i.Repo.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"ADO {org}/{p.Name}: could not read last-known items", ex);
+            return [];
         }
     }
 

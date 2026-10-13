@@ -3,9 +3,11 @@ using GhNotify.Core;
 
 namespace GhNotify.GitHub;
 
-public sealed class GitHubSource(GitHubClient client, Func<GitHubConfig> config) : IInboxSource
+/// <param name="lastKnown">The reconciler's last-known items for this source; see <see cref="GitHubApprovals"/>.</param>
+public sealed class GitHubSource(GitHubClient client, Func<GitHubConfig> config, Func<IReadOnlyList<InboxItem>>? lastKnown = null)
+    : IInboxSource
 {
-    readonly GitHubApprovals _approvals = new(client);
+    readonly GitHubApprovals _approvals = new(client, lastKnown: lastKnown);
 
     public string Name => "GitHub";
 

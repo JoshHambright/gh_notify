@@ -103,6 +103,12 @@ public sealed class Reconciler
         get { lock (_gate) return _status.Values.OrderBy(s => s.Name).ToList(); }
     }
 
+    /// <summary>The last-known items of one source (empty when unknown); lets sources fall back after a restart.</summary>
+    public IReadOnlyList<InboxItem> ItemsFor(string source)
+    {
+        lock (_gate) return _bySource.TryGetValue(source, out var items) ? items.Values.ToList() : [];
+    }
+
     public Dictionary<string, List<InboxItem>> Snapshot()
     {
         lock (_gate) return _bySource.ToDictionary(s => s.Key, s => s.Value.Values.ToList());

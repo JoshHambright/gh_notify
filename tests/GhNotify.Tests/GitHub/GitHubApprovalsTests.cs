@@ -95,4 +95,62 @@ public class GitHubApprovalsTests
         Assert.True(result.Healthy);
         Assert.Contains(result.Items, i => i.Kind == ItemKind.ReviewRequested);
     }
+
+    static InboxItem RestoredApproval(string repo, long run) =>
+        new($"gh:approval:{repo}/runs/{run}", Provider.GitHub, ItemKind.ApprovalPending, repo, "t",
+            $"https://github.com/{repo}/actions/runs/{run}", "a", DateTimeOffset.UnixEpoch, null, null, null);
+
+    [Fact]
+    public async Task Failing_repo_on_first_poll_after_restart_keeps_last_known_approvals()
+    {
+        var http = new FakeHttpHandler()
+            .On("/notifications?", "[]")
+            .On("/actions/runs?status=waiting", """{"message":"boom"}""", HttpStatusCode.InternalServerError);
+        IReadOnlyList<InboxItem> restored =
+        [
+            RestoredApproval("Acme/Deploy", 9001),
+            RestoredApproval("acme/other", 1),
+            new("gh:review:acme/deploy#3", Provider.GitHub, ItemKind.ReviewRequested, "acme/deploy", "t", "u", "a",
+                DateTimeOffset.UnixEpoch, null, null, null),
+        ];
+        var approvals = new GitHubApprovals(new GitHubClient(new HttpClient(http), new FakeTokenProvider()), lastKnown: () => restored);
+
+        var items = await approvals.FetchAsync(["acme/deploy"], CancellationToken.None);
+
+        Assert.Contains(items, i => i.Key == "gh:approval:Acme/Deploy/runs/9001");
+        Assert.DoesNotContain(items, i => i.Kind != ItemKind.ApprovalPending);
+    }
+
+    [Fact]
+    public async Task Notifications_failure_on_first_poll_after_restart_scans_last_known_approval_repos()
+    {
+        var http = new FakeHttpHandler()
+            .On("/notifications?", "{}", HttpStatusCode.InternalServerError)
+            .On("/repos/acme/deploy/actions/runs?status=waiting", Fixture.Read("github-runs-waiting.json"))
+            .On("/repos/acme/deploy/actions/runs/9001/pending_deployments", Fixture.Read("github-pending-can.json"));
+        IReadOnlyList<InboxItem> restored = [RestoredApproval("acme/deploy", 9001)];
+        var approvals = new GitHubApprovals(new GitHubClient(new HttpClient(http), new FakeTokenProvider()), lastKnown: () => restored);
+
+        var items = await approvals.FetchAsync([], CancellationToken.None);
+
+        Assert.Equal("gh:approval:acme/deploy/runs/9001", Assert.Single(items).Key);
+        Assert.Contains(http.Requests, r => r.RequestUri!.AbsoluteUri.Contains("/repos/acme/deploy/actions/runs?"));
+    }
+
+    [Fact]
+    public async Task Source_passes_last_known_items_to_approvals()
+    {
+        var http = new FakeHttpHandler()
+            .On("/graphql", Fixture.Read("github-inbox.json"))
+            .On("/notifications?", "[]")
+            .On("/actions/runs?status=waiting", """{"message":"boom"}""", HttpStatusCode.InternalServerError);
+        IReadOnlyList<InboxItem> restored = [RestoredApproval("acme/api", 42)];
+        var source = new GitHubSource(new GitHubClient(new HttpClient(http), new FakeTokenProvider()), () => new GitHubConfig(),
+            () => restored);
+
+        var result = await source.FetchAsync(CancellationToken.None);
+
+        Assert.True(result.Healthy);
+        Assert.Contains(result.Items, i => i.Key == "gh:approval:acme/api/runs/42");
+    }
 }
