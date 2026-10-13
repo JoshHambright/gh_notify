@@ -29,7 +29,7 @@ public sealed class SampleHost : IPopupHost
         {
             Org = "contoso", Project = "platform", ApprovalId = "7f1c",
             Details = DetailList.Of(("Pipeline", "platform-release"), ("Run", "20261013.4"), ("Project", "platform"),
-                ("Environment", "production"), ("Created", _now.AddMinutes(-12).ToString("yyyy-MM-dd HH:mm"))),
+                ("Created", _now.AddMinutes(-12).ToString("yyyy-MM-dd HH:mm"))),
         };
         var review = Pr(ReviewKey, "fabrikam/customer-platform/checkout-service-api", 482,
             "Add retry with jitter to payment gateway client", "alice", "feature/payment-retries", "9f3c2ab", 47);
