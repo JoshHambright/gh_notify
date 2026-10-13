@@ -23,7 +23,12 @@ public class AgentCoordinatorTests
             lock (Created) Created.Add((clone, fetchRef, tag));
             return Task.FromResult(Path.Combine(@"C:\wt", tag));
         }
-        public Task RemoveAsync(string clone, string wt, string tag, CancellationToken ct) { Removed.Add(wt); return Task.CompletedTask; }
+        public Func<Task>? OnRemove { get; set; }
+        public async Task RemoveAsync(string clone, string wt, string tag, CancellationToken ct)
+        {
+            Removed.Add(wt);
+            if (OnRemove is not null) await OnRemove();
+        }
     }
 
     sealed class Claude : IClaudeRunner
@@ -212,6 +217,74 @@ public class AgentCoordinatorTests
         await c.SweepAsync(default);
         Assert.NotNull(c.Get(Item().Key));
         Assert.Empty(wts.Removed);
+    }
+
+    [Fact]
+    public async Task Rerun_started_before_previous_worker_returns_is_awaited_by_WhenIdle()
+    {
+        var (c, _, claude, _) = Make();
+        var gate = new TaskCompletionSource<AgentOutcome>();
+        var started = false;
+        c.RunChanged += r =>
+        {
+            // fires on the first worker thread, before that worker's cleanup runs
+            if (r.State == AgentState.Ready && !started)
+            {
+                started = true;
+                claude.Next = () => gate.Task;
+                c.TryStart(Item(), Decision(), manual: true);
+            }
+        };
+        c.TryStart(Item(), Decision(), manual: true);
+        await WaitFor(() => claude.Calls.Count == 2);
+        await Task.Delay(50); // let the first worker finish its cleanup
+        var idle = c.WhenIdle();
+        Assert.False(idle.IsCompleted);
+        gate.SetResult(new AgentOutcome(true, Sid, "second", null, null));
+        await idle;
+        Assert.Equal(AgentState.Ready, c.Get(Item().Key)!.State);
+        Assert.Equal("second", c.Get(Item().Key)!.Summary);
+        Assert.Equal(2, claude.Calls.Count);
+    }
+
+    [Fact]
+    public async Task Head_change_does_not_outdate_a_queued_run()
+    {
+        var (c, _, claude, _) = Make(max: 1);
+        var gate = new TaskCompletionSource<AgentOutcome>();
+        claude.Next = () => gate.Task;
+        c.TryStart(Item("a"), Decision(), true);
+        await WaitFor(() => c.Get("a")!.State == AgentState.Running);
+        c.TryStart(Item("b"), Decision(), true);
+        c.OnItemChanged(new ItemChange(Item("b"), Item("b", sha: "s2")));
+        Assert.Equal(AgentState.Queued, c.Get("b")!.State);
+        gate.SetResult(new AgentOutcome(true, Sid, "ok", null, null));
+        await c.WhenIdle();
+    }
+
+    [Fact]
+    public async Task Sweep_does_not_remove_a_run_started_while_it_cleans_up()
+    {
+        var (c, wts, _, _) = Make();
+        c.TryStart(Item(), Decision(), true);
+        await c.WhenIdle();
+        c.OnItemRemoved(Item());
+
+        var entered = new TaskCompletionSource();
+        var release = new TaskCompletionSource();
+        wts.OnRemove = async () => { entered.SetResult(); await release.Task; };
+        var sweep = c.SweepAsync(default);
+        await entered.Task;
+
+        c.OnItemAdded(Item());
+        Assert.True(c.TryStart(Item(), Decision(), manual: true));
+        release.SetResult();
+        await sweep;
+        await c.WhenIdle();
+
+        var run = c.Get(Item().Key);
+        Assert.NotNull(run);
+        Assert.Equal(AgentState.Ready, run!.State);
     }
 
     [Fact]

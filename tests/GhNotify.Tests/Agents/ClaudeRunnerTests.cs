@@ -19,6 +19,8 @@ public class ClaudeRunnerTests
         Assert.Contains("Bash(git push:*)", denied);
         Assert.Contains("Bash(gh pr review:*)", denied);
         Assert.Contains("Bash(gh api * -f *)", denied);
+        Assert.Contains("Bash(gh pr create:*)", denied);
+        Assert.Contains("Bash(gh api -X*)", denied);
         Assert.Contains("Bash(rm:*)", denied);
         Assert.Equal(AgentSafety.DisallowedTools.Count + 1, denied.Count);
     }
