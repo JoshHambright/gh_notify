@@ -5,10 +5,24 @@ namespace GhNotify.GitHub;
 
 public static class GitHubPrMapper
 {
-    public static IEnumerable<InboxItem> ReviewRequests(JsonElement data)
+    /// <exception cref="JsonException">data.review is missing or not an object.</exception>
+    public static IEnumerable<InboxItem> ReviewRequests(JsonElement data) => ReviewRequests(data, Section(data, "review"));
+
+    /// <exception cref="JsonException">data.mine is missing or not an object.</exception>
+    public static IEnumerable<InboxItem> MyPrs(JsonElement data) => MyPrs(data, Section(data, "mine"));
+
+    // A missing search result is an error, not "no items" (it would remove every item of that kind).
+    static JsonElement Section(JsonElement data, string name)
+    {
+        var section = data.Obj(name);
+        if (section.ValueKind != JsonValueKind.Object) throw new JsonException($"GitHub GraphQL: data.{name} is missing");
+        return section;
+    }
+
+    static IEnumerable<InboxItem> ReviewRequests(JsonElement data, JsonElement review)
     {
         var me = data.Obj("viewer").Str("login");
-        foreach (var node in data.Obj("review").Arr("nodes"))
+        foreach (var node in review.Arr("nodes"))
         {
             if (node.Int("number") is null) continue;
             var item = Base(node, ItemKind.ReviewRequested, "gh:review", null);
@@ -16,10 +30,10 @@ public static class GitHubPrMapper
         }
     }
 
-    public static IEnumerable<InboxItem> MyPrs(JsonElement data)
+    static IEnumerable<InboxItem> MyPrs(JsonElement data, JsonElement mine)
     {
         var me = data.Obj("viewer").Str("login");
-        foreach (var node in data.Obj("mine").Arr("nodes"))
+        foreach (var node in mine.Arr("nodes"))
         {
             if (node.Int("number") is null) continue;
             var state = node.Obj("commits").Arr("nodes").Select(n => n.Obj("commit").Obj("statusCheckRollup").Str("state")).FirstOrDefault();

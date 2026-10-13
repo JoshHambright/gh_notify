@@ -28,9 +28,12 @@ public sealed class GitHubClient
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json"),
         }, ct);
-        if (root.Obj("data").ValueKind != JsonValueKind.Object)
+        // Partial errors (data present but some fields failed) are treated as failures too: a field that errored comes back null,
+        // and mapping it as "no items" would remove items from a source that only looks healthy.
+        var errors = root.Arr("errors").ToList();
+        if (errors.Count > 0 || root.Obj("data").ValueKind != JsonValueKind.Object)
         {
-            var message = root.Arr("errors").Select(e => e.Str("message")).FirstOrDefault() ?? "no data";
+            var message = errors.Select(e => e.Str("message")).FirstOrDefault(m => m is not null) ?? (errors.Count > 0 ? "error" : "no data");
             throw new HttpRequestException($"GitHub GraphQL: {message}");
         }
         return root.GetProperty("data");

@@ -100,4 +100,25 @@ public class GitHubSourceTests
         var result = await source.FetchAsync(CancellationToken.None);
         Assert.Contains("Something broke", result.Problem);
     }
+
+    [Fact]
+    public async Task GraphQL_errors_alongside_data_are_unhealthy()
+    {
+        var body = """{"data":{"viewer":{"login":"me"},"review":{"nodes":[]},"mine":{"nodes":[]}},"errors":[{"message":"Partial failure"}]}""";
+        var (source, _, _) = Make(new FakeHttpHandler().On("/graphql", body).On("/notifications", "[]"));
+        var result = await source.FetchAsync(CancellationToken.None);
+        Assert.False(result.Healthy);
+        Assert.Contains("Partial failure", result.Problem);
+    }
+
+    [Theory]
+    [InlineData("""{"data":{"viewer":{"login":"me"},"review":null,"mine":{"nodes":[]}}}""")]
+    [InlineData("""{"data":{"viewer":{"login":"me"},"review":{"nodes":[]},"mine":null}}""")]
+    [InlineData("""{"data":{"viewer":{"login":"me"},"review":{"nodes":[]}}}""")]
+    public async Task Missing_review_or_mine_is_unhealthy(string body)
+    {
+        var (source, _, _) = Make(new FakeHttpHandler().On("/graphql", body).On("/notifications", "[]"));
+        var result = await source.FetchAsync(CancellationToken.None);
+        Assert.False(result.Healthy);
+    }
 }
