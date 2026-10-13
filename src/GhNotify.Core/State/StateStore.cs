@@ -12,19 +12,39 @@ public sealed class StateStore(string path)
 {
     readonly object _gate = new();
 
+    /// <summary>Never throws: an unreadable or corrupt state file gives an empty state (corrupt files are set aside as .bad).</summary>
     public AppState Load()
     {
         lock (_gate)
         {
-            if (!File.Exists(path)) return new AppState();
+            string text;
             try
             {
-                return JsonSerializer.Deserialize<AppState>(File.ReadAllText(path), Json.Options) ?? new AppState();
+                if (!File.Exists(path)) return new AppState();
+                text = File.ReadAllText(path);
             }
-            catch (JsonException ex)
+            catch (Exception ex)
+            {
+                // Locked or inaccessible: leave the file alone, it may be fine next time.
+                Log.Error("state.json could not be read, starting fresh", ex);
+                return new AppState();
+            }
+            try
+            {
+                var state = JsonSerializer.Deserialize<AppState>(text, Json.Options) ?? new AppState();
+                state.Snapshot ??= new();
+                state.AgentRuns ??= [];
+                foreach (var key in state.Snapshot.Where(kv => kv.Value is null).Select(kv => kv.Key).ToList())
+                    state.Snapshot.Remove(key);
+                foreach (var list in state.Snapshot.Values) list.RemoveAll(i => i is null);
+                state.AgentRuns.RemoveAll(r => r is null);
+                return state;
+            }
+            catch (Exception ex)
             {
                 Log.Error($"state.json unreadable, starting fresh: {ex.Message}");
-                File.Move(path, path + ".bad", overwrite: true);
+                try { File.Move(path, path + ".bad", overwrite: true); }
+                catch (Exception moveEx) { Log.Error("could not set state.json aside", moveEx); }
                 return new AppState();
             }
         }

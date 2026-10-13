@@ -30,6 +30,25 @@ public partial class App : Application
             return;
         }
 
+        try
+        {
+            StartUp();
+        }
+        catch (Exception ex)
+        {
+            // Never leave a zombie process holding the single-instance mutex with no tray icon.
+            Log.Error("gh_notify failed to start", ex);
+            MessageBox.Show($"gh_notify failed to start: {ex.Message}. See logs at {AppPaths.Logs}", "gh_notify",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            try { _mutex.ReleaseMutex(); } catch (ApplicationException) { }
+            _mutex.Dispose();
+            _mutex = null;
+            Shutdown();
+        }
+    }
+
+    void StartUp()
+    {
         Log.Configure(AppPaths.Logs);
         DispatcherUnhandledException += (_, a) => { Log.Error("unhandled UI exception", a.Exception); a.Handled = true; };
         AppDomain.CurrentDomain.UnhandledException += (_, a) => Log.Error("unhandled exception", a.ExceptionObject as Exception);

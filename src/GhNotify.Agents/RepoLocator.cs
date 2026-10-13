@@ -41,8 +41,16 @@ public sealed class RepoLocator(Func<IReadOnlyList<string>> roots, int maxDepth 
     public void Rescan()
     {
         var map = new Dictionary<string, string>();
-        foreach (var root in roots())
-            if (Directory.Exists(root)) Walk(root, 0, map);
+        IReadOnlyList<string>? list;
+        try { list = roots(); }
+        catch (Exception ex)
+        {
+            Log.Error("repoRoots could not be read; scanning no roots", ex);
+            list = null;
+        }
+        if (list is null) Log.Info("no repoRoots configured; no local clones will be found");
+        foreach (var root in list ?? [])
+            if (!string.IsNullOrWhiteSpace(root) && Directory.Exists(root)) Walk(root, 0, map);
         lock (_gate)
         {
             _map = map;

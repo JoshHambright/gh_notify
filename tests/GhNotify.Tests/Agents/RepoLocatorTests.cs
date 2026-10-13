@@ -37,6 +37,14 @@ public class RepoLocatorTests
     }
 
     [Fact]
+    public void Throwing_or_null_roots_callback_means_no_roots()
+    {
+        Assert.Null(new RepoLocator(() => throw new InvalidOperationException("boom")).FindClone("https://github.com/acme/api"));
+        Assert.Null(new RepoLocator(() => null!).FindClone("https://github.com/acme/api"));
+        Assert.Null(new RepoLocator(() => [null!]).FindClone("https://github.com/acme/api"));
+    }
+
+    [Fact]
     public void Missing_root_is_ignored()
     {
         var locator = new RepoLocator(() => [@"Z:\does\not\exist"]);

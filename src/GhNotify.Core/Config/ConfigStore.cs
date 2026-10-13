@@ -27,8 +27,9 @@ public sealed class ConfigStore(string path)
             Current = config;
             Error = null;
         }
-        catch (Exception ex) when (ex is JsonException or InvalidDataException or IOException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
+            // Any failure (bad JSON, nulls, IO, unexpected) keeps the last good config; a bad edit must never stop the app.
             Error = $"config.json: {ex.Message}";
             Log.Error(Error);
         }
@@ -36,6 +37,7 @@ public sealed class ConfigStore(string path)
 
     public static void Validate(AppConfig c)
     {
+        RejectNulls(c);
         if (c.PollSeconds < 30) throw new InvalidDataException("pollSeconds must be at least 30");
         if (c.MaxConcurrentAgents < 1) throw new InvalidDataException("maxConcurrentAgents must be at least 1");
         if (c.AgentTimeoutMinutes < 1) throw new InvalidDataException("agentTimeoutMinutes must be at least 1");
@@ -50,5 +52,40 @@ public sealed class ConfigStore(string path)
         for (var i = 0; i < c.Rules.Count; i++)
             if (c.Rules[i].Profile is { } p && !profiles.ContainsKey(p))
                 throw new InvalidDataException($"rules[{i}].profile '{p}' is not a known agent profile");
+    }
+
+    /// <summary>JSON "null" overrides the property defaults; reject it so nothing downstream dereferences a null.</summary>
+    static void RejectNulls(AppConfig c)
+    {
+        NotNull(c.WorkHours, "workHours");
+        Entries(c.WorkHours.Days, "workHours.days");
+        NotNull(c.GitHub, "github");
+        Entries(c.GitHub.WatchRepos, "github.watchRepos");
+        NotNull(c.Ado, "ado");
+        Entries(c.Ado.Orgs, "ado.orgs");
+        Entries(c.Ado.ExcludeOrgs, "ado.excludeOrgs");
+        Entries(c.RepoRoots, "repoRoots");
+        Entries(c.AgentAllowedTools, "agentAllowedTools");
+        Entries(c.Rules, "rules");
+        NotNull(c.AgentProfiles, "agentProfiles");
+        foreach (var (name, profile) in c.AgentProfiles)
+        {
+            NotNull(profile, $"agentProfiles.{name}");
+            Entries(profile.AllowedTools, $"agentProfiles.{name}.allowedTools");
+            Entries(profile.DisallowedTools, $"agentProfiles.{name}.disallowedTools");
+        }
+        Entries(c.Hooks, "hooks");
+        for (var i = 0; i < c.Hooks.Count; i++) Entries(c.Hooks[i].Run, $"hooks[{i}].run");
+    }
+
+    static void NotNull(object? value, string field)
+    {
+        if (value is null) throw new InvalidDataException($"{field} must not be null");
+    }
+
+    static void Entries<T>(List<T>? list, string field)
+    {
+        NotNull(list, field);
+        for (var i = 0; i < list!.Count; i++) NotNull(list[i], $"{field}[{i}]");
     }
 }

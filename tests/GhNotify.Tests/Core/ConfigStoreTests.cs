@@ -71,6 +71,52 @@ public class ConfigStoreTests
         Assert.Contains("pollSeconds", store.Error);
     }
 
+    [Theory]
+    [InlineData("""{ "workHours": null }""", "workHours")]
+    [InlineData("""{ "workHours": { "days": null } }""", "workHours.days")]
+    [InlineData("""{ "workHours": { "days": [null] } }""", "workHours.days[0]")]
+    [InlineData("""{ "github": null }""", "github")]
+    [InlineData("""{ "github": { "watchRepos": null } }""", "github.watchRepos")]
+    [InlineData("""{ "ado": null }""", "ado")]
+    [InlineData("""{ "ado": { "orgs": null } }""", "ado.orgs")]
+    [InlineData("""{ "ado": { "excludeOrgs": null } }""", "ado.excludeOrgs")]
+    [InlineData("""{ "repoRoots": null }""", "repoRoots")]
+    [InlineData("""{ "agentAllowedTools": null }""", "agentAllowedTools")]
+    [InlineData("""{ "rules": null }""", "rules")]
+    [InlineData("""{ "rules": [null] }""", "rules[0]")]
+    [InlineData("""{ "agentProfiles": null }""", "agentProfiles")]
+    [InlineData("""{ "agentProfiles": { "x": null } }""", "agentProfiles.x")]
+    [InlineData("""{ "hooks": null }""", "hooks")]
+    [InlineData("""{ "hooks": [null] }""", "hooks[0]")]
+    [InlineData("""{ "hooks": [ { "event": "ItemAdded", "run": null } ] }""", "hooks[0].run")]
+    public void Rejects_null_fields_naming_them(string json, string field)
+    {
+        var path = TempPath();
+        var store = new ConfigStore(path);
+        store.Load();
+        var good = store.Current;
+        File.WriteAllText(path, json);
+        store.Load();
+        Assert.Same(good, store.Current);
+        Assert.Contains($"{field} must not be null", store.Error);
+    }
+
+    [Fact]
+    public void Null_hooks_keeps_last_good_config_and_sets_error()
+    {
+        var path = TempPath();
+        var store = new ConfigStore(path);
+        store.Load();
+        File.WriteAllText(path, """{ "pollSeconds": 90 }""");
+        store.Load();
+        var good = store.Current;
+        File.WriteAllText(path, """{ "pollSeconds": 60, "hooks": null }""");
+        store.Load();
+        Assert.Same(good, store.Current);
+        Assert.Equal(90, store.Current.PollSeconds);
+        Assert.NotNull(store.Error);
+    }
+
     [Fact]
     public void Rejects_hook_without_command()
     {

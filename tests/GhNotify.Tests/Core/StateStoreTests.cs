@@ -24,6 +24,36 @@ public class StateStoreTests
     public void Missing_file_gives_empty_state() =>
         Assert.Empty(new StateStore(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString(), "s.json")).Load().Snapshot);
 
+    [Theory]
+    [InlineData("""{ "snapshot": null, "agentRuns": null }""")]
+    [InlineData("""{ "snapshot": null }""")]
+    [InlineData("null")]
+    public void Null_collections_default_to_empty(string json)
+    {
+        var path = Path.Combine(Directory.CreateTempSubdirectory("ghn-state").FullName, "state.json");
+        File.WriteAllText(path, json);
+        var state = new StateStore(path).Load();
+        Assert.NotNull(state.Snapshot);
+        Assert.NotNull(state.AgentRuns);
+        Assert.Empty(state.Snapshot);
+        Assert.Empty(state.AgentRuns);
+    }
+
+    [Fact]
+    public void Locked_file_returns_usable_state_without_moving_it()
+    {
+        var path = Path.Combine(Directory.CreateTempSubdirectory("ghn-state").FullName, "state.json");
+        File.WriteAllText(path, """{ "snapshot": {} }""");
+        using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            var state = new StateStore(path).Load();
+            Assert.Empty(state.Snapshot);
+            Assert.Empty(state.AgentRuns);
+        }
+        Assert.True(File.Exists(path));
+        Assert.False(File.Exists(path + ".bad"));
+    }
+
     [Fact]
     public void Corrupt_file_is_set_aside_and_empty_state_returned()
     {
