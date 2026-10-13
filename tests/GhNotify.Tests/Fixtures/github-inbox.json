@@ -1,0 +1,68 @@
+{
+  "data": {
+    "viewer": { "login": "me" },
+    "review": {
+      "nodes": [
+        {
+          "number": 12, "title": "Add retry to client", "url": "https://github.com/acme/api/pull/12", "isDraft": false,
+          "updatedAt": "2026-10-13T14:00:00Z", "additions": 30, "deletions": 5, "headRefOid": "aaa111",
+          "author": { "__typename": "User", "login": "alice" },
+          "repository": { "nameWithOwner": "acme/api", "url": "https://github.com/acme/api" }
+        },
+        {
+          "number": 7, "title": "Bump lodash", "url": "https://github.com/acme/web/pull/7", "isDraft": false,
+          "updatedAt": "2026-10-13T13:00:00Z", "additions": 2, "deletions": 2, "headRefOid": "bbb222",
+          "author": { "__typename": "Bot", "login": "dependabot" },
+          "repository": { "nameWithOwner": "acme/web", "url": "https://github.com/acme/web" }
+        },
+        {}
+      ]
+    },
+    "mine": {
+      "nodes": [
+        {
+          "number": 20, "title": "Refactor auth", "url": "https://github.com/acme/api/pull/20", "isDraft": false,
+          "updatedAt": "2026-10-13T12:00:00Z", "additions": 100, "deletions": 50, "headRefOid": "ccc333",
+          "author": { "__typename": "User", "login": "me" },
+          "repository": { "nameWithOwner": "acme/api", "url": "https://github.com/acme/api" },
+          "reviewDecision": "CHANGES_REQUESTED",
+          "commits": { "nodes": [ { "commit": { "statusCheckRollup": { "state": "FAILURE" } } } ] },
+          "reviewThreads": { "nodes": [] }
+        },
+        {
+          "number": 21, "title": "Docs tweak", "url": "https://github.com/acme/web/pull/21", "isDraft": false,
+          "updatedAt": "2026-10-13T11:00:00Z", "additions": 1, "deletions": 1, "headRefOid": "ddd444",
+          "author": { "__typename": "User", "login": "me" },
+          "repository": { "nameWithOwner": "acme/web", "url": "https://github.com/acme/web" },
+          "reviewDecision": "REVIEW_REQUIRED",
+          "commits": { "nodes": [ { "commit": { "statusCheckRollup": { "state": "SUCCESS" } } } ] },
+          "reviewThreads": { "nodes": [
+            { "isResolved": false, "comments": { "nodes": [ { "author": { "login": "me" } } ] } },
+            { "isResolved": true, "comments": { "nodes": [ { "author": { "login": "bob" } } ] } }
+          ] }
+        },
+        {
+          "number": 22, "title": "Cache layer", "url": "https://github.com/acme/web/pull/22", "isDraft": true,
+          "updatedAt": "2026-10-13T10:00:00Z", "additions": 10, "deletions": 0, "headRefOid": "eee555",
+          "author": { "__typename": "User", "login": "me" },
+          "repository": { "nameWithOwner": "acme/web", "url": "https://github.com/acme/web" },
+          "reviewDecision": null,
+          "commits": { "nodes": [ { "commit": { "statusCheckRollup": { "state": "PENDING" } } } ] },
+          "reviewThreads": { "nodes": [
+            { "isResolved": false, "comments": { "nodes": [ { "author": { "login": "bob" } } ] } },
+            { "isResolved": false, "comments": { "nodes": [ { "author": null } ] } }
+          ] }
+        },
+        {
+          "number": 23, "title": "Green and approved", "url": "https://github.com/acme/web/pull/23", "isDraft": false,
+          "updatedAt": "2026-10-13T09:00:00Z", "additions": 3, "deletions": 3, "headRefOid": "fff666",
+          "author": { "__typename": "User", "login": "me" },
+          "repository": { "nameWithOwner": "acme/web", "url": "https://github.com/acme/web" },
+          "reviewDecision": "APPROVED",
+          "commits": { "nodes": [ { "commit": { "statusCheckRollup": null } } ] },
+          "reviewThreads": { "nodes": [] }
+        }
+      ]
+    }
+  }
+}
