@@ -129,3 +129,7 @@ The events are `ItemAdded`, `ItemRemoved`, `ItemChanged` and `AgentFinished`.
 - State: `%LOCALAPPDATA%\GhNotify\state.json`
 - Logs: `%LOCALAPPDATA%\GhNotify\logs\`
 - Agent worktrees: `%LOCALAPPDATA%\GhNotify\worktrees\`
+
+## License
+
+MIT — see [LICENSE](LICENSE). Bundled Roboto fonts are Apache-2.0 (see `src/GhNotify.App/Fonts/LICENSE.txt`).
