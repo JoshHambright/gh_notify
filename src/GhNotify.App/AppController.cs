@@ -36,7 +36,7 @@ public sealed class AppController : IDisposable
             new GitHubClient(new HttpClient { Timeout = TimeSpan.FromSeconds(25) }, new GhTokenProvider(runner)),
             () => _config.Current.GitHub,
             () => _reconciler.ItemsFor("GitHub"));
-        var adoClient = new AdoClient(new HttpClient { Timeout = TimeSpan.FromSeconds(25) }, new AzTokenProvider(runner));
+        var adoClient = new AdoClient(new HttpClient { Timeout = TimeSpan.FromSeconds(25) }, new AzTokenProvider(runner, config: () => _config.Current.Ado));
         var directory = new AdoDirectory(adoClient);
         var catalog = new CompositeCatalog(
             new StaticCatalog(() => _config.Current.GitHub.Enabled ? [ghSource] : []),

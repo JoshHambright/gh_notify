@@ -45,6 +45,8 @@ public sealed class AdoConfig
     public bool DiscoverOrgs { get; set; } = true;
     public List<string> ExcludeOrgs { get; set; } = [];
     public bool IncludeDrafts { get; set; }
+    public string? AzSubscription { get; set; }
+    public string? AzTenant { get; set; }
 }
 
 public sealed class ItemMatch

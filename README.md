@@ -38,7 +38,7 @@ Use the popup's **⋯ → Start with Windows** to launch it at login.
   "pollSeconds": 120,
   "workHours": { "days": ["Mon","Tue","Wed","Thu","Fri"], "start": "08:00", "end": "18:00" },
   "github": { "enabled": true, "includeDrafts": false, "watchRepos": [] },
-  "ado": { "enabled": true, "orgs": [], "discoverOrgs": true, "excludeOrgs": [], "includeDrafts": false },
+  "ado": { "enabled": true, "orgs": [], "discoverOrgs": true, "excludeOrgs": [], "includeDrafts": false, "azSubscription": null, "azTenant": null },
   "repoRoots": ["C:\\dev"],
   "rules": [
     { "match": { "author": "dependabot[bot]" }, "agent": "none" },
@@ -53,6 +53,8 @@ Use the popup's **⋯ → Start with Windows** to launch it at login.
   ]
 }
 ```
+
+`ado.azSubscription` / `ado.azTenant` (optional): use when your default `az` account is not the one in Azure DevOps. The token is requested with `--subscription <name-or-id>` (preferred) or `--tenant <id>`.
 
 Most changes apply when you save. A change to `maxConcurrentAgents` needs a restart: quit from the tray and start the app again.
 

@@ -4,25 +4,27 @@ using GhNotify.Core;
 
 namespace GhNotify.Ado;
 
-public sealed class AzTokenProvider(IProcessRunner runner, TimeProvider? time = null) : ITokenProvider
+public sealed class AzTokenProvider(IProcessRunner runner, TimeProvider? time = null, Func<AdoConfig>? config = null) : ITokenProvider
 {
     public const string AdoResource = "499b84ac-1321-427f-aa17-267ca6975798";
     readonly TimeProvider _time = time ?? TimeProvider.System;
     readonly SemaphoreSlim _gate = new(1, 1);
     string? _token;
     DateTimeOffset _expires;
+    string? _identity;
 
     public async Task<string> GetTokenAsync(bool forceRefresh, CancellationToken ct)
     {
         await _gate.WaitAsync(ct);
         try
         {
-            if (!forceRefresh && _token is not null && _time.GetUtcNow() < _expires.AddMinutes(-5)) return _token;
+            var (flag, value) = Identity();
+            if (!forceRefresh && _token is not null && _identity == value && _time.GetUtcNow() < _expires.AddMinutes(-5)) return _token;
             ProcessResult r;
             try
             {
                 r = await runner.RunAsync(new ProcessSpec("az",
-                    ["account", "get-access-token", "--resource", AdoResource, "--output", "json"], Timeout: TimeSpan.FromSeconds(30)), ct);
+                    BuildArgs(flag, value), Timeout: TimeSpan.FromSeconds(30)), ct);
             }
             catch (FileNotFoundException)
             {
@@ -30,19 +32,34 @@ public sealed class AzTokenProvider(IProcessRunner runner, TimeProvider? time = 
             }
             if (r.ExitCode != 0 && r.StdErr.Contains("AADSTS", StringComparison.Ordinal))
                 throw new SourceAuthException(
-                    "az can't get an Azure DevOps token for the current tenant — run `az login --tenant <your ADO tenant> --scope 499b84ac-1321-427f-aa17-267ca6975798/.default`");
+                    "az can't get an Azure DevOps token for the current account — set \"ado.azSubscription\" in config.json to a subscription of the account that can access Azure DevOps (or run `az login` as that account)");
             if (r.ExitCode != 0 || r.TimedOut)
                 throw new SourceAuthException("az is not logged in or the token expired — run `az login`");
             using var doc = JsonDocument.Parse(r.StdOut);
             var root = doc.RootElement;
             _token = root.Str("accessToken") ?? throw new SourceAuthException("az returned no access token — run `az login`");
             _expires = ParseExpiry(root);
+            _identity = value;
             return _token;
         }
         finally
         {
             _gate.Release();
         }
+    }
+
+    (string? Flag, string? Value) Identity()
+    {
+        var c = config?.Invoke();
+        if (!string.IsNullOrWhiteSpace(c?.AzSubscription)) return ("--subscription", c.AzSubscription.Trim());
+        if (!string.IsNullOrWhiteSpace(c?.AzTenant)) return ("--tenant", c.AzTenant.Trim());
+        return (null, null);
+    }
+
+    static string[] BuildArgs(string? flag, string? value)
+    {
+        string[] a = ["account", "get-access-token", "--resource", AdoResource, "--output", "json"];
+        return flag is null ? a : [.. a, flag, value!];
     }
 
     static DateTimeOffset ParseExpiry(JsonElement root)

@@ -60,7 +60,64 @@ public class AzTokenProviderTests
             Handler = _ => FakeProcessRunner.Fail("AADSTS500011: The resource principal named 499b84ac-1321-427f-aa17-267ca6975798 was not found in the tenant")
         });
         var ex = await Assert.ThrowsAsync<SourceAuthException>(() => p.GetTokenAsync(false, default));
-        Assert.Contains("--tenant", ex.Message);
-        Assert.Contains("499b84ac-1321-427f-aa17-267ca6975798/.default", ex.Message);
+        Assert.Contains("ado.azSubscription", ex.Message);
+        Assert.Contains("az login", ex.Message);
+    }
+
+    static FakeProcessRunner OkRunner(FakeTimeProvider time) => new()
+    {
+        Handler = _ => FakeProcessRunner.Ok($$"""{"accessToken":"t","expires_on":{{time.GetUtcNow().AddMinutes(60).ToUnixTimeSeconds()}}}""")
+    };
+
+    [Fact]
+    public async Task Subscription_is_passed_as_separate_args()
+    {
+        var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-10-13T12:00:00Z"));
+        var runner = OkRunner(time);
+        var p = new AzTokenProvider(runner, time, () => new AdoConfig { AzSubscription = "My Subscription", AzTenant = "ignored" });
+        await p.GetTokenAsync(false, default);
+        var a = runner.Calls[0].Args;
+        Assert.Equal("--subscription", a[^2]);
+        Assert.Equal("My Subscription", a[^1]);
+        Assert.DoesNotContain("--tenant", a);
+    }
+
+    [Fact]
+    public async Task Tenant_is_used_when_only_tenant_set()
+    {
+        var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-10-13T12:00:00Z"));
+        var runner = OkRunner(time);
+        var p = new AzTokenProvider(runner, time, () => new AdoConfig { AzTenant = "t-1", AzSubscription = "  " });
+        await p.GetTokenAsync(false, default);
+        var a = runner.Calls[0].Args;
+        Assert.Equal("--tenant", a[^2]);
+        Assert.Equal("t-1", a[^1]);
+        Assert.DoesNotContain("--subscription", a);
+    }
+
+    [Fact]
+    public async Task Neither_flag_when_unset()
+    {
+        var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-10-13T12:00:00Z"));
+        var runner = OkRunner(time);
+        var p = new AzTokenProvider(runner, time, () => new AdoConfig());
+        await p.GetTokenAsync(false, default);
+        Assert.Equal(["account", "get-access-token", "--resource", AzTokenProvider.AdoResource, "--output", "json"], runner.Calls[0].Args);
+    }
+
+    [Fact]
+    public async Task Changing_subscription_bypasses_cache()
+    {
+        var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-10-13T12:00:00Z"));
+        var runner = OkRunner(time);
+        var cfg = new AdoConfig { AzSubscription = "A" };
+        var p = new AzTokenProvider(runner, time, () => cfg);
+        await p.GetTokenAsync(false, default);
+        await p.GetTokenAsync(false, default);
+        Assert.Single(runner.Calls);
+        cfg.AzSubscription = "B";
+        await p.GetTokenAsync(false, default);
+        Assert.Equal(2, runner.Calls.Count);
+        Assert.Equal("B", runner.Calls[1].Args[^1]);
     }
 }
