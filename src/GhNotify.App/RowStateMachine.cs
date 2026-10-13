@@ -33,9 +33,19 @@ public static class RowStateMachine
     public static RowUiState Sending(RowUiState s) =>
         s with { Mode = RowMode.Sending, Message = s.Action == ItemAction.Reject ? "Rejecting…" : "Approving…" };
 
+    public const string Approved = "Approved ✓";
+    public const string Rejected = "Rejected ✓";
+
+    /// <summary>Success shows "Approved ✓"/"Rejected ✓", or the provider's warning when it succeeded with one (e.g. comment not posted).</summary>
     public static RowUiState Finished(RowUiState s, ActionResult r) => r.Ok
-        ? s with { Mode = RowMode.Done, Message = s.Action == ItemAction.Reject ? "Rejected ✓" : "Approved ✓" }
+        ? s with { Mode = RowMode.Done, Message = r.Error ?? (s.Action == ItemAction.Reject ? Rejected : Approved) }
         : s with { Mode = RowMode.Failed, Message = r.Error ?? "The action failed" };
+
+    /// <summary>
+    /// A plain-success Done row is hidden on the next poll. A Done row carrying a warning stays until the user closes it,
+    /// so the warning can't vanish unread.
+    /// </summary>
+    public static bool HidesOnNextPoll(RowUiState s) => s is { Mode: RowMode.Done, Message: Approved or Rejected };
 
     public static RowUiState Cancel(RowUiState s) => new(RowMode.Expanded);
 

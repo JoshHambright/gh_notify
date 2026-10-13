@@ -67,6 +67,27 @@ public class ActionFlowTests
         Assert.True(RowStateMachine.CanConfirm(s, T.AddMilliseconds(1500)));
     }
 
+    [Fact]
+    public void Ok_with_warning_finishes_done_showing_the_warning()
+    {
+        var sending = RowStateMachine.Sending(RowStateMachine.WithPreview(RowStateMachine.Begin(ItemAction.ApprovePr, T), Ok, T));
+        var done = RowStateMachine.Finished(sending, new ActionResult(true, "Approved, but the comment couldn't be posted: boom"));
+        Assert.Equal(RowMode.Done, done.Mode);
+        Assert.Equal("Approved, but the comment couldn't be posted: boom", done.Message);
+        Assert.False(RowStateMachine.HidesOnNextPoll(done));
+    }
+
+    [Fact]
+    public void Only_plain_success_rows_hide_on_the_next_poll()
+    {
+        var sending = RowStateMachine.Sending(RowStateMachine.WithPreview(RowStateMachine.Begin(ItemAction.Approve, T), Ok, T));
+        Assert.True(RowStateMachine.HidesOnNextPoll(RowStateMachine.Finished(sending, new ActionResult(true, null))));
+        var rejected = RowStateMachine.Sending(RowStateMachine.WithPreview(RowStateMachine.Begin(ItemAction.Reject, T), Ok, T));
+        Assert.True(RowStateMachine.HidesOnNextPoll(RowStateMachine.Finished(rejected, new ActionResult(true, null))));
+        Assert.False(RowStateMachine.HidesOnNextPoll(new RowUiState(RowMode.Done, ItemAction.Approve, Message: "Approved ✓ (comment failed)")));
+        Assert.False(RowStateMachine.HidesOnNextPoll(RowStateMachine.Finished(sending, new ActionResult(false, "nope"))));
+        Assert.False(RowStateMachine.HidesOnNextPoll(sending));
+    }
 }
 
 public class ConfirmPointerGuardTests

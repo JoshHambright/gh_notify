@@ -206,7 +206,7 @@ public sealed class AppController : IPopupHost, IDisposable
         foreach (var (key, state) in _rowStates)
         {
             if (!present.Contains(key)) _rowStates.TryRemove(key, out _);
-            else if (state.Mode == RowMode.Done && _rowStates.TryRemove(new KeyValuePair<string, RowUiState>(key, state)))
+            else if (RowStateMachine.HidesOnNextPoll(state) && _rowStates.TryRemove(new KeyValuePair<string, RowUiState>(key, state)))
                 _doneHidden[key] = 0;
         }
     }
@@ -252,17 +252,18 @@ public sealed class AppController : IPopupHost, IDisposable
         Changed?.Invoke();
     }
 
-    /// <summary>Only one row is open at a time; a row that is sending is never touched.</summary>
+    /// <summary>Only one row is open at a time; a row that is sending is never touched, and a Done row is hidden (as on Close).</summary>
     void CollapseOthers(string key)
     {
         foreach (var (k, s) in _rowStates)
-            if (k != key && s.Mode != RowMode.Sending) _rowStates.TryRemove(new KeyValuePair<string, RowUiState>(k, s));
+            if (k != key && s.Mode != RowMode.Sending && _rowStates.TryRemove(new KeyValuePair<string, RowUiState>(k, s)) && s.Mode == RowMode.Done)
+                _doneHidden[k] = 0;
     }
 
     public async Task BeginActionAsync(string key, ItemAction action)
     {
         if (FindEntry(key) is not { Stale: false } entry || !_actions.ActionsFor(entry.Item).Contains(action)) return;
-        if (_rowStates.GetValueOrDefault(key) is { Mode: RowMode.Sending }) return;
+        if (_rowStates.GetValueOrDefault(key) is { Mode: RowMode.Sending or RowMode.Done }) return;
         var begun = RowStateMachine.Begin(action, DateTimeOffset.Now);
         CollapseOthers(key);
         _rowStates[key] = begun;
@@ -292,7 +293,12 @@ public sealed class AppController : IPopupHost, IDisposable
     public void CancelAction(string key)
     {
         if (_rowStates.GetValueOrDefault(key) is not { Mode: RowMode.Confirming or RowMode.Failed or RowMode.Done } s) return;
-        _rowStates.TryUpdate(key, RowStateMachine.Cancel(s), s);
+        // Closing a Done row (e.g. one kept for its warning) hides it like a plain success, until the item changes or leaves.
+        if (s.Mode == RowMode.Done)
+        {
+            if (_rowStates.TryRemove(new KeyValuePair<string, RowUiState>(key, s))) _doneHidden[key] = 0;
+        }
+        else _rowStates.TryUpdate(key, RowStateMachine.Cancel(s), s);
         Changed?.Invoke();
     }
 
