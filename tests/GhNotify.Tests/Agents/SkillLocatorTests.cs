@@ -1,4 +1,5 @@
 using GhNotify.Agents;
+using Microsoft.Extensions.Time.Testing;
 
 namespace GhNotify.Tests.Agents;
 
@@ -21,6 +22,22 @@ public class SkillLocatorTests
         Assert.True(s.IsInstalled("team-review", repo));
         Assert.False(s.IsInstalled("team-review", null));
         Assert.False(s.IsInstalled("nope", repo));
+    }
+
+    [Fact]
+    public void Plugin_skills_are_cached_for_five_minutes()
+    {
+        var home = Directory.CreateTempSubdirectory("ghn-claude").FullName;
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var s = new SkillLocator(home, time);
+
+        Assert.False(s.IsInstalled("late-plugin", null));
+
+        Skill(Path.Combine(home, "plugins", "cache", "mkt", "late", "1.0.0", "skills", "late-plugin"));
+        Assert.False(s.IsInstalled("late-plugin", null));
+
+        time.Advance(TimeSpan.FromMinutes(5) + TimeSpan.FromSeconds(1));
+        Assert.True(s.IsInstalled("late-plugin", null));
     }
 
     [Fact]

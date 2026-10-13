@@ -22,9 +22,14 @@ public sealed class RepoLocator(Func<IReadOnlyList<string>> roots, int maxDepth 
         lock (_gate)
         {
             var age = _time.GetUtcNow() - _scannedAt;
-            if (_map is null || age > TimeSpan.FromHours(1)) Rescan();
+            var rescanned = false;
+            if (_map is null || age > TimeSpan.FromHours(1))
+            {
+                Rescan();
+                rescanned = true;
+            }
             if (_map!.TryGetValue(key, out var path)) return path;
-            if (age > TimeSpan.FromMinutes(5))
+            if (!rescanned && age > TimeSpan.FromMinutes(5))
             {
                 Rescan();
                 return _map.GetValueOrDefault(key);
@@ -70,18 +75,25 @@ public sealed class RepoLocator(Func<IReadOnlyList<string>> roots, int maxDepth 
     public static string? ReadOriginUrl(string gitConfigPath)
     {
         if (!File.Exists(gitConfigPath)) return null;
-        var inOrigin = false;
-        foreach (var raw in File.ReadLines(gitConfigPath))
+        try
         {
-            var line = raw.Trim();
-            if (line.StartsWith('['))
+            var inOrigin = false;
+            foreach (var raw in File.ReadLines(gitConfigPath))
             {
-                inOrigin = line.Replace(" ", "").Equals("[remote\"origin\"]", StringComparison.OrdinalIgnoreCase);
-                continue;
+                var line = raw.Trim();
+                if (line.StartsWith('['))
+                {
+                    inOrigin = line.Replace(" ", "").Equals("[remote\"origin\"]", StringComparison.OrdinalIgnoreCase);
+                    continue;
+                }
+                if (inOrigin && line.StartsWith("url", StringComparison.OrdinalIgnoreCase) && line.IndexOf('=') is var eq and > 0)
+                    return line[(eq + 1)..].Trim();
             }
-            if (inOrigin && line.StartsWith("url", StringComparison.OrdinalIgnoreCase) && line.IndexOf('=') is var eq and > 0)
-                return line[(eq + 1)..].Trim();
+            return null;
         }
-        return null;
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null; // locked or unreadable config: skip this clone, keep scanning
+        }
     }
 }

@@ -1,4 +1,5 @@
 using GhNotify.Agents;
+using Microsoft.Extensions.Time.Testing;
 
 namespace GhNotify.Tests.Agents;
 
@@ -40,6 +41,53 @@ public class RepoLocatorTests
     {
         var locator = new RepoLocator(() => [@"Z:\does\not\exist"]);
         Assert.Null(locator.FindClone("https://github.com/acme/api"));
+    }
+
+    [Fact]
+    public void Cold_miss_scans_exactly_once()
+    {
+        var root = Directory.CreateTempSubdirectory("ghn-repos").FullName;
+        MakeRepo(root, "api", "https://github.com/acme/api");
+        var scans = 0;
+        var locator = new RepoLocator(() => { scans++; return [root]; }, time: new FakeTimeProvider(DateTimeOffset.UtcNow));
+
+        Assert.Null(locator.FindClone("https://github.com/acme/missing"));
+        Assert.Equal(1, scans);
+    }
+
+    [Fact]
+    public void Miss_rescans_only_after_five_minutes()
+    {
+        var root = Directory.CreateTempSubdirectory("ghn-repos").FullName;
+        MakeRepo(root, "api", "https://github.com/acme/api");
+        var scans = 0;
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var locator = new RepoLocator(() => { scans++; return [root]; }, time: time);
+
+        Assert.Null(locator.FindClone("https://github.com/acme/missing"));
+        Assert.Equal(1, scans);
+
+        time.Advance(TimeSpan.FromMinutes(2));
+        Assert.Null(locator.FindClone("https://github.com/acme/missing"));
+        Assert.Equal(1, scans);
+
+        time.Advance(TimeSpan.FromMinutes(4));
+        Assert.Null(locator.FindClone("https://github.com/acme/missing"));
+        Assert.Equal(2, scans);
+    }
+
+    [Fact]
+    public void Locked_config_does_not_stop_scan()
+    {
+        var root = Directory.CreateTempSubdirectory("ghn-repos").FullName;
+        var good = MakeRepo(root, "good", "https://github.com/acme/good");
+        var locked = MakeRepo(root, "locked", "https://github.com/acme/locked");
+        using var hold = new FileStream(Path.Combine(locked, ".git", "config"), FileMode.Open, FileAccess.Read, FileShare.None);
+
+        var locator = new RepoLocator(() => [root]);
+
+        Assert.Equal(good, locator.FindClone("https://github.com/acme/good"));
+        Assert.Null(locator.FindClone("https://github.com/acme/locked"));
     }
 
     [Fact]
