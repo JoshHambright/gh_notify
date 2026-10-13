@@ -42,6 +42,10 @@ public sealed class GitHubClient
     public Task<JsonElement> GetAsync(string relativePath, CancellationToken ct) =>
         SendAsync(() => new HttpRequestMessage(HttpMethod.Get, new Uri(Api, relativePath)), ct);
 
+    public Task<JsonElement> PostAsync(string relativePath, object body, CancellationToken ct) =>
+        SendAsync(() => new HttpRequestMessage(HttpMethod.Post, new Uri(Api, relativePath))
+            { Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json") }, ct);
+
     async Task<JsonElement> SendAsync(Func<HttpRequestMessage> make, CancellationToken ct)
     {
         var now = _time.GetUtcNow();
@@ -69,6 +73,7 @@ public sealed class GitHubClient
             if (!resp.IsSuccessStatusCode)
                 throw new HttpRequestException(
                     $"GitHub {(int)resp.StatusCode} for {req.RequestUri!.AbsolutePath}: {Truncate(text)}", null, resp.StatusCode);
+            if (string.IsNullOrWhiteSpace(text)) return default;
             using var doc = JsonDocument.Parse(text);
             return doc.RootElement.Clone();
         }
