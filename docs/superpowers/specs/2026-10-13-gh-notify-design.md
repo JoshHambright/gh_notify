@@ -232,6 +232,20 @@ Profile fields:
   useful for approvals.
 - `allowedTools` / `disallowedTools`: appended to the global lists.
   The global deny list always applies.
+- `requiresSkill`: optional skill name. The built-ins set `peer-review` and
+  `pr-shepherd`.
+
+**Skills are bring-your-own.** The app ships no skills. A skill counts as
+installed if `SKILL.md` exists in one of these places:
+
+- `~/.claude/skills/<name>/`
+- `<clone>/.claude/skills/<name>/` (project skills)
+- any `~/.claude/plugins/**/skills/<name>/`
+
+If a profile's skill is missing, the row shows a disabled button with the
+tooltip "Skill /<name> not installed", and auto rules skip it. Sharing
+skills with teammates is handled separately (for example, through a Claude
+Code plugin marketplace).
 
 ### Event hooks
 
