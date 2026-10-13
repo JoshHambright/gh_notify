@@ -27,7 +27,13 @@ public static class CommandResolver
         if (ext.Equals(".cmd", StringComparison.OrdinalIgnoreCase) || ext.Equals(".bat", StringComparison.OrdinalIgnoreCase))
         {
             // cmd /s /c "<whole line>": /s strips only the outer quotes, so quoted paths and args survive.
-            var line = string.Join(' ', new[] { path }.Concat(args).Select(Quote));
+            foreach (var a in args)
+                foreach (var bad in new[] { '"', '%', '!', '\r', '\n' })
+                    if (a.Contains(bad))
+                        throw new ArgumentException(
+                            $"argument contains {Describe(bad)} which cannot be passed safely to a .cmd/.bat script");
+            // Inside double quotes cmd treats & | < > ^ literally.
+            var line = string.Join(' ', new[] { path }.Concat(args).Select(s => "\"" + s + "\""));
             return new ProcessStartInfo("cmd.exe") { Arguments = $"/d /s /c \"{line}\"" };
         }
         var psi = new ProcessStartInfo(path);
@@ -35,6 +41,5 @@ public static class CommandResolver
         return psi;
     }
 
-    static string Quote(string s) =>
-        s.Length > 0 && s.IndexOfAny([' ', '\t', '"', '&', '|', '<', '>', '^']) < 0 ? s : "\"" + s.Replace("\"", "\\\"") + "\"";
+    static string Describe(char c) => c switch { '\r' => @"'\r'", '\n' => @"'\n'", _ => $"'{c}'" };
 }

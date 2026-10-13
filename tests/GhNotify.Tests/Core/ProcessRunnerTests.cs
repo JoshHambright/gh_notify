@@ -46,6 +46,30 @@ public class ProcessRunnerTests
         Assert.Contains("[a b]", r.StdOut);
     }
 
+    static string EchoScript()
+    {
+        var dir = Directory.CreateTempSubdirectory("ghn proc ");
+        var script = Path.Combine(dir.FullName, "echo arg.cmd");
+        // Delayed expansion so the script itself does not re-interpret & | in the argument.
+        File.WriteAllText(script, "@setlocal enabledelayedexpansion\r\n@set \"x=%~1\"\r\n@echo [!x!]\r\n");
+        return script;
+    }
+
+    [Fact]
+    public async Task Cmd_script_metacharacters_reach_script_intact()
+    {
+        var r = await _runner.RunAsync(new ProcessSpec(EchoScript(), ["a & b | c"]));
+        Assert.Contains("[a & b | c]", r.StdOut);
+    }
+
+    [Theory]
+    [InlineData("a\" & calc")]
+    [InlineData("%PATH%")]
+    public async Task Cmd_script_rejects_unsafe_arguments(string arg)
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => _runner.RunAsync(new ProcessSpec(EchoScript(), [arg])));
+    }
+
     [Fact]
     public async Task Passes_environment_variables()
     {
