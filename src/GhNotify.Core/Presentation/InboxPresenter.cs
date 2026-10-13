@@ -59,10 +59,15 @@ public static class InboxPresenter
         var reason = button is null ? null : why(i, decision);
         var mode = ui?.Mode ?? RowMode.Collapsed;
         var preview = mode is RowMode.Confirming or RowMode.Sending or RowMode.Done or RowMode.Failed ? ui?.Preview : null;
-        var sending = mode == RowMode.Sending;
+        // Sending, or Done while the provider catches up: the item may still be listed but must not be acted on again.
+        var disabledReason = mode switch
+        {
+            RowMode.Sending => "Working…",
+            RowMode.Done => "Done — refreshing",
+            _ => e.Stale ? "Source is unavailable — can't act right now" : null,
+        };
         var actions = (actionsFor?.Invoke(i) ?? []).Select(a => new RowActionButton(a, ActionText.ButtonLabel(a),
-            !e.Stale && !sending,
-            sending ? "Working…" : e.Stale ? "Source is unavailable — can't act right now" : null)).ToList();
+            disabledReason is null, disabledReason)).ToList();
         var confirmEnabled = mode == RowMode.Confirming && !e.Stale && preview is { Allowed: true }
             && ui!.ConfirmOpenedAt is { } opened && now - opened >= ActionText.ConfirmDelay;
         var message = preview is { Allowed: false } ? preview.RefusalReason : ui?.Message;

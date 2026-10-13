@@ -84,6 +84,20 @@ public class InboxPresenterTests
     }
 
     [Fact]
+    public void Done_disables_actions_while_refreshing()
+    {
+        var ui = new RowUiState(RowMode.Done, ItemAction.Approve, new ActionPreview(true, "s", "Approve x", null, null, null), "Approved ✓", Now.AddSeconds(-5));
+        var r = Row(It(ItemKind.ApprovalPending), ui);
+        Assert.NotEmpty(r.Actions);
+        Assert.All(r.Actions, a =>
+        {
+            Assert.False(a.Enabled);
+            Assert.Equal("Done — refreshing", a.DisabledReason);
+        });
+        Assert.False(r.ConfirmEnabled);
+    }
+
+    [Fact]
     public void Run_info_and_result_text()
     {
         var run = new AgentRun { Key = "k1", Profile = "pr-shepherd", State = AgentState.Ready, CostUsd = 0.23m, DurationSeconds = 125, ResultText = "full" };
