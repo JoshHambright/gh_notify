@@ -1,0 +1,7 @@
+{ "value": [
+  { "id": 1, "status": "active", "isDeleted": false, "comments": [ { "author": { "id": "bob-id" }, "commentType": "text" } ] },
+  { "id": 2, "status": "active", "comments": [ { "author": { "id": "bob-id" }, "commentType": "text" }, { "author": { "id": "me-id" }, "commentType": "text" } ] },
+  { "id": 3, "status": "active", "comments": [ { "author": { "id": "sys" }, "commentType": "system" } ] },
+  { "id": 4, "status": "closed", "comments": [ { "author": { "id": "bob-id" }, "commentType": "text" } ] },
+  { "id": 5, "status": "active", "isDeleted": true, "comments": [ { "author": { "id": "bob-id" }, "commentType": "text" } ] }
+] }

@@ -1,0 +1,5 @@
+{ "value": [
+  { "status": "rejected", "configuration": { "type": { "id": "0609b952-1397-4640-95ec-e00a01b2c241", "displayName": "Build" } } },
+  { "status": "rejected", "configuration": { "type": { "id": "fa4e907d-c16b-4a4c-9dfa-4906e5d171dd", "displayName": "Minimum number of reviewers" } } },
+  { "status": "approved", "configuration": { "type": { "id": "0609b952-1397-4640-95ec-e00a01b2c241", "displayName": "Build" } } }
+] }
