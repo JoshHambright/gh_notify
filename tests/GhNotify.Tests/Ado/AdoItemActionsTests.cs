@@ -223,4 +223,18 @@ public class AdoItemActionsSafetyTests
         Assert.True(r.Stale);
         Assert.Contains("may have been sent", r.Error);
     }
+
+    [Fact]
+    public async Task Patch_2xx_with_unparseable_body_is_stale_with_may_have_been_sent()
+    {
+        var http = Dir()
+            .On(r => r.Method == HttpMethod.Get, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, Pending))
+            .On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "<html>proxy</html>"));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Approval(), ItemAction.Approve, null, default);
+        var r = await a.ExecuteAsync(Approval(), ItemAction.Approve, p, null, default);
+        Assert.False(r.Ok);
+        Assert.True(r.Stale);
+        Assert.Equal("Unexpected response — it may have been sent. Refresh to check.", r.Error);
+    }
 }

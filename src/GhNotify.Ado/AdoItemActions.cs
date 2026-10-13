@@ -98,6 +98,11 @@ public sealed class AdoItemActions(AdoClient client, AdoDirectory directory) : I
         {
             return new ActionResult(false, "The request timed out — it may have been sent. Refresh to check.", Stale: true);
         }
+        catch (JsonException)
+        {
+            // A 2xx whose body isn't JSON (proxy page, truncated reply): the write may have landed.
+            return new ActionResult(false, "Unexpected response — it may have been sent. Refresh to check.", Stale: true);
+        }
         finally
         {
             Log.Info($"action {action} {item.Key}: {outcome} (comment {comment?.Length ?? 0} chars)");
