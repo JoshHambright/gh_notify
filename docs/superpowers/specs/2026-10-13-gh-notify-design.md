@@ -1,7 +1,7 @@
 # gh_notify — "Waiting on me" inbox for GitHub + Azure DevOps
 
 Date: 2026-10-13
-Status: Draft, awaiting review
+Status: Approved 2026-10-13
 
 ## 1. Purpose
 
@@ -9,7 +9,7 @@ A tiny Windows tray app that shows a live inbox of everything on GitHub and
 Azure DevOps that is waiting on me, toasts me when something new arrives during
 work hours, and clears items (and their toasts) on its own once they are no
 longer waiting. Optionally it pre-runs Claude agents (`/peer-review`,
-`/pr-shepherd`) so the work is already analysed by the time I open it.
+`/pr-shepherd`) so the work is already analysed by the time I open it. Optionally a user can wire it into custom commands and hooks based on their local skills and workflows
 
 Gitify was tried and falls short because it replays the notifications feed:
 items persist after the PR is merged or approved, and team review requests or
@@ -171,8 +171,8 @@ my id. The groups I belong to (needed for team reviewers and group approvers)
 are resolved through the Identities API (`queryMembership=expanded`) and
 cached for 24 h.
 
-Orgs: `ado.orgs` from config. If `ado.discoverOrgs` is true, the list comes
-from `_apis/accounts?memberId=<me>`. Each org is its own `IInboxSource`
+Orgs: by default (`ado.discoverOrgs: true`) the list comes
+from `_apis/accounts?memberId=<me>`, minus `ado.excludeOrgs`, plus any `ado.orgs`. Each org is its own `IInboxSource`
 ("ADO:contoso"), so one broken org doesn't hide the others.
 
 | Kind | Call (per org) | Waiting-on-me test | Leaves the inbox when |
@@ -202,10 +202,59 @@ match, the default is `button`.
 ```
 
 Match fields (all optional, ANDed): `provider`, `repo` (glob), `kind`, `author`,
-`maxChangedLines`. `agent`: `auto` | `button` | `none`.
-The skill depends on the kind: ReviewRequested → `/peer-review`;
-MyPrCiFailing and MyPrNeedsResponse → `/pr-shepherd`. ApprovalPending has no
-agent in v1.
+`maxChangedLines`. `agent`: `auto` | `button` | `none`. `profile` (optional) is
+the name of an agent profile to run. If it's omitted, the kind's default
+profile is used: ReviewRequested → `peer-review`; MyPrCiFailing and
+MyPrNeedsResponse → `pr-shepherd`; ApprovalPending → none, so a rule must name
+a profile for an approval to get an agent.
+
+### Agent profiles (custom commands)
+
+A profile says which local skill or command to run and how. `peer-review` and
+`pr-shepherd` ship as built-in profiles. Users can override them or add their
+own in config to wire in any local skill or workflow:
+
+```jsonc
+"agentProfiles": {
+  "peer-review":  { "prompt": "/peer-review {url} — run unattended: complete the review through writing the findings report, then STOP. Do not post anything. End with a 1–3 line summary starting \"SUMMARY:\"." },
+  "pr-shepherd":  { "prompt": "/pr-shepherd {url} — diagnose only: find the real reason for each failure and triage comments. Make no commits, pushes, or thread replies. End with a 1–3 line summary starting \"SUMMARY:\"." },
+  "deploy-check": { "prompt": "/post-deploy-verify {url} — report only. End with \"SUMMARY:\".", "needsWorktree": false,
+                    "allowedTools": ["Bash(az:*)"] }
+}
+```
+
+Profile fields:
+
+- `prompt`: required. Placeholders `{url} {repo} {number} {title} {kind}
+  {provider} {author} {detail}` are filled in before the run.
+- `needsWorktree`: default true. If false, the profile runs in
+  `%LOCALAPPDATA%\GhNotify\scratch\<tag>` with no clone required, which is
+  useful for approvals.
+- `allowedTools` / `disallowedTools`: appended to the global lists.
+  The global deny list always applies.
+
+### Event hooks
+
+For non-Claude automation (a script, a Teams webhook, logging), `hooks` runs a
+process when something happens:
+
+```jsonc
+"hooks": [
+  { "event": "ItemAdded",     "match": { "kind": "ApprovalPending" }, "run": ["pwsh", "-File", "C:\\scripts\\ping-teams.ps1"] },
+  { "event": "AgentFinished", "run": ["pwsh", "-File", "C:\\scripts\\log-agent.ps1"] }
+]
+```
+
+- Events: `ItemAdded`, `ItemRemoved`, `ItemChanged`, `AgentFinished`.
+- `match` uses the same fields as rules.
+- `run` is an argument array, started directly with no shell, so there are
+  no quoting problems.
+- The process gets the item (plus the agent result for `AgentFinished`) as
+  JSON on stdin and as `GHN_*` environment variables (`GHN_EVENT`, `GHN_KEY`,
+  `GHN_URL`, `GHN_KIND`, `GHN_REPO`).
+- Hooks are fire-and-forget with a 60 s timeout. Failures are logged and
+  never block polling.
+- Hooks don't fire for items loaded silently on the first poll.
 
 ### Running an agent
 
@@ -229,13 +278,7 @@ agent in v1.
                             "Bash(gh api -X POST:*)" "Bash(gh api --method POST:*)"
                             "Bash(git push:*)" "Bash(git commit:*)" "Bash(az repos pr:*)" ...
    ```
-   Prompts:
-   - peer-review: `/peer-review <url> — run unattended: complete the review
-     through writing the findings report, then STOP. Do not post anything. End
-     with a 1–3 line summary starting "SUMMARY:".`
-   - pr-shepherd: `/pr-shepherd <url> — diagnose only: find the real reason
-     for each failure and triage comments. Make no commits, pushes, or thread
-     replies. End with a 1–3 line summary starting "SUMMARY:".`
+   The prompt is the resolved profile's `prompt` with its placeholders filled in.
    The disallowed-tools list is a second line of defence behind the prompt.
    **Trust boundary:** it is best-effort, not airtight. For example,
    `gh api <path> -f x=y` POSTs without `-X`, and `Bash(bash:*)` (needed for
@@ -291,12 +334,14 @@ approving which findings `/peer-review` posts.
   "pollSeconds": 120,
   "workHours": { "days": ["Mon","Tue","Wed","Thu","Fri"], "start": "08:00", "end": "18:00" },
   "github": { "enabled": true, "includeDrafts": false, "watchRepos": [] },
-  "ado": { "enabled": true, "orgs": ["contoso"], "discoverOrgs": false, "includeDrafts": false },
+  "ado": { "enabled": true, "orgs": [], "discoverOrgs": true, "excludeOrgs": [], "includeDrafts": false },
   "repoRoots": ["C:\\dev"],
   "maxConcurrentAgents": 2,
   "agentTimeoutMinutes": 20,
   "agentAllowedTools": ["Read", "Grep", "Glob", "Bash(gh pr view:*)", "Bash(gh pr diff:*)", "Bash(gh api:*)", "Bash(git:*)", "Bash(az repos:*)", "Bash(bash:*)"],
-  "rules": []
+  "rules": [],
+  "agentProfiles": {},   // merged over the built-in peer-review + pr-shepherd profiles
+  "hooks": []
 }
 ```
 
@@ -317,7 +362,7 @@ good config stays in effect and the footer shows the parse error.
 
 ## 11. Testing
 
-- **Core:** reconciler (added/removed/changed, unhealthy source keeps items,
+- **Core:** hook dispatch (event + match → process args, stdin JSON, env vars, timeout), profile resolution and placeholder filling, reconciler (added/removed/changed, unhealthy source keeps items,
   first-poll summary), work-hours window (including overnight ranges), rules
   matching (first match wins, globs), config parse and fallback.
 - **Providers:** a fake `HttpMessageHandler` serving recorded JSON fixtures
@@ -337,4 +382,4 @@ good config stays in effect and the footer shows the parse error.
 - Snooze/mute per item. A settings UI. Installer/MSIX (run from the publish
   folder, with an optional Start-with-Windows toggle).
 - Auto re-running agents on new commits.
-- Agents for ApprovalPending items.
+- A built-in agent profile for ApprovalPending items (custom profiles can target them).
