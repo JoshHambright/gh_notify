@@ -126,4 +126,68 @@ public class GitHubItemActionsTests
         Assert.Empty(a.ActionsFor(Approval() with { RunId = null }));
         Assert.Equal([ItemAction.ApprovePr], a.ActionsFor(Pr()));
     }
+
+    [Fact]
+    public async Task Execute_refuses_refused_preview_without_posting()
+    {
+        var (a, http) = Make(new FakeHttpHandler().On("/pulls/12", """{"state":"open","head":{"sha":"aaa1111"}}"""));
+        var r = await a.ExecuteAsync(Pr(), ItemAction.ApprovePr, ActionText.Refuse("x"), null, default);
+        Assert.False(r.Ok);
+        Assert.DoesNotContain(http.Requests, q => q.Method == HttpMethod.Post);
+    }
+
+    [Fact]
+    public async Task Execute_refuses_mismatched_action_or_item()
+    {
+        var (a, http) = Make(new FakeHttpHandler()
+            .On(r => r.Method == HttpMethod.Get, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, Pending))
+            .On(r => r.Method == HttpMethod.Post, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "[]")));
+        var p = await a.PreviewAsync(Approval(), ItemAction.Approve, null, default);
+        Assert.False((await a.ExecuteAsync(Approval(), ItemAction.Reject, p, null, default)).Ok);
+        Assert.False((await a.ExecuteAsync(Approval() with { RunId = 9002 }, ItemAction.Approve, p, null, default)).Ok);
+        Assert.DoesNotContain(http.Requests, q => q.Method == HttpMethod.Post);
+    }
+
+    [Fact]
+    public async Task Execute_rechecks_pr_head()
+    {
+        var head = "aaa1111";
+        var (a, http) = Make(new FakeHttpHandler()
+            .On(r => r.Method == HttpMethod.Get, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, $$$"""{"state":"open","head":{"sha":"{{{head}}}"}}"""))
+            .On(r => r.Method == HttpMethod.Post, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "{}")));
+        var p = await a.PreviewAsync(Pr(), ItemAction.ApprovePr, null, default);
+        head = "bbb2222";
+        var r = await a.ExecuteAsync(Pr(), ItemAction.ApprovePr, p, null, default);
+        Assert.False(r.Ok);
+        Assert.True(r.Stale);
+        Assert.DoesNotContain(http.Requests, q => q.Method == HttpMethod.Post);
+    }
+
+    [Fact]
+    public async Task Execute_rechecks_deploy_envs()
+    {
+        var json = Pending;
+        var (a, http) = Make(new FakeHttpHandler()
+            .On(r => r.Method == HttpMethod.Get, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, json))
+            .On(r => r.Method == HttpMethod.Post, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "[]")));
+        var p = await a.PreviewAsync(Approval(), ItemAction.Approve, null, default);
+        json = """[ { "environment": { "id": 11, "name": "production" }, "current_user_can_approve": true } ]""";
+        var r = await a.ExecuteAsync(Approval(), ItemAction.Approve, p, null, default);
+        Assert.False(r.Ok);
+        Assert.True(r.Stale);
+        Assert.DoesNotContain(http.Requests, q => q.Method == HttpMethod.Post);
+    }
+
+    [Fact]
+    public async Task Execute_timeout_is_reported_as_maybe_sent()
+    {
+        var (a, _) = Make(new FakeHttpHandler()
+            .On(r => r.Method == HttpMethod.Get, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, Pending))
+            .On(r => r.Method == HttpMethod.Post, _ => throw new TaskCanceledException()));
+        var p = await a.PreviewAsync(Approval(), ItemAction.Approve, null, default);
+        var r = await a.ExecuteAsync(Approval(), ItemAction.Approve, p, null, default);
+        Assert.False(r.Ok);
+        Assert.True(r.Stale);
+        Assert.Contains("may have been sent", r.Error);
+    }
 }
