@@ -51,7 +51,9 @@ public sealed class ClaudeRunner(IProcessRunner runner) : IClaudeRunner
 
     public static IReadOnlyList<string> BuildArgs(AgentProfile profile, IReadOnlyList<string> globalAllowed)
     {
-        var args = new List<string> { "-p", "--output-format", "json", "--permission-mode", "default" };
+        // --setting-sources user: the worktree is the PR's own code, so its .claude/settings*.json (hooks, permission
+        // rules) must not apply to an unattended run. Only the user's settings plus our flags count.
+        var args = new List<string> { "-p", "--output-format", "json", "--permission-mode", "default", "--setting-sources", "user" };
         var allowed = globalAllowed.Concat(profile.AllowedTools).Distinct().ToList();
         if (allowed.Count > 0)
         {

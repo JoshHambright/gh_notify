@@ -11,7 +11,8 @@ public class ClaudeRunnerTests
     {
         var profile = new AgentProfile { AllowedTools = ["Bash(az:*)", "Read"], DisallowedTools = ["Bash(rm:*)"] };
         var args = ClaudeRunner.BuildArgs(profile, ["Read", "Grep"]);
-        Assert.Equal(["-p", "--output-format", "json", "--permission-mode", "default"], args.Take(5));
+        // --setting-sources user: a PR worktree's own .claude/settings.json (hooks, permissions) must not apply.
+        Assert.Equal(["-p", "--output-format", "json", "--permission-mode", "default", "--setting-sources", "user"], args.Take(7));
         var allowStart = args.ToList().IndexOf("--allowedTools");
         var denyStart = args.ToList().IndexOf("--disallowedTools");
         Assert.Equal(["Read", "Grep", "Bash(az:*)"], args.Skip(allowStart + 1).Take(denyStart - allowStart - 1));

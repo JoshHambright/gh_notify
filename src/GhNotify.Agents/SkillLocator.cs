@@ -16,10 +16,12 @@ public sealed class SkillLocator(string claudeHome, TimeProvider? time = null) :
     public static string DefaultClaudeHome =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude");
 
+    /// <remarks>Project skills (<c>&lt;repo&gt;/.claude/skills</c>) do not count: unattended runs pass
+    /// <c>--setting-sources user</c> so the PR's own .claude settings cannot apply, and that also stops project skills
+    /// loading. <paramref name="repoPath"/> is kept for callers but ignored.</remarks>
     public bool IsInstalled(string skill, string? repoPath)
     {
         if (File.Exists(Path.Combine(claudeHome, "skills", skill, "SKILL.md"))) return true;
-        if (repoPath is not null && File.Exists(Path.Combine(repoPath, ".claude", "skills", skill, "SKILL.md"))) return true;
         return PluginSkillDirs().Any(d => File.Exists(Path.Combine(d, skill, "SKILL.md")));
     }
 

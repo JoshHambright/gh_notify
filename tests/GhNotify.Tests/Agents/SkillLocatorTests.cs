@@ -8,7 +8,7 @@ public class SkillLocatorTests
     static void Skill(string dir) { Directory.CreateDirectory(dir); File.WriteAllText(Path.Combine(dir, "SKILL.md"), "---\nname: x\n---"); }
 
     [Fact]
-    public void Finds_user_project_and_plugin_skills()
+    public void Finds_user_and_plugin_skills_but_not_project_skills()
     {
         var home = Directory.CreateTempSubdirectory("ghn-claude").FullName;
         var repo = Directory.CreateTempSubdirectory("ghn-repo").FullName;
@@ -19,7 +19,8 @@ public class SkillLocatorTests
 
         Assert.True(s.IsInstalled("peer-review", null));
         Assert.True(s.IsInstalled("PR-SHEPHERD", null));
-        Assert.True(s.IsInstalled("team-review", repo));
+        // Agent runs use --setting-sources user, so a repo's .claude/skills are not loaded and must not count.
+        Assert.False(s.IsInstalled("team-review", repo));
         Assert.False(s.IsInstalled("team-review", null));
         Assert.False(s.IsInstalled("nope", repo));
     }
