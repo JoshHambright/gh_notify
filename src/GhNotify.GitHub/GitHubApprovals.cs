@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Text.Json;
 using GhNotify.Core;
 
 namespace GhNotify.GitHub;
@@ -7,23 +8,57 @@ namespace GhNotify.GitHub;
 public sealed class GitHubApprovals(GitHubClient client, TimeProvider? time = null)
 {
     readonly TimeProvider _time = time ?? TimeProvider.System;
+    // Last successful results, so one failing repo or notifications call does not drop approvals every poll.
+    readonly ConcurrentDictionary<string, IReadOnlyList<InboxItem>> _lastByRepo = new();
+    IReadOnlyCollection<string> _lastNotificationRepos = [];
 
     public async Task<IReadOnlyList<InboxItem>> FetchAsync(IEnumerable<string> extraRepos, CancellationToken ct)
     {
-        var since = _time.GetUtcNow().AddDays(-7).UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ");
-        var notes = await client.GetAsync($"notifications?all=true&per_page=50&since={since}", ct);
         var repos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var n in notes.EnumerateArray())
-            if (n.Str("reason") == "approval_requested" && n.Obj("repository").Str("full_name") is { } name)
-                repos.Add(name);
+        foreach (var r in await NotificationReposAsync(ct)) repos.Add(r);
         foreach (var r in extraRepos) repos.Add(r);
 
         var items = new ConcurrentBag<InboxItem>();
         await Parallel.ForEachAsync(repos, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct }, async (repo, ct2) =>
         {
-            foreach (var item in await RepoAsync(repo.ToLowerInvariant(), ct2)) items.Add(item);
+            foreach (var item in await ScanRepoAsync(repo.ToLowerInvariant(), ct2)) items.Add(item);
         });
         return items.ToList();
+    }
+
+    async Task<IReadOnlyCollection<string>> NotificationReposAsync(CancellationToken ct)
+    {
+        try
+        {
+            var since = _time.GetUtcNow().AddDays(-7).UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ");
+            var notes = await client.GetAsync($"notifications?all=true&per_page=50&since={since}", ct);
+            var found = new List<string>();
+            foreach (var n in notes.EnumerateArray())
+                if (n.Str("reason") == "approval_requested" && n.Obj("repository").Str("full_name") is { } name)
+                    found.Add(name);
+            _lastNotificationRepos = found;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException)
+        {
+            Log.Error("approval notifications skipped this poll; using last known repos", ex);
+        }
+        return _lastNotificationRepos;
+    }
+
+    async Task<IReadOnlyList<InboxItem>> ScanRepoAsync(string repo, CancellationToken ct)
+    {
+        try
+        {
+            var items = await RepoAsync(repo, ct);
+            _lastByRepo[repo] = items;
+            return items;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException)
+        {
+            Log.Error($"approvals for {repo} skipped this poll", ex);
+            if (_lastByRepo.TryGetValue(repo, out var last)) return last;
+            return [];
+        }
     }
 
     async Task<IReadOnlyList<InboxItem>> RepoAsync(string repo, CancellationToken ct)

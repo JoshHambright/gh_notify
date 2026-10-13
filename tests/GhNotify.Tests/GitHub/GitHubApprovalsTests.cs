@@ -47,4 +47,52 @@ public class GitHubApprovalsTests
         Assert.Contains(result.Items, i => i.Key == "gh:approval:acme/deploy/runs/9001");
         Assert.Contains(http.Requests, r => r.RequestUri!.AbsoluteUri.Contains("/repos/acme/api/actions/runs?status=waiting"));
     }
+
+    [Fact]
+    public async Task Pending_deployments_failure_keeps_last_known_approval_for_that_repo()
+    {
+        var pendingCalls = 0;
+        var http = new FakeHttpHandler()
+            .On("/notifications?", "[]")
+            .On("/repos/acme/deploy/actions/runs?status=waiting", Fixture.Read("github-runs-waiting.json"))
+            .On(r => r.RequestUri!.AbsolutePath.EndsWith("/pending_deployments"), _ => ++pendingCalls == 1
+                ? FakeHttpHandler.Respond(HttpStatusCode.OK, Fixture.Read("github-pending-can.json"))
+                : FakeHttpHandler.Respond(HttpStatusCode.InternalServerError, """{"message":"boom"}"""));
+        var approvals = new GitHubApprovals(new GitHubClient(new HttpClient(http), new FakeTokenProvider()));
+
+        var first = await approvals.FetchAsync(["acme/deploy"], CancellationToken.None);
+        var second = await approvals.FetchAsync(["acme/deploy"], CancellationToken.None);
+
+        Assert.Equal("gh:approval:acme/deploy/runs/9001", Assert.Single(first).Key);
+        Assert.Equal("gh:approval:acme/deploy/runs/9001", Assert.Single(second).Key);
+    }
+
+    [Fact]
+    public async Task Notifications_failure_still_scans_extra_repos()
+    {
+        var http = new FakeHttpHandler()
+            .On("/notifications?", "{}", HttpStatusCode.InternalServerError)
+            .On("/repos/acme/deploy/actions/runs?status=waiting", Fixture.Read("github-runs-waiting.json"))
+            .On("/repos/acme/deploy/actions/runs/9001/pending_deployments", Fixture.Read("github-pending-can.json"));
+        var approvals = new GitHubApprovals(new GitHubClient(new HttpClient(http), new FakeTokenProvider()));
+
+        var items = await approvals.FetchAsync(["acme/deploy"], CancellationToken.None);
+
+        Assert.Equal("gh:approval:acme/deploy/runs/9001", Assert.Single(items).Key);
+    }
+
+    [Fact]
+    public async Task Runs_server_error_for_one_repo_keeps_source_healthy_with_pr_items()
+    {
+        var http = new FakeHttpHandler()
+            .On("/repos/acme/api/actions/runs?", """{"message":"boom"}""", HttpStatusCode.InternalServerError)
+            .On("/notifications?", "[]")
+            .On("/graphql", Fixture.Read("github-inbox.json"));
+        var source = new GitHubSource(new GitHubClient(new HttpClient(http), new FakeTokenProvider()), () => new GitHubConfig());
+
+        var result = await source.FetchAsync(CancellationToken.None);
+
+        Assert.True(result.Healthy);
+        Assert.Contains(result.Items, i => i.Kind == ItemKind.ReviewRequested);
+    }
 }
