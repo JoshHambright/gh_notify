@@ -1,0 +1,4 @@
+{ "count": 1, "value": [ { "id": "me-id", "memberOf": [
+  "Microsoft.TeamFoundation.Identity;S-1-9-1",
+  { "identityType": "Microsoft.TeamFoundation.Identity", "identifier": "S-1-9-2" }
+] } ] }
