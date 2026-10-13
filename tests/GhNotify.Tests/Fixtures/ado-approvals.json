@@ -1,0 +1,12 @@
+{ "count": 3, "value": [
+  { "id": "appr-1", "status": "pending", "createdOn": "2026-10-13T12:00:00Z", "instructions": "Check the release notes",
+    "steps": [ { "assignedApprover": { "id": "group-a", "displayName": "[Core]\\Release Approvers" }, "status": "pending" } ],
+    "pipeline": { "id": "42", "name": "api-release",
+      "owner": { "id": 901, "name": "20261013.3", "_links": { "web": { "href": "https://dev.azure.com/contoso/Core%20Platform/_build/results?buildId=901" } } } } },
+  { "id": "appr-2", "status": "pending", "createdOn": "2026-10-13T12:00:00Z",
+    "steps": [ { "assignedApprover": { "id": "someone-else" }, "status": "pending" } ],
+    "pipeline": { "name": "web-release" } },
+  { "id": "appr-3", "status": "pending", "createdOn": "2026-10-13T12:00:00Z",
+    "steps": [ { "assignedApprover": { "id": "me-id" }, "status": "approved" }, { "assignedApprover": { "id": "x" }, "status": "pending" } ],
+    "pipeline": { "name": "db-release" } }
+] }

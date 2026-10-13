@@ -45,6 +45,7 @@ public sealed class AdoOrgSource(string org, AdoClient client, AdoDirectory dire
     {
         var items = new List<InboxItem>();
         items.AddRange(await AdoPullRequests.FetchAsync(client, org, p, ctx, cfg.IncludeDrafts, ct));
+        items.AddRange(await AdoApprovals.FetchAsync(client, org, p, ctx, ct));
         return items;
     }
 }
