@@ -88,6 +88,17 @@ public class ActionFlowTests
         Assert.False(RowStateMachine.HidesOnNextPoll(RowStateMachine.Finished(sending, new ActionResult(false, "nope"))));
         Assert.False(RowStateMachine.HidesOnNextPoll(sending));
     }
+
+    [Fact]
+    public void Successful_action_with_a_warning_is_toasted()
+    {
+        Assert.Equal("Approved, but the comment couldn't be posted: boom",
+            RowStateMachine.ToastFor(new ActionResult(true, "Approved, but the comment couldn't be posted: boom"), ItemAction.ApprovePr));
+        Assert.Null(RowStateMachine.ToastFor(new ActionResult(true, null), ItemAction.Approve));
+        Assert.Null(RowStateMachine.ToastFor(new ActionResult(true, "Approved ✓"), ItemAction.Approve));
+        Assert.Null(RowStateMachine.ToastFor(new ActionResult(true, "Rejected ✓"), ItemAction.Reject));
+        Assert.Null(RowStateMachine.ToastFor(new ActionResult(false, "nope"), ItemAction.Approve)); // failures stay inline
+    }
 }
 
 public class ConfirmPointerGuardTests
@@ -113,6 +124,17 @@ public class ConfirmPointerGuardTests
         g.Moved(A, enabled: true);
         g.Moved(B, enabled: true);
         Assert.False(g.IsArmed);
+    }
+
+    [Fact]
+    public void Sub_two_pixel_jitter_does_not_arm()
+    {
+        var g = new ConfirmPointerGuard();
+        g.Entered(A, enabled: true);
+        g.Moved(new System.Windows.Point(101, 201), enabled: true); // 1 px each way (hand jitter during a double-click)
+        Assert.False(g.IsArmed);
+        g.Moved(new System.Windows.Point(102, 200), enabled: true); // 2 px from the entry point
+        Assert.True(g.IsArmed);
     }
 
     [Fact]
@@ -165,6 +187,14 @@ public class RearmTests
         Assert.Same(Ok, rearmed.Preview);
         Assert.False(RowStateMachine.CanConfirm(rearmed, T.AddSeconds(30).AddMilliseconds(100)));
         Assert.True(RowStateMachine.CanConfirm(rearmed, T.AddSeconds(30) + ActionText.ConfirmDelay));
+    }
+
+    [Fact]
+    public void Rearm_leaves_a_row_awaiting_its_preview_unchanged()
+    {
+        // BeginActionAsync applies the preview with TryUpdate(..., begun); a rearmed copy would make that fail ("Checking…" forever).
+        var begun = RowStateMachine.Begin(ItemAction.Approve, T);
+        Assert.Same(begun, RowStateMachine.Rearm(begun, T.AddSeconds(3)));
     }
 
     [Fact]

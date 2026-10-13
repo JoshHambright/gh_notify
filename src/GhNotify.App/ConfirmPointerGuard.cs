@@ -29,8 +29,11 @@ public sealed class ConfirmPointerGuard
             Reset();
             return;
         }
-        if (_enteredAt is { } p && p != screen) IsArmed = true;
+        if (_enteredAt is { } p && Math.Max(Math.Abs(screen.X - p.X), Math.Abs(screen.Y - p.Y)) >= MinMovePx) IsArmed = true;
     }
+
+    /// <summary>Movement smaller than this (hand jitter during a double-click) doesn't count.</summary>
+    public const double MinMovePx = 2;
 
     /// <summary>MouseLeave.</summary>
     public void Left() => Reset();

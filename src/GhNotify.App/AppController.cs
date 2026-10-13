@@ -329,6 +329,11 @@ public sealed class AppController : IPopupHost, IDisposable
             result = new ActionResult(false, ex.Message);
         }
         _rowStates.TryUpdate(key, RowStateMachine.Finished(sending, result), sending);
+        // The success refresh usually removes the row (and its inline warning), so a warning is also toasted — regardless of
+        // work hours, since the user just acted.
+        if (RowStateMachine.ToastFor(result, state.Action!.Value) is { } warning)
+            _toasts.Apply(new ToastRequest(ToastAction.Show, ItemTag.For("action:" + key), entry.Item.Repo,
+                $"{warning}\n{entry.Item.Title}", entry.Item.Url));
         Changed?.Invoke();
         if (result.Ok || result.Stale) _ = RefreshAsync();
     }

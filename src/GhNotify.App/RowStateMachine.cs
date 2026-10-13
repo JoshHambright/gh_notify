@@ -47,11 +47,21 @@ public static class RowStateMachine
     /// </summary>
     public static bool HidesOnNextPoll(RowUiState s) => s is { Mode: RowMode.Done, Message: Approved or Rejected };
 
+    /// <summary>
+    /// A successful action that came back with a warning is also toasted: the success refresh usually removes the row
+    /// (e.g. the PR leaves the inbox once voted), which would take the inline warning with it unread.
+    /// </summary>
+    public static string? ToastFor(ActionResult r, ItemAction action) =>
+        r is { Ok: true, Error: { Length: > 0 } warning } && warning is not (Approved or Rejected) ? warning : null;
+
     public static RowUiState Cancel(RowUiState s) => new(RowMode.Expanded);
 
-    /// <summary>Popup re-shown: a confirm panel left open gets a fresh 600 ms guard (its preview is kept).</summary>
+    /// <summary>
+    /// Popup re-shown: a confirm panel left open gets a fresh 600 ms guard (its preview is kept). A row still awaiting its
+    /// preview is returned unchanged — BeginActionAsync swaps the preview in by reference, and WithPreview starts the guard anyway.
+    /// </summary>
     public static RowUiState Rearm(RowUiState s, DateTimeOffset now) =>
-        s.Mode == RowMode.Confirming ? s with { ConfirmOpenedAt = now } : s;
+        s is { Mode: RowMode.Confirming, Preview: not null } ? s with { ConfirmOpenedAt = now } : s;
 }
 
 public static class RefreshPolicy
