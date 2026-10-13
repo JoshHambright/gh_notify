@@ -33,8 +33,8 @@ public class ItemActionsTests
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.Forbidden, false, "permission")]
-    [InlineData(HttpStatusCode.Unauthorized, false, "permission")]
+    [InlineData(HttpStatusCode.Forbidden, false, "You don't have permission to do this")]
+    [InlineData(HttpStatusCode.Unauthorized, false, "You don't have permission to do this")]
     [InlineData(HttpStatusCode.UnprocessableEntity, true, "changed since you looked")]
     [InlineData(HttpStatusCode.NotFound, true, "changed since you looked")]
     [InlineData(HttpStatusCode.Conflict, true, "changed since you looked")]

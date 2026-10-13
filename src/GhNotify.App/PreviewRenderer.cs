@@ -67,7 +67,7 @@ public static class PreviewRenderer
 
         var failed = new SampleHost();
         failed.States[SampleHost.ApprovalKey] = new RowUiState(RowMode.Failed, ItemAction.Approve, ApprovalPreview,
-            "You don't have permission to approve this", opened);
+            "You don't have permission to do this", opened);
         yield return ("failed", failed);
 
         yield return ("empty", new SampleHost { Empty = true });

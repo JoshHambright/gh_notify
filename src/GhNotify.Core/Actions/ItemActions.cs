@@ -59,7 +59,7 @@ public static class ActionText
     public static ActionResult FromHttpError(HttpRequestException ex) => ex.StatusCode switch
     {
         HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden =>
-            new(false, "You don't have permission to approve this" + (ex.Message.Length is > 0 and < 160 ? $": {ex.Message}" : "")),
+            new(false, "You don't have permission to do this" + (ex.Message.Length is > 0 and < 160 ? $": {ex.Message}" : "")),
         HttpStatusCode.NotFound or HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity =>
             new(false, "This changed since you looked — refreshing", Stale: true),
         _ => new(false, ex.Message),

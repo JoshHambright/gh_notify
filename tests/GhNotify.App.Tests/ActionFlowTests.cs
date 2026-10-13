@@ -30,9 +30,9 @@ public class ActionFlowTests
         var sending = RowStateMachine.Sending(RowStateMachine.WithPreview(RowStateMachine.Begin(ItemAction.Reject, T), Ok, T));
         Assert.False(RowStateMachine.CanConfirm(sending, T.AddSeconds(5)));
         Assert.Equal("Rejected ✓", RowStateMachine.Finished(sending, new ActionResult(true, null)).Message);
-        var failed = RowStateMachine.Finished(sending, new ActionResult(false, "You don't have permission to approve this"));
+        var failed = RowStateMachine.Finished(sending, new ActionResult(false, "You don't have permission to do this"));
         Assert.Equal(RowMode.Failed, failed.Mode);
-        Assert.Equal("You don't have permission to approve this", failed.Message);
+        Assert.Equal("You don't have permission to do this", failed.Message);
     }
 
     [Fact]
