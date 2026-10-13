@@ -15,6 +15,75 @@ public class InboxPresenterTests
         Func<InboxItem, AgentDecision>? decide = null, string? why = null) =>
         InboxPresenter.Build(entries, runs ?? (_ => null), decide ?? (_ => Button()), (_, _) => why, Now);
 
+    static InboxItem It(ItemKind kind) =>
+        new("k1", Provider.GitHub, kind, "acme/api", "T", "https://u", "a", Now, "h", 5, null)
+        { Details = [new ItemDetail("Repo", "acme/api")] };
+
+    static InboxRow Row(InboxItem item, RowUiState? ui = null, bool stale = false, AgentRun? run = null, DateTimeOffset? now = null) =>
+        InboxPresenter.Build([new InboxEntry(item, "GitHub", stale)], _ => run, _ => new AgentDecision(AgentMode.Button, "peer-review", new AgentProfile()),
+            (_, _) => null, now ?? Now, ActionText.DefaultActions, _ => ui)[0].Rows[0];
+
+    [Fact]
+    public void Urgent_details_and_actions()
+    {
+        var r = Row(It(ItemKind.ApprovalPending));
+        Assert.True(r.Urgent);
+        Assert.Equal("acme/api", r.Details.Single().Value);
+        Assert.Equal(["Approve…", "Reject…"], r.Actions.Select(a => a.Label));
+        Assert.All(r.Actions, a => Assert.True(a.Enabled));
+        Assert.Equal(RowMode.Collapsed, r.Mode);
+        Assert.False(Row(It(ItemKind.ReviewRequested)).Urgent);
+        Assert.Empty(Row(It(ItemKind.MyPrNeedsResponse)).Actions);
+    }
+
+    [Fact]
+    public void Stale_rows_disable_actions()
+    {
+        var a = Row(It(ItemKind.ApprovalPending), stale: true).Actions[0];
+        Assert.False(a.Enabled);
+        Assert.Equal("Source is unavailable — can't act right now", a.DisabledReason);
+    }
+
+    [Fact]
+    public void Confirm_button_waits_600ms()
+    {
+        var preview = new ActionPreview(true, "Approve deployment of acme/api run 1 to production", "Approve production", null, null, new long[] { 1 });
+        var ui = new RowUiState(RowMode.Confirming, ItemAction.Approve, preview, ConfirmOpenedAt: Now);
+        var early = Row(It(ItemKind.ApprovalPending), ui, now: Now.AddMilliseconds(599));
+        Assert.False(early.ConfirmEnabled);
+        Assert.Equal("Approve production", early.ConfirmLabel);
+        Assert.Equal(preview.Statement, early.Statement);
+        Assert.True(Row(It(ItemKind.ApprovalPending), ui, now: Now.AddMilliseconds(600)).ConfirmEnabled);
+    }
+
+    [Fact]
+    public void Refused_preview_shows_reason_and_no_confirm()
+    {
+        var ui = new RowUiState(RowMode.Confirming, ItemAction.ApprovePr, ActionText.Refuse("New commits since you looked — refresh."), ConfirmOpenedAt: Now.AddSeconds(-5));
+        var r = Row(It(ItemKind.ReviewRequested), ui);
+        Assert.False(r.ConfirmEnabled);
+        Assert.Equal("New commits since you looked — refresh.", r.Message);
+    }
+
+    [Fact]
+    public void Sending_disables_actions()
+    {
+        var ui = new RowUiState(RowMode.Sending, ItemAction.Approve, new ActionPreview(true, "s", "Approve x", null, null, null), ConfirmOpenedAt: Now.AddSeconds(-5));
+        var r = Row(It(ItemKind.ApprovalPending), ui);
+        Assert.All(r.Actions, a => Assert.False(a.Enabled));
+        Assert.False(r.ConfirmEnabled);
+    }
+
+    [Fact]
+    public void Run_info_and_result_text()
+    {
+        var run = new AgentRun { Key = "k1", Profile = "pr-shepherd", State = AgentState.Ready, CostUsd = 0.23m, DurationSeconds = 125, ResultText = "full" };
+        var r = Row(It(ItemKind.MyPrCiFailing), run: run);
+        Assert.Equal("Shepherd · ready · $0.23 · 2m 05s", r.RunInfo);
+        Assert.Equal("full", r.ResultText);
+        Assert.Equal("Shepherd · ready", Row(It(ItemKind.MyPrCiFailing), run: run with { CostUsd = null, DurationSeconds = null }).RunInfo);
+    }
+
     [Fact]
     public void Orders_sections_and_rows_and_omits_empty()
     {
