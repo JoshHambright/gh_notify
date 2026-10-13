@@ -59,6 +59,15 @@ public class HookDispatcherTests
     }
 
     [Fact]
+    public async Task Config_failure_never_throws()
+    {
+        var runner = new FakeProcessRunner();
+        var dispatcher = new HookDispatcher(runner, () => throw new InvalidOperationException("boom"));
+        await dispatcher.DispatchAsync(HookEvent.ItemAdded, Item());
+        Assert.Empty(runner.Calls);
+    }
+
+    [Fact]
     public async Task No_hooks_means_no_processes()
     {
         var runner = new FakeProcessRunner();

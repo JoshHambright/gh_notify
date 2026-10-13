@@ -6,21 +6,29 @@ public sealed class HookDispatcher(IProcessRunner runner, Func<AppConfig> config
 {
     public Task DispatchAsync(HookEvent ev, InboxItem item, AgentRun? run = null)
     {
-        var hooks = config().Hooks
-            .Where(h => h.Event == ev && h.Run.Count > 0 && ItemMatcher.Matches(h.Match, item))
-            .ToList();
-        if (hooks.Count == 0) return Task.CompletedTask;
-
-        var payload = JsonSerializer.Serialize(new { @event = ev.ToString(), item, agent = run }, Json.Options);
-        var env = new Dictionary<string, string>
+        try
         {
-            ["GHN_EVENT"] = ev.ToString(),
-            ["GHN_KEY"] = item.Key,
-            ["GHN_URL"] = item.Url,
-            ["GHN_KIND"] = item.Kind.ToString(),
-            ["GHN_REPO"] = item.Repo,
-        };
-        return Task.WhenAll(hooks.Select(h => RunOne(ev, h, payload, env)));
+            var hooks = config().Hooks
+                .Where(h => h.Event == ev && h.Run.Count > 0 && ItemMatcher.Matches(h.Match, item))
+                .ToList();
+            if (hooks.Count == 0) return Task.CompletedTask;
+
+            var payload = JsonSerializer.Serialize(new { @event = ev.ToString(), item, agent = run }, Json.Options);
+            var env = new Dictionary<string, string>
+            {
+                ["GHN_EVENT"] = ev.ToString(),
+                ["GHN_KEY"] = item.Key,
+                ["GHN_URL"] = item.Url,
+                ["GHN_KIND"] = item.Kind.ToString(),
+                ["GHN_REPO"] = item.Repo,
+            };
+            return Task.WhenAll(hooks.Select(h => RunOne(ev, h, payload, env)));
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"hooks for {ev} could not be dispatched", ex);
+            return Task.CompletedTask;
+        }
     }
 
     async Task RunOne(HookEvent ev, HookConfig hook, string payload, IReadOnlyDictionary<string, string> env)
