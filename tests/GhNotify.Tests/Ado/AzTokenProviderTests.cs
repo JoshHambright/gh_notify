@@ -57,10 +57,10 @@ public class AzTokenProviderTests
     {
         var p = new AzTokenProvider(new FakeProcessRunner
         {
-            Handler = _ => FakeProcessRunner.Fail("AADSTS500011: The resource principal named 499b84ac-1321-427f-aa17-267ca6b56798 was not found in the tenant")
+            Handler = _ => FakeProcessRunner.Fail("AADSTS500011: The resource principal named 499b84ac-1321-427f-aa17-267ca6975798 was not found in the tenant")
         });
         var ex = await Assert.ThrowsAsync<SourceAuthException>(() => p.GetTokenAsync(false, default));
         Assert.Contains("--tenant", ex.Message);
-        Assert.Contains("499b84ac-1321-427f-aa17-267ca6b56798/.default", ex.Message);
+        Assert.Contains("499b84ac-1321-427f-aa17-267ca6975798/.default", ex.Message);
     }
 }

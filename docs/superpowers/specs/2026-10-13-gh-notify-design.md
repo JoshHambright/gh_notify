@@ -161,7 +161,7 @@ Rate budget: ~3–6 GraphQL calls per poll, well under 5000 points/hour.
 
 ## 6. Azure DevOps source
 
-Auth: `az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6b56798`
+Auth: `az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798`
 (the ADO resource ID). One Entra token covers every org I can access. It is
 cached until `expiresOn - 5 min`. If az is not logged in, the source is
 unhealthy with "run `az login`".

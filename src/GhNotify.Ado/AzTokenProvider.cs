@@ -6,7 +6,7 @@ namespace GhNotify.Ado;
 
 public sealed class AzTokenProvider(IProcessRunner runner, TimeProvider? time = null) : ITokenProvider
 {
-    public const string AdoResource = "499b84ac-1321-427f-aa17-267ca6b56798";
+    public const string AdoResource = "499b84ac-1321-427f-aa17-267ca6975798";
     readonly TimeProvider _time = time ?? TimeProvider.System;
     readonly SemaphoreSlim _gate = new(1, 1);
     string? _token;
@@ -30,7 +30,7 @@ public sealed class AzTokenProvider(IProcessRunner runner, TimeProvider? time = 
             }
             if (r.ExitCode != 0 && r.StdErr.Contains("AADSTS", StringComparison.Ordinal))
                 throw new SourceAuthException(
-                    "az can't get an Azure DevOps token for the current tenant — run `az login --tenant <your ADO tenant> --scope 499b84ac-1321-427f-aa17-267ca6b56798/.default`");
+                    "az can't get an Azure DevOps token for the current tenant — run `az login --tenant <your ADO tenant> --scope 499b84ac-1321-427f-aa17-267ca6975798/.default`");
             if (r.ExitCode != 0 || r.TimedOut)
                 throw new SourceAuthException("az is not logged in or the token expired — run `az login`");
             using var doc = JsonDocument.Parse(r.StdOut);
