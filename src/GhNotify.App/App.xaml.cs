@@ -9,9 +9,6 @@ namespace GhNotify.App;
 
 public partial class App : Application
 {
-    static readonly Brush Idle = new SolidColorBrush(Color.FromRgb(0x6B, 0x6B, 0x6B));
-    static readonly Brush Busy = new SolidColorBrush(Color.FromRgb(0x2F, 0x81, 0xF7));
-    static readonly Brush Warn = new SolidColorBrush(Color.FromRgb(0xF0, 0xA0, 0x40));
 
     Mutex? _mutex;
     TaskbarIcon? _tray;
@@ -19,10 +16,17 @@ public partial class App : Application
     AppController? _controller;
     FileSystemWatcher? _watcher;
     DispatcherTimer? _debounce;
+    ThemeService? _theme;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if (e.Args is ["--write-icon", var iconPath])
+        {
+            IcoWriter.Write(iconPath, 16, 24, 32, 48, 256);
+            Shutdown();
+            return;
+        }
         _mutex = new Mutex(true, @"Local\GhNotify.SingleInstance", out var first);
         if (!first)
         {
@@ -53,6 +57,9 @@ public partial class App : Application
         DispatcherUnhandledException += (_, a) => { Log.Error("unhandled UI exception", a.Exception); a.Handled = true; };
         AppDomain.CurrentDomain.UnhandledException += (_, a) => Log.Error("unhandled exception", a.ExceptionObject as Exception);
         TaskScheduler.UnobservedTaskException += (_, a) => { Log.Error("unobserved task exception", a.Exception); a.SetObserved(); };
+
+        _theme = new ThemeService(() => GhNotify.Core.ThemeMode.System); // Task 7 wires the persisted mode
+        _theme.Apply();
 
         var config = new ConfigStore(AppPaths.ConfigFile);
         config.Load();
@@ -91,13 +98,7 @@ public partial class App : Application
     void UpdateTray()
     {
         var (count, unhealthy) = _controller!.TrayState();
-        _tray!.IconSource = new GeneratedIconSource
-        {
-            Text = count > 99 ? "99+" : count.ToString(),
-            Foreground = Brushes.White,
-            Background = unhealthy ? Warn : count == 0 ? Idle : Busy,
-            FontSize = count > 9 ? 40 : 52,
-        };
+        _tray!.IconSource = TrayIconRenderer.Render(32, BadgeText.For(count), unhealthy);
         _tray.ToolTipText = unhealthy
             ? $"gh_notify — {count} waiting (a source needs attention)"
             : $"gh_notify — {count} waiting";
@@ -125,6 +126,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _theme?.Dispose();
         _watcher?.Dispose();
         _controller?.Dispose();
         _tray?.Dispose();

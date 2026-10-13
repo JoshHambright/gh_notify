@@ -4,7 +4,14 @@
              xmlns:local="clr-namespace:GhNotify.App"
              ShutdownMode="OnExplicitShutdown">
   <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Themes/Common.xaml" />
+        <ResourceDictionary Source="Themes/Dark.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+
     <BooleanToVisibilityConverter x:Key="BoolToVis" />
     <local:NullToCollapsedConverter x:Key="NullToCollapsed" />
+      </ResourceDictionary>
   </Application.Resources>
 </Application>
