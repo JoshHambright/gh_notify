@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Text.Json;
 using GhNotify.Core;
 
@@ -45,7 +46,14 @@ public sealed class AdoOrgSource(string org, AdoClient client, AdoDirectory dire
     {
         var items = new List<InboxItem>();
         items.AddRange(await AdoPullRequests.FetchAsync(client, org, p, ctx, cfg.IncludeDrafts, ct));
-        items.AddRange(await AdoApprovals.FetchAsync(client, org, p, ctx, ct));
+        try
+        {
+            items.AddRange(await AdoApprovals.FetchAsync(client, org, p, ctx, ct));
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
+        {
+            Log.Info($"ADO {org}/{p.Name}: approvals unavailable ({(int?)ex.StatusCode}); skipping");
+        }
         return items;
     }
 }

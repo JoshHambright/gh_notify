@@ -53,6 +53,36 @@ public class AdoApprovalsTests
         Assert.Contains(result.Items, i => i.Key == "ado:approval:contoso/Core Platform/appr-1");
     }
 
+    [Fact]
+    public async Task Forbidden_approvals_keep_project_pr_items_and_do_not_carry_over_stale_ones()
+    {
+        var emptyPrs = false;
+        var http = AdoPullRequestsTests.Http()
+            .On("connectionData", Fixture.Read("ado-connection.json"))
+            .On("queryMembership=expanded", Fixture.Read("ado-identity-expanded.json"))
+            .On("identities?descriptors=", Fixture.Read("ado-identities-groups.json"))
+            .On("/_apis/projects", """{"value":[{"id":"proj-1","name":"Core Platform"}]}""");
+        var combined = new FakeHttpHandler()
+            .On(r => r.RequestUri!.AbsoluteUri.Contains("/Core%20Platform/_apis/pipelines/approvals"),
+                _ => FakeHttpHandler.Respond(System.Net.HttpStatusCode.Forbidden, """{"message":"no pipeline access"}"""))
+            .On(r => r.RequestUri!.AbsoluteUri.Contains("/Core%20Platform/_apis/git/pullrequests?"),
+                _ => emptyPrs
+                    ? FakeHttpHandler.Respond(System.Net.HttpStatusCode.OK, """{"value":[]}""")
+                    : FakeHttpHandler.Respond(System.Net.HttpStatusCode.OK, Fixture.Read("ado-prs.json")))
+            .On(r => true, r => Forward(http, r));
+        var client = new AdoClient(new HttpClient(combined), new FakeTokenProvider());
+        var source = new AdoOrgSource("contoso", client, new AdoDirectory(client), () => new AdoConfig());
+
+        var first = await source.FetchAsync(default);
+        Assert.True(first.Healthy);
+        Assert.Contains(first.Items, i => i.Key == "ado:review:contoso/Core Platform/api#101");
+
+        emptyPrs = true;
+        var second = await source.FetchAsync(default);
+        Assert.True(second.Healthy);
+        Assert.DoesNotContain(second.Items, i => i.Key == "ado:review:contoso/Core Platform/api#101");
+    }
+
     static HttpResponseMessage Forward(FakeHttpHandler inner, HttpRequestMessage r) =>
         new HttpMessageInvoker(inner).SendAsync(r, default).GetAwaiter().GetResult();
 }
