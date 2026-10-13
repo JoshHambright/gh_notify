@@ -7,7 +7,7 @@ public sealed record InboxRow(
     string? BadgeText, string? BadgeTooltip, string? RunButton, bool CanRun, string? RunDisabledReason, bool CanOpenInClaude,
     bool Urgent, IReadOnlyList<ItemDetail> Details, string? RunInfo, string? ResultText,
     IReadOnlyList<RowActionButton> Actions, RowMode Mode, string? Statement, string? ConfirmLabel, bool ConfirmEnabled,
-    string? Warning, string? Message);
+    string? Warning, string? Message, string RepoDisplay);
 
 public enum RowMode { Collapsed, Expanded, Confirming, Sending, Done, Failed }
 
@@ -35,14 +35,15 @@ public static class InboxPresenter
         Func<InboxItem, AgentDecision, string?> whyCannotRun,
         DateTimeOffset now,
         Func<InboxItem, IReadOnlyList<ItemAction>>? actionsFor = null,
-        Func<string, RowUiState?>? uiState = null)
+        Func<string, RowUiState?>? uiState = null,
+        Func<string, string>? repoDisplay = null)
     {
         var sections = new List<InboxSection>();
         foreach (var (kind, title) in Order)
         {
             var rows = entries.Where(e => e.Item.Kind == kind)
                 .OrderByDescending(e => e.Item.UpdatedAt)
-                .Select(e => Row(e, runOf(e.Item.Key), decide(e.Item), whyCannotRun, now, actionsFor, uiState?.Invoke(e.Item.Key)))
+                .Select(e => Row(e, runOf(e.Item.Key), decide(e.Item), whyCannotRun, now, actionsFor, uiState?.Invoke(e.Item.Key), repoDisplay))
                 .ToList();
             if (rows.Count > 0) sections.Add(new InboxSection(title, rows));
         }
@@ -50,7 +51,7 @@ public static class InboxPresenter
     }
 
     static InboxRow Row(InboxEntry e, AgentRun? run, AgentDecision decision, Func<InboxItem, AgentDecision, string?> why, DateTimeOffset now,
-        Func<InboxItem, IReadOnlyList<ItemAction>>? actionsFor, RowUiState? ui)
+        Func<InboxItem, IReadOnlyList<ItemAction>>? actionsFor, RowUiState? ui, Func<string, string>? repoDisplay)
     {
         var i = e.Item;
         var busy = run is { State: AgentState.Queued or AgentState.Running };
@@ -74,7 +75,8 @@ public static class InboxPresenter
             run is { State: AgentState.Ready or AgentState.Failed or AgentState.Outdated, SessionId: not null, WorktreePath: not null },
             i.Kind is ItemKind.ApprovalPending or ItemKind.MyPrCiFailing, i.Details ?? [],
             run is null ? null : RunInfo(run), run?.ResultText,
-            actions, mode, preview?.Statement, preview?.ConfirmLabel, confirmEnabled, preview?.Warning, message);
+            actions, mode, preview?.Statement, preview?.ConfirmLabel, confirmEnabled, preview?.Warning, message,
+            repoDisplay?.Invoke(i.Repo) ?? i.Repo);
     }
 
     static string RunInfo(AgentRun run)

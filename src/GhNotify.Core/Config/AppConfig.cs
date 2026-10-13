@@ -22,6 +22,7 @@ public sealed class AppConfig
     public List<Rule> Rules { get; set; } = [];
     public Dictionary<string, AgentProfile> AgentProfiles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public List<HookConfig> Hooks { get; set; } = [];
+    public DisplayConfig Display { get; set; } = new();
 }
 
 public sealed class WorkHoursConfig

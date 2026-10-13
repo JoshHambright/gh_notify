@@ -27,6 +27,11 @@ public partial class App : Application
             Shutdown();
             return;
         }
+        if (e.Args is ["--render-preview", var previewDir])
+        {
+            Shutdown(PreviewRenderer.Run(previewDir));
+            return;
+        }
         _mutex = new Mutex(true, @"Local\GhNotify.SingleInstance", out var first);
         if (!first)
         {
@@ -58,12 +63,15 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (_, a) => Log.Error("unhandled exception", a.ExceptionObject as Exception);
         TaskScheduler.UnobservedTaskException += (_, a) => { Log.Error("unobserved task exception", a.Exception); a.SetObserved(); };
 
-        _theme = new ThemeService(() => GhNotify.Core.ThemeMode.System); // Task 7 wires the persisted mode
-        _theme.Apply();
-
         var config = new ConfigStore(AppPaths.ConfigFile);
         config.Load();
-        _controller = new AppController(config, new StateStore(AppPaths.StateFile));
+        var controller = _controller = new AppController(config, new StateStore(AppPaths.StateFile));
+
+        _theme = new ThemeService(() => controller.ThemeMode); // persisted in state.json; the popup's theme button cycles it
+        _theme.Apply();
+        controller.ThemeModeChanged += _theme.Apply;
+        ToastPresenter.PrepareLogo(AppPaths.ToastLogo);
+
         _popup = new PopupWindow(_controller);
 
         _tray = new TaskbarIcon { ToolTipText = "gh_notify" };
@@ -71,11 +79,7 @@ public partial class App : Application
         UpdateTray();
         _tray.ForceCreate(enablesEfficiencyMode: false);
 
-        _controller.Changed += () => Dispatcher.InvokeAsync(() =>
-        {
-            UpdateTray();
-            if (_popup.IsVisible) _popup.Render();
-        });
+        _controller.Changed += () => Dispatcher.InvokeAsync(UpdateTray); // the popup re-renders itself on Changed
         ToastNotificationManagerCompat.OnActivated += a => Dispatcher.InvokeAsync(() =>
         {
             var args = ToastArguments.Parse(a.Argument);
@@ -95,10 +99,20 @@ public partial class App : Application
         else _popup.ShowNearTray();
     }
 
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    static extern int GetSystemMetrics(int index);
+
     void UpdateTray()
     {
         var (count, unhealthy) = _controller!.TrayState();
-        _tray!.IconSource = TrayIconRenderer.Render(32, BadgeText.For(count), unhealthy);
+        // H.NotifyIcon can't convert a RenderTargetBitmap ImageSource, so hand it a System.Drawing.Icon built from the rendered frames.
+        var badge = BadgeText.For(count);
+        var ico = IcoWriter.Build(TrayIconRenderer.Render(16, badge, unhealthy), TrayIconRenderer.Render(20, badge, unhealthy),
+            TrayIconRenderer.Render(24, badge, unhealthy), TrayIconRenderer.Render(32, badge, unhealthy));
+        var old = _tray!.Icon;
+        var px = GetSystemMetrics(49); // SM_CXSMICON: the tray icon size in pixels at the system DPI
+        using (var ms = new MemoryStream(ico)) _tray.Icon = new System.Drawing.Icon(ms, px > 0 ? px : 16, px > 0 ? px : 16);
+        old?.Dispose();
         _tray.ToolTipText = unhealthy
             ? $"gh_notify — {count} waiting (a source needs attention)"
             : $"gh_notify — {count} waiting";

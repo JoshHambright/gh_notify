@@ -13,4 +13,12 @@
   <SolidColorBrush x:Key="Brush.Blue" Color="#0072DA" />
   <SolidColorBrush x:Key="Brush.RedTint" Color="#21ED352F" />
   <SolidColorBrush x:Key="Brush.EdgeStrip" Color="Transparent" />
+  <SolidColorBrush x:Key="Brush.Header" Color="#0B1A29" />
+  <SolidColorBrush x:Key="Brush.Count" Color="#FFFFFF" />
+  <SolidColorBrush x:Key="Brush.Eyebrow" Color="#8296AB" />
+  <!-- RedTint (#21ED352F) composited over Raised, fading to Raised -->
+  <LinearGradientBrush x:Key="Brush.UrgentCard" StartPoint="0,0" EndPoint="1,0">
+    <GradientStop Color="#281E29" Offset="0" />
+    <GradientStop Color="#0B1A29" Offset="0.65" />
+  </LinearGradientBrush>
 </ResourceDictionary>

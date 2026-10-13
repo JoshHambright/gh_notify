@@ -1,76 +1,187 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
+using GhNotify.Core;
 
 namespace GhNotify.App;
 
 public partial class PopupWindow : Window
 {
-    readonly AppController _c;
+    readonly IPopupHost _host;
+    readonly DispatcherTimer _confirmTick;
+    // Comment drafts survive re-renders (the row templates are rebuilt on every Changed / tick).
+    readonly Dictionary<string, string> _comments = new();
+    string? _restoreFocusKey;
 
-    public PopupWindow(AppController controller)
+    public PopupWindow(IPopupHost host)
     {
         InitializeComponent();
-        _c = controller;
+        _host = host;
+        _confirmTick = new DispatcherTimer(DispatcherPriority.Normal, Dispatcher) { Interval = TimeSpan.FromMilliseconds(100) };
+        _confirmTick.Tick += (_, _) => { if (IsVisible) Render(); else _confirmTick.Stop(); };
+        _host.Changed += () => Dispatcher.InvokeAsync(() => { if (IsVisible) Render(); });
     }
+
+    public DateTime LastHiddenByDeactivateUtc { get; private set; }
 
     public void Render()
     {
-        var sections = _c.BuildSections();
+        var sections = _host.BuildSections();
+        var rows = sections.SelectMany(s => s.Rows).ToList();
+
+        _restoreFocusKey = Keyboard.FocusedElement is TextBox { Name: "CommentBox", Tag: string k } ? k : null;
+        var open = rows.Where(r => r.Mode is RowMode.Confirming or RowMode.Sending).Select(r => r.Key).ToHashSet();
+        foreach (var key in _comments.Keys.Where(key => !open.Contains(key)).ToList()) _comments.Remove(key);
+
+        var offset = Scroller.VerticalOffset;
         Sections.ItemsSource = sections;
-        EmptyText.Visibility = sections.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        LastRefreshed.Text = _c.LastPolledAt is { } t ? $"Updated {t.ToLocalTime():HH:mm:ss}" : "Not refreshed yet";
-        Problems.ItemsSource = _c.Problems();
+        if (offset > 0) Dispatcher.InvokeAsync(() => Scroller.ScrollToVerticalOffset(offset), DispatcherPriority.Loaded);
+
+        EmptyState.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        CountText.Text = rows.Count.ToString();
+        ConfigErrorText.Text = _host.ConfigError;
+        ConfigErrorText.Visibility = _host.ConfigError is null ? Visibility.Collapsed : Visibility.Visible;
+        ThemeButton.ToolTip = $"Theme: {_host.ThemeMode}";
+        RenderFooter();
+
+        // While a confirm button is waiting out its 600 ms guard, re-render so it enables on time.
+        var waiting = rows.Any(r => r.Mode == RowMode.Confirming && !r.ConfirmEnabled && !string.IsNullOrEmpty(r.ConfirmLabel));
+        if (waiting && !_confirmTick.IsEnabled) _confirmTick.Start();
+        else if (!waiting && _confirmTick.IsEnabled) _confirmTick.Stop();
+    }
+
+    void RenderFooter()
+    {
+        var inlines = FooterText.Inlines;
+        inlines.Clear();
+        inlines.Add(new Run(_host.IsRefreshing ? "Refreshing…"
+            : _host.LastPolledAt is { } t ? $"Updated {t.ToLocalTime():HH:mm}" : "Not refreshed yet"));
+        var sources = _host.Sources();
+        AddSource(inlines, "GitHub", sources.Where(s => s.Name == "GitHub").ToList());
+        AddSource(inlines, "ADO", sources.Where(s => s.Name == "ADO" || s.Name.StartsWith("ADO:", StringComparison.Ordinal)).ToList());
+    }
+
+    void AddSource(InlineCollection inlines, string label, IReadOnlyList<SourceStatus> group)
+    {
+        if (group.Count == 0) return;
+        inlines.Add(new Run($" · {label} "));
+        var bad = group.Where(s => !s.Healthy).ToList();
+        if (bad.Count == 0)
+        {
+            inlines.Add(new Run("✓"));
+            return;
+        }
+        var mark = new Run("✗") { FontWeight = FontWeights.Bold, ToolTip = string.Join("\n", bad.Select(s => $"{s.Name}: {s.Problem}")) };
+        mark.SetResourceReference(TextElement.ForegroundProperty, "Brush.Red");
+        inlines.Add(mark);
     }
 
     public void ShowNearTray()
     {
         Render();
         var area = SystemParameters.WorkArea;
-        Left = area.Right - Width - 8;
-        Top = area.Bottom - Height - 8;
+        MaxHeight = area.Height - 40;
+        Left = area.Right - Width;
+        Top = area.Bottom - (ActualHeight > 0 ? ActualHeight : MinHeight);
         Show();
         Activate();
     }
 
-    public DateTime LastHiddenByDeactivateUtc { get; private set; }
+    void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // SizeToContent grows/shrinks the height (expanding a row); keep the popup anchored to the bottom of the work area.
+        if (Left < SystemParameters.VirtualScreenLeft) return; // offscreen preview render
+        Top = SystemParameters.WorkArea.Bottom - ActualHeight;
+    }
+
+    void OnBodySizeChanged(object sender, SizeChangedEventArgs e) =>
+        Body.Clip = new RectangleGeometry(new Rect(e.NewSize), 12, 12);
+
+    void OnActivated(object? sender, EventArgs e)
+    {
+        if (RefreshPolicy.ShouldRefreshOnOpen(_host.LastPolledAt, _host.IsRefreshing, DateTimeOffset.UtcNow))
+            _ = _host.RefreshAsync();
+    }
 
     void OnDeactivated(object? sender, EventArgs e)
     {
         LastHiddenByDeactivateUtc = DateTime.UtcNow;
+        _confirmTick.Stop();
         Hide();
     }
 
-    static DependencyObject? GetParent(DependencyObject d) =>
-        d is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D
-            ? System.Windows.Media.VisualTreeHelper.GetParent(d)
-            : LogicalTreeHelper.GetParent(d);
+    static string Key(object sender) => (string)((FrameworkElement)sender).Tag;
 
-    void OnRowClick(object sender, MouseButtonEventArgs e)
+    void OnTitleClick(object sender, MouseButtonEventArgs e)
     {
-        // Ignore clicks that originate on a (possibly disabled) button inside the row.
-        for (var d = e.OriginalSource as DependencyObject; d is not null && !ReferenceEquals(d, sender); d = GetParent(d))
-            if (d is System.Windows.Controls.Primitives.ButtonBase) return;
-        if (((FrameworkElement)sender).Tag is string url) _c.OpenUrl(url);
+        if (((FrameworkElement)sender).Tag is string url) _host.OpenUrl(url);
     }
 
-    void OnRunAgent(object sender, RoutedEventArgs e) => _c.RunAgent((string)((FrameworkElement)sender).Tag);
+    void OnToggle(object sender, RoutedEventArgs e) => _host.ToggleExpand(Key(sender));
 
-    void OnOpenInClaude(object sender, RoutedEventArgs e) => _c.OpenInClaude((string)((FrameworkElement)sender).Tag);
+    void OnRunAgent(object sender, RoutedEventArgs e) => _host.RunAgent(Key(sender));
 
-    void OnRefresh(object sender, RoutedEventArgs e) => _ = _c.RefreshAsync();
+    void OnOpenInClaude(object sender, RoutedEventArgs e) => _host.OpenInClaude(Key(sender));
+
+    void OnAction(object sender, RoutedEventArgs e)
+    {
+        var b = (Button)sender;
+        if (b.Tag is string key && b.CommandParameter is ItemAction action)
+        {
+            _comments.Remove(key);
+            _ = _host.BeginActionAsync(key, action);
+        }
+    }
+
+    void OnCancel(object sender, RoutedEventArgs e) => _host.CancelAction(Key(sender));
+
+    void OnConfirm(object sender, RoutedEventArgs e)
+    {
+        var key = Key(sender);
+        _ = _host.ConfirmActionAsync(key, _comments.GetValueOrDefault(key));
+    }
+
+    void OnCopy(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).Tag is string text) _host.CopyText(text);
+    }
+
+    void OnCommentLoaded(object sender, RoutedEventArgs e)
+    {
+        var box = (TextBox)sender;
+        if (box.Tag is not string key) return;
+        if (_comments.TryGetValue(key, out var draft) && box.Text != draft)
+        {
+            box.Text = draft;
+            box.CaretIndex = draft.Length;
+        }
+        if (key == _restoreFocusKey) box.Focus();
+    }
+
+    void OnCommentChanged(object sender, TextChangedEventArgs e)
+    {
+        var box = (TextBox)sender;
+        if (box.Tag is string key) _comments[key] = box.Text;
+    }
+
+    void OnRefresh(object sender, RoutedEventArgs e) => _ = _host.RefreshAsync();
+
+    void OnCycleTheme(object sender, RoutedEventArgs e) => _host.CycleTheme();
 
     void OnMenu(object sender, RoutedEventArgs e)
     {
         var menu = new ContextMenu { PlacementTarget = (UIElement)sender };
         var openConfig = new MenuItem { Header = "Open config" };
-        openConfig.Click += (_, _) => _c.OpenPath(_c.ConfigPath);
+        openConfig.Click += (_, _) => _host.OpenConfig();
         var startup = new MenuItem { Header = "Start with Windows", IsCheckable = true, IsChecked = StartupRegistration.IsEnabled() };
         startup.Click += (_, _) => StartupRegistration.Set(startup.IsChecked);
         var logs = new MenuItem { Header = "Open logs folder" };
-        logs.Click += (_, _) => _c.OpenPath(AppPaths.Logs);
+        logs.Click += (_, _) => _host.OpenLogs();
         var quit = new MenuItem { Header = "Quit" };
-        quit.Click += (_, _) => Application.Current.Shutdown();
+        quit.Click += (_, _) => _host.Quit();
         menu.Items.Add(openConfig);
         menu.Items.Add(startup);
         menu.Items.Add(logs);

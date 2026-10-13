@@ -41,6 +41,7 @@ public sealed class ConfigStore(string path)
         if (c.PollSeconds < 30) throw new InvalidDataException("pollSeconds must be at least 30");
         if (c.MaxConcurrentAgents < 1) throw new InvalidDataException("maxConcurrentAgents must be at least 1");
         if (c.AgentTimeoutMinutes < 1) throw new InvalidDataException("agentTimeoutMinutes must be at least 1");
+        if (c.Display.MaxRepoChars < 12) throw new InvalidDataException("display.maxRepoChars must be at least 12");
         for (var i = 0; i < c.Hooks.Count; i++)
             if (c.Hooks[i].Run.Count == 0 || string.IsNullOrWhiteSpace(c.Hooks[i].Run[0]))
                 throw new InvalidDataException($"hooks[{i}].run must name a command");
@@ -76,6 +77,9 @@ public sealed class ConfigStore(string path)
         }
         Entries(c.Hooks, "hooks");
         for (var i = 0; i < c.Hooks.Count; i++) Entries(c.Hooks[i].Run, $"hooks[{i}].run");
+        NotNull(c.Display, "display");
+        NotNull(c.Display.RepoAliases, "display.repoAliases");
+        foreach (var (k, v) in c.Display.RepoAliases) NotNull(v, $"display.repoAliases.{k}");
     }
 
     static void NotNull(object? value, string field)

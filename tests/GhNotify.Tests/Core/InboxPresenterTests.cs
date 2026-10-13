@@ -150,4 +150,15 @@ public class InboxPresenterTests
         Assert.Equal("Queued", Build(entries, _ => Run(AgentState.Queued))[0].Rows[0].BadgeText);
         Assert.False(Build(entries, _ => Run(AgentState.Ready) with { SessionId = null })[0].Rows[0].CanOpenInClaude);
     }
+
+    [Fact]
+    public void Repo_display_defaults_to_full_name_and_uses_formatter()
+    {
+        var entries = new[] { new InboxEntry(It(ItemKind.ReviewRequested), "GitHub", false) };
+        var plain = InboxPresenter.Build(entries, _ => null, _ => Button(), (_, _) => null, Now)[0].Rows[0];
+        Assert.Equal("acme/api", plain.RepoDisplay);
+        var formatted = InboxPresenter.Build(entries, _ => null, _ => Button(), (_, _) => null, Now, repoDisplay: r => "x/" + r)[0].Rows[0];
+        Assert.Equal("x/acme/api", formatted.RepoDisplay);
+        Assert.Equal("acme/api", formatted.Repo);
+    }
 }

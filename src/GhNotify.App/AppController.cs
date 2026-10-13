@@ -1,12 +1,15 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Windows;
 using GhNotify.Ado;
 using GhNotify.Agents;
 using GhNotify.Core;
 using GhNotify.GitHub;
+using ThemeMode = GhNotify.Core.ThemeMode;
 
 namespace GhNotify.App;
 
-public sealed class AppController : IDisposable
+public sealed class AppController : IPopupHost, IDisposable
 {
     readonly ConfigStore _config;
     readonly StateStore _stateStore;
@@ -20,24 +23,40 @@ public sealed class AppController : IDisposable
     readonly CancellationTokenSource _cts = new();
     readonly object _saveGate = new();
     readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset> _announced = new();
+    readonly IItemActions _actions;
+    readonly ConcurrentDictionary<string, RowUiState> _rowStates = new();
+    // Items whose action finished (Done) but that a later poll still reports (e.g. search-index lag): hidden until they change or leave.
+    readonly ConcurrentDictionary<string, byte> _doneHidden = new();
+    static readonly TimeSpan PreviewTimeout = TimeSpan.FromSeconds(20);
+    int _refreshing;
+    ThemeMode _themeMode;
     bool _claudeAvailable;
 
     public event Action? Changed;
+    /// <summary>Raised (on the caller's thread) after <see cref="CycleTheme"/> changes the persisted mode.</summary>
+    public event Action? ThemeModeChanged;
 
     public AppController(ConfigStore config, StateStore stateStore)
     {
         _config = config;
         _stateStore = stateStore;
         var state = stateStore.Load();
+        _themeMode = state.ThemeMode;
         _reconciler = new Reconciler(state.Snapshot.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<InboxItem>)kv.Value));
 
         var runner = new ProcessRunner();
+        var ghClient = new GitHubClient(new HttpClient { Timeout = TimeSpan.FromSeconds(25) }, new GhTokenProvider(runner));
         var ghSource = new GitHubSource(
-            new GitHubClient(new HttpClient { Timeout = TimeSpan.FromSeconds(25) }, new GhTokenProvider(runner)),
+            ghClient,
             () => _config.Current.GitHub,
             () => _reconciler.ItemsFor("GitHub"));
         var adoClient = new AdoClient(new HttpClient { Timeout = TimeSpan.FromSeconds(25) }, new AzTokenProvider(runner, config: () => _config.Current.Ado));
         var directory = new AdoDirectory(adoClient);
+        _actions = new CompositeItemActions(new Dictionary<Provider, IItemActions>
+        {
+            [Provider.GitHub] = new GitHubItemActions(ghClient),
+            [Provider.Ado] = new AdoItemActions(adoClient, directory),
+        });
         var catalog = new CompositeCatalog(
             new StaticCatalog(() => _config.Current.GitHub.Enabled ? [ghSource] : []),
             new AdoSourceCatalog(directory, () => _config.Current.Ado,
@@ -68,10 +87,20 @@ public sealed class AppController : IDisposable
         _ = _poller.RunAsync(() => TimeSpan.FromSeconds(_config.Current.PollSeconds), _cts.Token);
     }
 
+    public bool IsRefreshing => Volatile.Read(ref _refreshing) > 0;
+
     public async Task RefreshAsync()
     {
+        Interlocked.Increment(ref _refreshing); // set synchronously so a second open/focus in the same tick sees it
+        Changed?.Invoke();
         try { await _poller.PollOnceAsync(_cts.Token); }
         catch (Exception ex) when (ex is not OperationCanceledException) { Log.Error("manual refresh failed", ex); }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            Interlocked.Decrement(ref _refreshing);
+            Changed?.Invoke();
+        }
     }
 
     public void ReloadConfig()
@@ -107,6 +136,7 @@ public sealed class AppController : IDisposable
         foreach (var i in diff.Added) { _agents.OnItemAdded(i); _ = _hooks.DispatchAsync(HookEvent.ItemAdded, i); MaybeAutoRun(i, cfg); }
         foreach (var c in diff.Changed) { _agents.OnItemChanged(c); _ = _hooks.DispatchAsync(HookEvent.ItemChanged, c.New); }
         foreach (var r in diff.Removed) { _agents.OnItemRemoved(r); _ = _hooks.DispatchAsync(HookEvent.ItemRemoved, r); }
+        PruneRowStates(diff);
         _ = SweepAsync();
         Save();
         Changed?.Invoke();
@@ -161,15 +191,137 @@ public sealed class AppController : IDisposable
 
     InboxItem? Find(string key) => _reconciler.Entries.FirstOrDefault(e => e.Item.Key == key)?.Item;
 
-    public IReadOnlyList<InboxSection> BuildSections() =>
-        InboxPresenter.Build(_reconciler.Entries, _agents.Get, i => RulesEngine.Decide(i, _config.Current), _agents.WhyCannotRun,
-            DateTimeOffset.Now);
+    InboxEntry? FindEntry(string key) => _reconciler.Entries.FirstOrDefault(e => e.Item.Key == key);
 
-    public IReadOnlyList<string> Problems()
+    /// <summary>
+    /// Drops UI state for rows that left the inbox. A Done row whose item is still reported by this poll is hidden
+    /// (until the item changes or leaves) so it can't be acted on twice while the provider catches up.
+    /// </summary>
+    void PruneRowStates(InboxDiff diff)
     {
-        var list = _reconciler.Statuses.Where(s => !s.Healthy).Select(s => $"{s.Name}: {s.Problem}").ToList();
-        if (_config.Error is { } e) list.Insert(0, e);
-        return list;
+        var present = _reconciler.Entries.Select(e => e.Item.Key).ToHashSet();
+        foreach (var c in diff.Changed) _doneHidden.TryRemove(c.New.Key, out _);
+        foreach (var key in _doneHidden.Keys)
+            if (!present.Contains(key)) _doneHidden.TryRemove(key, out _);
+        foreach (var (key, state) in _rowStates)
+        {
+            if (!present.Contains(key)) _rowStates.TryRemove(key, out _);
+            else if (state.Mode == RowMode.Done && _rowStates.TryRemove(new KeyValuePair<string, RowUiState>(key, state)))
+                _doneHidden[key] = 0;
+        }
+    }
+
+    public IReadOnlyList<InboxSection> BuildSections()
+    {
+        var cfg = _config.Current;
+        var entries = _doneHidden.IsEmpty ? _reconciler.Entries : _reconciler.Entries.Where(e => !_doneHidden.ContainsKey(e.Item.Key)).ToList();
+        return InboxPresenter.Build(entries, _agents.Get, i => RulesEngine.Decide(i, cfg), _agents.WhyCannotRun,
+            DateTimeOffset.Now, _actions.ActionsFor, k => _rowStates.GetValueOrDefault(k),
+            r => RepoNames.Display(r, cfg.Display.RepoAliases, cfg.Display.MaxRepoChars));
+    }
+
+    public IReadOnlyList<SourceStatus> Sources() => _reconciler.Statuses;
+
+    public string? ConfigError => _config.Error;
+
+    public ThemeMode ThemeMode => _themeMode;
+
+    public void CycleTheme()
+    {
+        _themeMode = ThemeResolver.Next(_themeMode);
+        Save();
+        ThemeModeChanged?.Invoke();
+        Changed?.Invoke();
+    }
+
+    public void ToggleExpand(string key)
+    {
+        var next = RowStateMachine.Toggle(_rowStates.GetValueOrDefault(key));
+        if (next.Mode == RowMode.Expanded) CollapseOthers(key);
+        if (next.Mode == RowMode.Collapsed) _rowStates.TryRemove(key, out _);
+        else _rowStates[key] = next;
+        Changed?.Invoke();
+    }
+
+    /// <summary>Only one row is open at a time; a row that is sending is never touched.</summary>
+    void CollapseOthers(string key)
+    {
+        foreach (var (k, s) in _rowStates)
+            if (k != key && s.Mode != RowMode.Sending) _rowStates.TryRemove(new KeyValuePair<string, RowUiState>(k, s));
+    }
+
+    public async Task BeginActionAsync(string key, ItemAction action)
+    {
+        if (FindEntry(key) is not { Stale: false } entry || !_actions.ActionsFor(entry.Item).Contains(action)) return;
+        if (_rowStates.GetValueOrDefault(key) is { Mode: RowMode.Sending }) return;
+        var begun = RowStateMachine.Begin(action, DateTimeOffset.Now);
+        CollapseOthers(key);
+        _rowStates[key] = begun;
+        Changed?.Invoke();
+
+        ActionPreview preview;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+        timeout.CancelAfter(PreviewTimeout);
+        try
+        {
+            preview = await _actions.PreviewAsync(entry.Item, action, _agents.Get(key), timeout.Token);
+        }
+        catch (OperationCanceledException) when (!_cts.IsCancellationRequested)
+        {
+            preview = ActionText.Refuse("Timed out checking the current state — try again.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"action preview {action} {key} failed", ex);
+            preview = ActionText.Refuse(ex.Message);
+        }
+        // Only apply if the row is still in this confirm session (not cancelled or restarted meanwhile).
+        _rowStates.TryUpdate(key, RowStateMachine.WithPreview(begun, preview), begun);
+        Changed?.Invoke();
+    }
+
+    public void CancelAction(string key)
+    {
+        if (_rowStates.GetValueOrDefault(key) is not { Mode: RowMode.Confirming or RowMode.Failed or RowMode.Done } s) return;
+        _rowStates.TryUpdate(key, RowStateMachine.Cancel(s), s);
+        Changed?.Invoke();
+    }
+
+    public async Task ConfirmActionAsync(string key, string? comment)
+    {
+        // Defence in depth: the button's ConfirmEnabled is not trusted; re-check the guard here.
+        if (_rowStates.GetValueOrDefault(key) is not { } state || !RowStateMachine.CanConfirm(state, DateTimeOffset.Now)) return;
+        if (FindEntry(key) is not { Stale: false } entry) return;
+        var sending = RowStateMachine.Sending(state);
+        if (!_rowStates.TryUpdate(key, sending, state)) return; // a concurrent confirm already moved this row on
+        Changed?.Invoke();
+
+        comment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
+        ActionResult result;
+        try
+        {
+            result = await _actions.ExecuteAsync(entry.Item, state.Action!.Value, state.Preview!, comment, _cts.Token);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"action {state.Action} {key}: failed (comment {comment?.Length ?? 0} chars)", ex);
+            result = new ActionResult(false, ex.Message);
+        }
+        _rowStates.TryUpdate(key, RowStateMachine.Finished(sending, result), sending);
+        Changed?.Invoke();
+        if (result.Ok || result.Stale) _ = RefreshAsync();
+    }
+
+    public void OpenConfig() => OpenPath(ConfigPath);
+
+    public void OpenLogs() => OpenPath(AppPaths.Logs);
+
+    public void Quit() => Application.Current?.Shutdown();
+
+    public void CopyText(string text)
+    {
+        try { Clipboard.SetText(text); }
+        catch (Exception ex) { Log.Error("could not copy to clipboard", ex); }
     }
 
     public (int Count, bool Unhealthy) TrayState() =>
@@ -221,7 +373,7 @@ public sealed class AppController : IDisposable
         {
             try
             {
-                _stateStore.Save(new AppState { Snapshot = _reconciler.Snapshot(), AgentRuns = _agents.Runs.Values.ToList() });
+                _stateStore.Save(new AppState { Snapshot = _reconciler.Snapshot(), AgentRuns = _agents.Runs.Values.ToList(), ThemeMode = _themeMode });
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

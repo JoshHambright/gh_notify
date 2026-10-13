@@ -89,6 +89,8 @@ public class ConfigStoreTests
     [InlineData("""{ "hooks": null }""", "hooks")]
     [InlineData("""{ "hooks": [null] }""", "hooks[0]")]
     [InlineData("""{ "hooks": [ { "event": "ItemAdded", "run": null } ] }""", "hooks[0].run")]
+    [InlineData("""{ "display": null }""", "display")]
+    [InlineData("""{ "display": { "repoAliases": null } }""", "display.repoAliases")]
     public void Rejects_null_fields_naming_them(string json, string field)
     {
         var path = TempPath();
@@ -126,5 +128,31 @@ public class ConfigStoreTests
         File.WriteAllText(path, """{ "hooks": [ { "event": "ItemAdded", "run": [] } ] }""");
         store.Load();
         Assert.Contains("hooks[0].run", store.Error);
+    }
+
+    [Fact]
+    public void Reads_display_settings()
+    {
+        var path = TempPath();
+        var store = new ConfigStore(path);
+        store.Load();
+        Assert.Equal(34, store.Current.Display.MaxRepoChars);
+        File.WriteAllText(path, """{ "display": { "repoAliases": { "contoso-engineering": "contoso" }, "maxRepoChars": 20 } }""");
+        store.Load();
+        Assert.Null(store.Error);
+        Assert.Equal(20, store.Current.Display.MaxRepoChars);
+        Assert.Equal("contoso", store.Current.Display.RepoAliases["contoso-engineering"]);
+    }
+
+    [Fact]
+    public void Rejects_max_repo_chars_below_12()
+    {
+        var path = TempPath();
+        var store = new ConfigStore(path);
+        store.Load();
+        File.WriteAllText(path, """{ "display": { "maxRepoChars": 11 } }""");
+        store.Load();
+        Assert.Equal(34, store.Current.Display.MaxRepoChars);
+        Assert.Contains("display.maxRepoChars", store.Error);
     }
 }

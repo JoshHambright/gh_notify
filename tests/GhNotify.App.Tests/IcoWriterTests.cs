@@ -17,4 +17,19 @@ public class IcoWriterTests
         Assert.Equal(16, bytes[6]);                         // first entry width
         Assert.Equal(0, bytes[6 + 16 * 2]);                 // 256 encoded as 0
     }
+
+    [Fact]
+    public void Tray_icon_bytes_load_as_a_drawing_icon()
+    {
+        // The tray (H.NotifyIcon) rejects RenderTargetBitmap ImageSources; App.UpdateTray hands it a System.Drawing.Icon instead.
+        (int W, int H) size = default;
+        var t = new Thread(() =>
+        {
+            var ico = IcoWriter.Build(TrayIconRenderer.Render(16, "7", true), TrayIconRenderer.Render(32, "7", true));
+            using var icon = new System.Drawing.Icon(new MemoryStream(ico), 16, 16);
+            size = (icon.Width, icon.Height);
+        });
+        t.SetApartmentState(ApartmentState.STA); t.Start(); t.Join();
+        Assert.Equal((16, 16), size);
+    }
 }

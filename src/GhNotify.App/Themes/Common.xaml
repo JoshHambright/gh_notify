@@ -24,13 +24,13 @@
     <Setter Property="FontWeight" Value="Bold" />
     <Setter Property="FontSize" Value="12" />
     <Setter Property="Foreground" Value="White" />
-    <Setter Property="Background" Value="{DynamicResource Brush.Blue}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Red}" />
     <Setter Property="Padding" Value="14,5" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="999" Padding="{TemplateBinding Padding}">
+          <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="13" Padding="{TemplateBinding Padding}">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <ControlTemplate.Triggers>
@@ -54,7 +54,7 @@
       <Setter.Value>
         <ControlTemplate TargetType="Button">
           <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource Brush.Hairline}"
-                  BorderThickness="1" CornerRadius="999" Padding="{TemplateBinding Padding}">
+                  BorderThickness="1" CornerRadius="13" Padding="{TemplateBinding Padding}">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <ControlTemplate.Triggers>

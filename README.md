@@ -28,6 +28,38 @@ dotnet run --project src/GhNotify.App
 or publish it with `dotnet publish src/GhNotify.App -c Release -o publish` and run `publish\GhNotify.exe`.
 Use the popup's **⋯ → Start with Windows** to launch it at login.
 
+## Screenshots
+
+Render the popup (dark and light, each state) and the tray icon to PNGs from built-in sample data:
+
+```
+GhNotify.exe --render-preview <dir>
+```
+
+It uses placeholder data only (contoso / fabrikam / acme), never your accounts, and exits when done.
+
+## Using the popup
+
+Click the tray icon to open the popup. Opening or focusing it refreshes the inbox, unless a poll finished in the last 10 seconds.
+
+- **Title:** opens the PR, run or approval in the browser.
+- **Chevron (⌄):** expands the row in place. The details show the full repo name, author, branch, commit,
+  environment or pipeline, and, if an agent ran, its profile, state, cost, duration and full result text,
+  with **Copy** and **Open in Claude**. Only one row is open at a time.
+- **Approvals:** approvals get **Approve…** and **Reject…**. Review requests get **Approve PR…**. Your own PRs get none.
+  Every action takes two steps:
+  1. The first click checks the live state and shows exactly what will happen, such as
+     "Approve deployment of acme/deploy run 9001 to production". A PR without a pre-review at its current commit shows
+     a yellow "No pre-review at this commit." warning. You can add an optional one-line comment.
+  2. The second click, on a button that names the target (**Approve production**, **Approve PR**), sends it.
+     This button stays disabled for the first 600 ms, so a double-click can't go through both steps.
+
+  The app checks the state again just before sending. If anything changed (new commits, approval already handled),
+  it refuses and asks you to refresh. Actions use your own `gh` / `az` login. Agents never trigger them.
+- **Footer:** shows the last update time and the health of each source. A red ✗ means a source failed, and its tooltip
+  says why. The buttons are ↻ (refresh), ☾ (theme) and ⋯ (menu).
+- **Theme:** ☾ cycles System → Dark → Light. System follows the Windows app theme. The choice is saved in `state.json`.
+
 ## Config
 
 `%APPDATA%\GhNotify\config.json` is created on first run and reloaded when you save it.
@@ -50,9 +82,15 @@ Use the popup's **⋯ → Start with Windows** to launch it at login.
   },
   "hooks": [
     { "event": "ItemAdded", "match": { "kind": "ApprovalPending" }, "run": ["pwsh", "-File", "C:\\scripts\\ping-teams.ps1"] }
-  ]
+  ],
+  "display": { "repoAliases": { "contoso-engineering": "contoso" }, "maxRepoChars": 34 }
 }
 ```
+
+`display.repoAliases` shortens repo names in the popup. A key is an org (`"contoso-engineering"`) or an
+org/project prefix (`"contoso-engineering/platform"`). The longest matching prefix is replaced by the value.
+A name still longer than `display.maxRepoChars` (default 34, minimum 12) is shortened in the middle. The repo name
+itself is kept, for example `contoso-engi…/checkout-service-api`. The full name is in the tooltip and in the expanded details.
 
 `ado.azSubscription` / `ado.azTenant` (optional): use when your default `az` account is not the one in Azure DevOps. The token is requested with `--subscription <name-or-id>` (preferred) or `--tenant <id>`.
 

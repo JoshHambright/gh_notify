@@ -9,4 +9,5 @@ public static class AppPaths
     public static string Logs => Path.Combine(Local, "logs");
     public static string Worktrees => Path.Combine(Local, "worktrees");
     public static string Scratch => Path.Combine(Local, "scratch");
+    public static string ToastLogo => Path.Combine(Local, "logo.png");
 }
