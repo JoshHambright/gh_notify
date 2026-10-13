@@ -43,7 +43,7 @@ public partial class App : Application
         _tray = new TaskbarIcon { ToolTipText = "gh_notify" };
         _tray.TrayLeftMouseUp += (_, _) => TogglePopup();
         UpdateTray();
-        _tray.ForceCreate();
+        _tray.ForceCreate(enablesEfficiencyMode: false);
 
         _controller.Changed += () => Dispatcher.InvokeAsync(() =>
         {
@@ -65,6 +65,7 @@ public partial class App : Application
     void TogglePopup()
     {
         if (_popup!.IsVisible) _popup.Hide();
+        else if ((DateTime.UtcNow - _popup.LastHiddenByDeactivateUtc).TotalMilliseconds < 300) return; // the tray click itself deactivated the popup
         else _popup.ShowNearTray();
     }
 

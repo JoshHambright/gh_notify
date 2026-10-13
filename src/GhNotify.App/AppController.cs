@@ -81,17 +81,20 @@ public sealed class AppController : IDisposable
         _ = RefreshAsync();
     }
 
-    bool IsDisabledSource(string name)
-    {
-        var c = _config.Current;
-        if (name == "GitHub") return !c.GitHub.Enabled;
-        if (name == "ADO" || name.StartsWith("ADO:", StringComparison.Ordinal))
-            return !c.Ado.Enabled ||
-                   (name.StartsWith("ADO:", StringComparison.Ordinal) && c.Ado.ExcludeOrgs.Contains(name[4..], StringComparer.OrdinalIgnoreCase));
-        return false;
-    }
+    bool IsDisabledSource(string name) => SourceRetirement.IsDisabled(name, _config.Current);
 
     void HandleDiff(InboxDiff diff)
+    {
+        ProcessDiff(diff);
+        // Once a real ADO:<org> source is healthy, the "ADO" pseudo-source (discovery failure placeholder) is superseded.
+        if (SourceRetirement.ShouldRetireAdoPseudoSource(_reconciler.Statuses))
+        {
+            var retired = _reconciler.RetireWhere(n => n == SourceRetirement.AdoPseudoSource);
+            if (retired.Removed.Count > 0) ProcessDiff(retired);
+        }
+    }
+
+    void ProcessDiff(InboxDiff diff)
     {
         var cfg = _config.Current;
         foreach (var t in NotificationPolicy.Plan(diff, WorkHours.IsWithin(cfg.WorkHours, DateTime.Now))) _toasts.Apply(t);
@@ -118,21 +121,37 @@ public sealed class AppController : IDisposable
 
     void OnRunChanged(AgentRun run)
     {
-        run = _agents.Get(run.Key) ?? run; // RunChanged is a signal only; re-read the latest value (events may arrive out of order)
-        // RunChanged also fires for later edits (opened, item removed); announce each finished run once.
-        if (run.State is AgentState.Ready or AgentState.Failed && run.FinishedAt is { } finished &&
-            _announced.GetValueOrDefault(run.Key) != finished && Find(run.Key) is { } item)
+        try
         {
-            _announced[run.Key] = finished;
-            var label = InboxPresenter.LabelFor(run.Profile);
-            if (WorkHours.IsWithin(_config.Current.WorkHours, DateTime.Now))
-                _toasts.Apply(new ToastRequest(ToastAction.Show, ItemTag.ForAgent(run.Key),
-                    $"{label} {(run.State == AgentState.Ready ? "ready" : "failed")}: {item.Repo}",
-                    $"{item.Title}\n{run.Summary ?? run.Error}", item.Url));
-            _ = _hooks.DispatchAsync(HookEvent.AgentFinished, item, run);
+            run = _agents.Get(run.Key) ?? run; // RunChanged is a signal only; re-read the latest value (events may arrive out of order)
+            // RunChanged also fires for later edits (opened, item removed); announce each finished run once.
+            if (run.State is AgentState.Ready or AgentState.Failed && run.FinishedAt is { } finished &&
+                Find(run.Key) is { } item && TryMarkAnnounced(run.Key, finished))
+            {
+                var label = InboxPresenter.LabelFor(run.Profile);
+                if (WorkHours.IsWithin(_config.Current.WorkHours, DateTime.Now))
+                    _toasts.Apply(new ToastRequest(ToastAction.Show, ItemTag.ForAgent(run.Key),
+                        $"{label} {(run.State == AgentState.Ready ? "ready" : "failed")}: {item.Repo}",
+                        $"{item.Title}\n{run.Summary ?? run.Error}", item.Url));
+                _ = _hooks.DispatchAsync(HookEvent.AgentFinished, item, run);
+            }
+            Save();
+            Changed?.Invoke();
         }
-        Save();
-        Changed?.Invoke();
+        catch (Exception ex)
+        {
+            Log.Error($"run-changed handler failed for {run.Key}", ex);
+        }
+    }
+
+    bool TryMarkAnnounced(string key, DateTimeOffset finished)
+    {
+        lock (_announced)
+        {
+            if (_announced.TryGetValue(key, out var prev) && prev == finished) return false;
+            _announced[key] = finished;
+            return true;
+        }
     }
 
     InboxItem? Find(string key) => _reconciler.Entries.FirstOrDefault(e => e.Item.Key == key)?.Item;
@@ -196,6 +215,7 @@ public sealed class AppController : IDisposable
     {
         _cts.Cancel();
         _agents.Dispose();
+        try { _agents.WhenIdle().Wait(TimeSpan.FromSeconds(5)); } catch (AggregateException) { }
         Save();
     }
 }

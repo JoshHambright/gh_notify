@@ -33,10 +33,24 @@ public partial class PopupWindow : Window
         Activate();
     }
 
-    void OnDeactivated(object? sender, EventArgs e) => Hide();
+    public DateTime LastHiddenByDeactivateUtc { get; private set; }
+
+    void OnDeactivated(object? sender, EventArgs e)
+    {
+        LastHiddenByDeactivateUtc = DateTime.UtcNow;
+        Hide();
+    }
+
+    static DependencyObject? GetParent(DependencyObject d) =>
+        d is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D
+            ? System.Windows.Media.VisualTreeHelper.GetParent(d)
+            : LogicalTreeHelper.GetParent(d);
 
     void OnRowClick(object sender, MouseButtonEventArgs e)
     {
+        // Ignore clicks that originate on a (possibly disabled) button inside the row.
+        for (var d = e.OriginalSource as DependencyObject; d is not null && !ReferenceEquals(d, sender); d = GetParent(d))
+            if (d is System.Windows.Controls.Primitives.ButtonBase) return;
         if (((FrameworkElement)sender).Tag is string url) _c.OpenUrl(url);
     }
 
