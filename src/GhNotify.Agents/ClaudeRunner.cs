@@ -25,6 +25,8 @@ public static class AgentSafety
         "Bash(az repos pr work-item:*)", "Bash(az pipelines run:*)", "Bash(az rest:*)",
         "Bash(gh api * -f *)", "Bash(gh api * -F *)", "Bash(gh api * --field *)", "Bash(gh api * --raw-field *)", "Bash(gh api * --input *)",
         "Bash(gh pr * --body *)",
+        "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(gh release create:*)", "Bash(gh api -f:*)", "Bash(gh api -F:*)",
+        "Bash(gh api -X*)", "Bash(gh api --method=*)",
     ];
 }
 

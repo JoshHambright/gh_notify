@@ -33,6 +33,7 @@ public sealed class AgentCoordinator : IDisposable
                 : r;
     }
 
+    /// <summary>Signal only: events can arrive out of order across threads; subscribers must re-read Get(key) for the current state.</summary>
     public event Action<AgentRun>? RunChanged;
     public event Action<string>? RunRemoved;
 
@@ -78,7 +79,21 @@ public sealed class AgentCoordinator : IDisposable
             _runs[item.Key] = run;
         }
         RunChanged?.Invoke(run); // raise Queued before the worker can raise Running
-        _inflight[item.Key] = Task.Run(() => ExecuteAsync(item, profile, run.ClonePath));
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _inflight[item.Key] = done.Task;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await ExecuteAsync(item, profile, run.ClonePath);
+            }
+            finally
+            {
+                // remove only our own entry: a newer run for the same key may already be registered
+                _inflight.TryRemove(KeyValuePair.Create(item.Key, done.Task));
+                done.SetResult();
+            }
+        });
         return true;
     }
 
@@ -133,7 +148,6 @@ public sealed class AgentCoordinator : IDisposable
         finally
         {
             _slots.Release();
-            _inflight.TryRemove(item.Key, out _);
         }
     }
 
@@ -151,8 +165,8 @@ public sealed class AgentCoordinator : IDisposable
     public void OnItemChanged(ItemChange change)
     {
         _currentHead[change.New.Key] = change.New.HeadSha;
-        if (change.HeadChanged && Get(change.New.Key) is { State: AgentState.Ready or AgentState.Failed })
-            Update(change.New.Key, r => r with { State = AgentState.Outdated });
+        if (change.HeadChanged)
+            Update(change.New.Key, r => r.State is AgentState.Ready or AgentState.Failed ? r with { State = AgentState.Outdated } : r);
     }
 
     public void OnItemRemoved(InboxItem item)
@@ -173,19 +187,24 @@ public sealed class AgentCoordinator : IDisposable
             if (r.ItemRemovedAt is not { } removed || r.State is AgentState.Queued or AgentState.Running) continue;
             var openedRecently = r.LastOpenedAt is { } opened && Now - opened < Keep;
             if (openedRecently && Now - removed < Keep) continue;
-            if (r.WorktreePath is { } wt)
+            lock (_gate)
             {
-                try
+                // claim the exact snapshot; if the run changed meanwhile (item returned, re-run), skip it
+                if (!_runs.TryRemove(KeyValuePair.Create(r.Key, r))) continue;
+            }
+            try
+            {
+                if (r.WorktreePath is { } wt)
                 {
                     if (r.ClonePath is { } clone) await _d.Worktrees.RemoveAsync(clone, wt, ItemTag.For(r.Key), ct);
                     else if (Directory.Exists(wt)) Directory.Delete(wt, recursive: true);
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                {
-                    Log.Error($"could not clean {wt}", ex);
-                }
             }
-            if (_runs.TryRemove(r.Key, out _)) RunRemoved?.Invoke(r.Key);
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log.Error($"could not clean {r.WorktreePath}", ex);
+            }
+            if (!_runs.ContainsKey(r.Key)) RunRemoved?.Invoke(r.Key);
         }
     }
 
@@ -200,6 +219,7 @@ public sealed class AgentCoordinator : IDisposable
         {
             if (!_runs.TryGetValue(key, out var current)) return;
             next = change(current);
+            if (ReferenceEquals(next, current)) return;
             _runs[key] = next;
         }
         RunChanged?.Invoke(next);
