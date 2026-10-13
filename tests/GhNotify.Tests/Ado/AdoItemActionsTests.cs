@@ -125,3 +125,102 @@ public class AdoItemActionsTests
         Assert.Empty(a.ActionsFor(Pr() with { RepoId = null }));
     }
 }
+
+public class AdoItemActionsSafetyTests
+{
+    static InboxItem Approval() => new("ado:approval:contoso/Core Platform/appr-1", Provider.Ado, ItemKind.ApprovalPending, "contoso/Core Platform",
+        "api-release 1", "https://x", "", DateTimeOffset.UnixEpoch, null, null, null) { Org = "contoso", Project = "Core Platform", ApprovalId = "appr-1" };
+    static InboxItem Pr() => new("ado:review:contoso/Core Platform/api#101", Provider.Ado, ItemKind.ReviewRequested, "contoso/Core Platform/api",
+        "Direct review", "https://x", "Alice", DateTimeOffset.UnixEpoch, "s101", null, null) { Org = "contoso", Project = "Core Platform", RepoId = "repo-1", Number = 101 };
+    static FakeHttpHandler Dir() => new FakeHttpHandler()
+        .On("connectionData", Fixture.Read("ado-connection.json"))
+        .On("queryMembership=expanded", Fixture.Read("ado-identity-expanded.json"))
+        .On("identities?descriptors=", Fixture.Read("ado-identities-groups.json"));
+    static AdoItemActions Make(FakeHttpHandler http)
+    {
+        var c = new AdoClient(new HttpClient(http), new FakeTokenProvider());
+        return new AdoItemActions(c, new AdoDirectory(c));
+    }
+    const string Pending = """{"id":"appr-1","status":"pending","steps":[{"assignedApprover":{"id":"group-a"},"status":"pending"}]}""";
+    const string Completed = """{"id":"appr-1","status":"approved","steps":[]}""";
+    const string ActivePr = """{"status":"active","lastMergeSourceCommit":{"commitId":"s101"}}""";
+
+    [Fact]
+    public async Task Preview_404_gives_stale_text()
+    {
+        var a = Make(Dir().On("/pullRequests/101?", "{}", HttpStatusCode.NotFound));
+        var p = await a.PreviewAsync(Pr(), ItemAction.ApprovePr, null, default);
+        Assert.Equal("This changed since you looked — refreshing", p.RefusalReason);
+    }
+
+    [Fact]
+    public async Task Comment_failure_after_vote_is_still_ok()
+    {
+        var http = Dir()
+            .On(r => r.Method == HttpMethod.Get && r.RequestUri!.AbsoluteUri.Contains("/pullRequests/101?"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, ActivePr))
+            .On(r => r.Method == HttpMethod.Put, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "{}"))
+            .On(r => r.Method == HttpMethod.Post, _ => FakeHttpHandler.Respond(HttpStatusCode.InternalServerError, "{}"));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Pr(), ItemAction.ApprovePr, null, default);
+        var r = await a.ExecuteAsync(Pr(), ItemAction.ApprovePr, p, "hi", default);
+        Assert.True(r.Ok);
+        Assert.StartsWith("Approved, but the comment couldn't be posted", r.Error);
+    }
+
+    [Fact]
+    public async Task Execute_with_refused_preview_or_wrong_action_sends_nothing()
+    {
+        var http = Dir().On(r => r.Method == HttpMethod.Get, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, Pending))
+            .On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "{}"));
+        var a = Make(http);
+        var r1 = await a.ExecuteAsync(Approval(), ItemAction.Approve, ActionText.Refuse("nope"), null, default);
+        Assert.False(r1.Ok);
+        var p = await a.PreviewAsync(Approval(), ItemAction.Approve, null, default);
+        var r2 = await a.ExecuteAsync(Approval(), ItemAction.Reject, p, null, default);
+        Assert.False(r2.Ok);
+        Assert.DoesNotContain(http.Requests, q => q.Method == HttpMethod.Patch);
+    }
+
+    [Fact]
+    public async Task Pr_head_changing_before_execute_is_stale_and_not_voted()
+    {
+        var pr = ActivePr;
+        var http = Dir()
+            .On(r => r.Method == HttpMethod.Get && r.RequestUri!.AbsoluteUri.Contains("/pullRequests/101?"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, pr))
+            .On(r => r.Method == HttpMethod.Put, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "{}"));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Pr(), ItemAction.ApprovePr, null, default);
+        pr = """{"status":"active","lastMergeSourceCommit":{"commitId":"newer"}}""";
+        var r = await a.ExecuteAsync(Pr(), ItemAction.ApprovePr, p, null, default);
+        Assert.True(r.Stale);
+        Assert.DoesNotContain(http.Requests, q => q.Method == HttpMethod.Put);
+    }
+
+    [Fact]
+    public async Task Approval_completed_before_execute_is_stale_and_not_patched()
+    {
+        var json = Pending;
+        var http = Dir()
+            .On(r => r.Method == HttpMethod.Get && r.RequestUri!.AbsoluteUri.Contains("/pipelines/"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, json))
+            .On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "{}"));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Approval(), ItemAction.Approve, null, default);
+        json = Completed;
+        var r = await a.ExecuteAsync(Approval(), ItemAction.Approve, p, null, default);
+        Assert.True(r.Stale);
+        Assert.DoesNotContain(http.Requests, q => q.Method == HttpMethod.Patch);
+    }
+
+    [Fact]
+    public async Task Patch_timeout_is_stale_with_may_have_been_sent()
+    {
+        var http = Dir()
+            .On(r => r.Method == HttpMethod.Get, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, Pending))
+            .On(r => r.Method == HttpMethod.Patch, _ => throw new TaskCanceledException("timeout"));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Approval(), ItemAction.Approve, null, default);
+        var r = await a.ExecuteAsync(Approval(), ItemAction.Approve, p, null, default);
+        Assert.True(r.Stale);
+        Assert.Contains("may have been sent", r.Error);
+    }
+}
