@@ -3,7 +3,7 @@
   "workflow_runs": [
     {
       "id": 9001, "name": "Release", "display_title": "Release v1.4.0",
-      "html_url": "https://github.com/acme/deploy/actions/runs/9001", "head_sha": "abc999",
+      "html_url": "https://github.com/acme/deploy/actions/runs/9001", "head_sha": "abc999", "head_branch": "main",
       "updated_at": "2026-10-13T15:00:00Z", "actor": { "login": "carol" }
     }
   ]

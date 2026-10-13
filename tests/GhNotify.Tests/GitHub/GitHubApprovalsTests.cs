@@ -31,6 +31,9 @@ public class GitHubApprovalsTests
         Assert.Equal("https://github.com/acme/deploy/actions/runs/9001", item.Url);
         Assert.Equal("carol", item.Author);
         Assert.Equal("https://github.com/acme/deploy", item.CloneUrl);
+        Assert.Equal(9001, item.RunId);
+        Assert.Equal(["Workflow", "Environments", "Branch", "Commit", "Triggered by"], item.Details!.Select(x => x.Label));
+        Assert.Equal("production", item.Details!.Single(x => x.Label == "Environments").Value);
         // acme/other only had a review_requested notification, so it is not a candidate.
         Assert.DoesNotContain(http.Requests, r => r.RequestUri!.AbsoluteUri.Contains("acme/other"));
         // acme/deploy is queried once even though it came from two sets with different casing.

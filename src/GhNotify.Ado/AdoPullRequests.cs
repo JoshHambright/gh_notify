@@ -81,6 +81,12 @@ public static class AdoPullRequests
             Number = id,
             SourceRef = pr.Str("sourceRefName"),
             CloneUrl = web,
+            Org = org,
+            Project = p.Name,
+            RepoId = pr.Obj("repository").Str("id"),
+            Details = DetailList.Of(("Project", p.Name), ("Repo", repoName), ("Author", pr.Obj("createdBy").Str("displayName")),
+                ("Branch", pr.Str("sourceRefName") is { } s ? $"{DetailList.StripHeads(s)} → {DetailList.StripHeads(pr.Str("targetRefName"))}" : null),
+                ("Commit", DetailList.Short(pr.Obj("lastMergeSourceCommit").Str("commitId"))), ("Created", DetailList.Local(pr.Date("creationDate")))),
         };
     }
 }

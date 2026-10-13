@@ -47,4 +47,13 @@ public class GitHubPrMapperTests
         Assert.Equal("2 unresolved threads", items.Single(i => i.Key == "gh:respond:acme/web#22").Detail);
         Assert.All(items, i => Assert.Equal("me", i.Author));
     }
+    [Fact]
+    public void Pr_details()
+    {
+        var pr = GitHubPrMapper.ReviewRequests(Data()).Single(i => i.Number == 12);
+        var d = pr.Details!.ToDictionary(x => x.Label, x => x.Value);
+        Assert.Equal(["Repo", "Author", "Branch", "Commit", "Created"], pr.Details!.Select(x => x.Label));
+        Assert.Equal("feature/retry → main", d["Branch"]);
+        Assert.Equal("aaa111", d["Commit"]);
+    }
 }

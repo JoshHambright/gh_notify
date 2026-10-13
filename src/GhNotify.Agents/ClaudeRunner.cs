@@ -3,7 +3,10 @@ using GhNotify.Core;
 
 namespace GhNotify.Agents;
 
-public sealed record AgentOutcome(bool Success, string? SessionId, string? Summary, decimal? CostUsd, string? Error);
+public sealed record AgentOutcome(bool Success, string? SessionId, string? Summary, decimal? CostUsd, string? Error)
+{
+    public string? ResultText { get; init; }
+}
 
 public interface IClaudeRunner
 {
@@ -78,8 +81,8 @@ public sealed class ClaudeRunner(IProcessRunner runner) : IClaudeRunner
             var text = root.Str("result");
             decimal? cost = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("total_cost_usd", out var c) && c.TryGetDecimal(out var d) ? d : null;
             if (root.Bool("is_error") || r.ExitCode != 0)
-                return new AgentOutcome(false, sid, ExtractSummary(text), cost, Tail(text ?? r.StdErr));
-            return new AgentOutcome(true, sid, ExtractSummary(text), cost, null);
+                return new AgentOutcome(false, sid, ExtractSummary(text), cost, Tail(text ?? r.StdErr)) { ResultText = Cap(text) };
+            return new AgentOutcome(true, sid, ExtractSummary(text), cost, null) { ResultText = Cap(text) };
         }
         catch (JsonException)
         {
@@ -100,6 +103,7 @@ public sealed class ClaudeRunner(IProcessRunner runner) : IClaudeRunner
         return lines.Count == 0 ? null : Truncate(lines[^1], 200);
     }
 
+    static string? Cap(string? s) => s is null ? null : s.Length <= 32_768 ? s : s[..32_768];
     static string Tail(string s) => s.Length <= 500 ? s.Trim() : "…" + s[^500..].Trim();
     static string Truncate(string s, int n) => s.Length <= n ? s : s[..n] + "…";
 }

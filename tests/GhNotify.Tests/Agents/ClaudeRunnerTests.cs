@@ -93,7 +93,7 @@ public class ClaudeRunnerTests
         Assert.Equal(@"C:\wt", call.WorkingDirectory);
         Assert.Equal(TimeSpan.FromMinutes(3), call.Timeout);
         Assert.DoesNotContain(call.Args, a => a.Contains("peer-review"));
-        Assert.Equal(new AgentOutcome(true, "s-1", "2 findings", 0.37m, null), outcome);
+        Assert.Equal(new AgentOutcome(true, "s-1", "2 findings", 0.37m, null) { ResultText = "done\nSUMMARY: 2 findings" }, outcome);
     }
 
     [Fact]
@@ -121,4 +121,13 @@ public class ClaudeRunnerTests
     [InlineData(null, null)]
     public void Extracts_summary(string? result, string? expected) =>
         Assert.Equal(expected, ClaudeRunner.ExtractSummary(result));
+    [Fact]
+    public void Keeps_full_result_text_capped()
+    {
+        var big = new string('x', 40_000);
+        var o = ClaudeRunner.Parse(new ProcessResult(0, $$"""{"is_error":false,"result":"{{big}}\nSUMMARY: ok","session_id":"s"}""", "", false));
+        Assert.Equal(32_768, o.ResultText!.Length);
+        Assert.Equal("ok", o.Summary);
+        Assert.Equal("hi", ClaudeRunner.Parse(new ProcessResult(0, """{"is_error":false,"result":"hi","session_id":"s"}""", "", false)).ResultText);
+    }
 }

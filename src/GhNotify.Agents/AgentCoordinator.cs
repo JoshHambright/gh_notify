@@ -135,6 +135,8 @@ public sealed class AgentCoordinator : IDisposable
                 CostUsd = o.CostUsd,
                 Error = o.Error,
                 FinishedAt = Now,
+                ResultText = o.ResultText,
+                DurationSeconds = r.StartedAt is { } st ? (int)Math.Round((Now - st).TotalSeconds) : null,
             });
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)

@@ -20,6 +20,10 @@ public class AdoApprovalsTests
         Assert.Equal("api-release 20261013.3", item.Title);
         Assert.Equal("https://dev.azure.com/contoso/Core%20Platform/_build/results?buildId=901", item.Url);
         Assert.Equal("Instructions: Check the release notes", item.Detail);
+        Assert.Equal("appr-1", item.ApprovalId);
+        Assert.Equal("contoso", item.Org);
+        Assert.Equal("Core Platform", item.Project);
+        Assert.Equal(["Pipeline", "Run", "Project", "Instructions", "Created"], item.Details!.Select(x => x.Label));
         Assert.Contains("$expand=steps", http.Requests[0].RequestUri!.AbsoluteUri);
     }
 

@@ -299,4 +299,15 @@ public class AgentCoordinatorTests
         Assert.Equal("Interrupted by app restart", c.Get("a")!.Error);
         Assert.Equal(AgentState.Ready, c.Get("b")!.State);
     }
+    [Fact]
+    public async Task Records_result_text_and_duration()
+    {
+        var (c, _, claude, time) = Make();
+        claude.Next = () => { time.Advance(TimeSpan.FromSeconds(42)); return Task.FromResult(new AgentOutcome(true, Sid, "s", 0.1m, null) { ResultText = "full text" }); };
+        c.TryStart(Item(), Decision(), true);
+        await c.WhenIdle();
+        var run = c.Get(Item().Key)!;
+        Assert.Equal("full text", run.ResultText);
+        Assert.Equal(42, run.DurationSeconds);
+    }
 }

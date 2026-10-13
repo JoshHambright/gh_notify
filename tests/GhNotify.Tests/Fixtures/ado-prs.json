@@ -4,7 +4,7 @@
     { "pullRequestId": 101, "title": "Direct review", "isDraft": false, "creationDate": "2026-10-13T10:00:00Z",
       "createdBy": { "id": "alice-id", "displayName": "Alice" },
       "repository": { "id": "repo-1", "name": "api", "project": { "id": "proj-1", "name": "Core Platform" } },
-      "sourceRefName": "refs/heads/feature/retry", "lastMergeSourceCommit": { "commitId": "s101" },
+      "sourceRefName": "refs/heads/feature/retry", "targetRefName": "refs/heads/main", "lastMergeSourceCommit": { "commitId": "s101" },
       "reviewers": [ { "id": "me-id", "vote": 0 } ] },
     { "pullRequestId": 102, "title": "Already approved", "isDraft": false, "creationDate": "2026-10-13T10:00:00Z",
       "createdBy": { "id": "alice-id", "displayName": "Alice" },

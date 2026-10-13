@@ -24,7 +24,13 @@ public static class AdoApprovals
             var instructions = a.Str("instructions");
             items.Add(new InboxItem($"ado:approval:{org}/{p.Name}/{approvalId}", Provider.Ado, ItemKind.ApprovalPending,
                 $"{org}/{p.Name}", run is null ? name : $"{name} {run}", url, "", a.Date("createdOn"), null, null,
-                string.IsNullOrWhiteSpace(instructions) ? null : $"Instructions: {instructions}"));
+                string.IsNullOrWhiteSpace(instructions) ? null : $"Instructions: {instructions}")
+            {
+                Org = org,
+                Project = p.Name,
+                ApprovalId = approvalId,
+                Details = DetailList.Of(("Pipeline", name), ("Run", run), ("Project", p.Name), ("Instructions", instructions), ("Created", DetailList.Local(a.Date("createdOn")))),
+            });
         }
         return items;
     }

@@ -18,7 +18,7 @@ public static class GitHubQueries
           }
         }
         fragment pr on PullRequest {
-          number title url isDraft updatedAt additions deletions headRefOid
+          number title url isDraft updatedAt additions deletions headRefOid headRefName baseRefName createdAt
           author { __typename login }
           repository { nameWithOwner url }
         }
