@@ -27,6 +27,15 @@ public static class AgentSafety
         "Bash(gh pr * --body *)",
         "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(gh release create:*)", "Bash(gh api -f:*)", "Bash(gh api -F:*)",
         "Bash(gh api -X*)", "Bash(gh api --method=*)",
+        // Method flags after the path, git global options before the verb (git -C . push), and az write verbs.
+        // Verified live with claude 2.1.296: "gh api * -X *", "gh api -X*" and "git * push*" deny the matching commands.
+        "Bash(gh api * -X *)", "Bash(gh api * -X*)", "Bash(gh api * --method *)", "Bash(gh api * --method=*)",
+        "Bash(git * push*)", "Bash(git * commit*)",
+        "Bash(az repos ref:*)", "Bash(az repos delete:*)", "Bash(az repos update:*)", "Bash(az repos create:*)", "Bash(az repos import:*)",
+        "Bash(az repos policy:*)", "Bash(az repos pr policy queue:*)",
+        "Bash(az pipelines build queue:*)", "Bash(az pipelines release create:*)", "Bash(az pipelines variable:*)",
+        "Bash(az pipelines variable-group:*)", "Bash(az pipelines delete:*)", "Bash(az pipelines create:*)", "Bash(az pipelines update:*)",
+        "Bash(az devops invoke:*)",
     ];
 }
 

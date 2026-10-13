@@ -14,7 +14,10 @@ public sealed class AppConfig
     public List<string> AgentAllowedTools { get; set; } =
     [
         "Read", "Grep", "Glob", "Bash(gh pr view:*)", "Bash(gh pr diff:*)", "Bash(gh pr checks:*)",
-        "Bash(gh run view:*)", "Bash(gh api:*)", "Bash(git:*)", "Bash(az repos:*)", "Bash(az pipelines:*)", "Bash(bash:*)",
+        "Bash(gh run view:*)", "Bash(gh api:*)", "Bash(git:*)",
+        "Bash(az repos pr show:*)", "Bash(az repos pr list:*)", "Bash(az repos pr policy list:*)",
+        "Bash(az pipelines runs show:*)", "Bash(az pipelines runs list:*)", "Bash(az pipelines build show:*)", "Bash(az pipelines build list:*)",
+        "Bash(bash:*)",
     ];
     public List<Rule> Rules { get; set; } = [];
     public Dictionary<string, AgentProfile> AgentProfiles { get; set; } = new(StringComparer.OrdinalIgnoreCase);

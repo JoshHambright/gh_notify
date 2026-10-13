@@ -25,6 +25,51 @@ public class ClaudeRunnerTests
         Assert.Equal(AgentSafety.DisallowedTools.Count + 1, denied.Count);
     }
 
+    public static readonly TheoryData<string> ExpectedDenied = new(
+    [
+        // Original list
+        "Bash(gh pr review:*)", "Bash(gh pr comment:*)", "Bash(gh pr merge:*)", "Bash(gh pr close:*)", "Bash(gh pr edit:*)",
+        "Bash(gh pr ready:*)", "Bash(gh issue comment:*)",
+        "Bash(gh api -X POST:*)", "Bash(gh api -X PATCH:*)", "Bash(gh api -X PUT:*)", "Bash(gh api -X DELETE:*)",
+        "Bash(gh api --method POST:*)", "Bash(gh api --method PATCH:*)", "Bash(gh api --method PUT:*)", "Bash(gh api --method DELETE:*)",
+        "Bash(git push:*)", "Bash(git commit:*)",
+        "Bash(az repos pr create:*)", "Bash(az repos pr update:*)", "Bash(az repos pr set-vote:*)", "Bash(az repos pr reviewer:*)",
+        "Bash(az repos pr work-item:*)", "Bash(az pipelines run:*)", "Bash(az rest:*)",
+        // Task 12
+        "Bash(gh api * -f *)", "Bash(gh api * -F *)", "Bash(gh api * --field *)", "Bash(gh api * --raw-field *)", "Bash(gh api * --input *)",
+        "Bash(gh pr * --body *)",
+        "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(gh release create:*)", "Bash(gh api -f:*)", "Bash(gh api -F:*)",
+        "Bash(gh api -X*)", "Bash(gh api --method=*)",
+        // Final review: method flags after the path, git global options before the verb, az write verbs
+        "Bash(gh api * -X *)", "Bash(gh api * -X*)", "Bash(gh api * --method *)", "Bash(gh api * --method=*)",
+        "Bash(git * push*)", "Bash(git * commit*)",
+        "Bash(az repos ref:*)", "Bash(az repos delete:*)", "Bash(az repos update:*)", "Bash(az repos create:*)", "Bash(az repos import:*)",
+        "Bash(az repos policy:*)", "Bash(az repos pr policy queue:*)",
+        "Bash(az pipelines build queue:*)", "Bash(az pipelines release create:*)", "Bash(az pipelines variable:*)",
+        "Bash(az pipelines variable-group:*)", "Bash(az pipelines delete:*)", "Bash(az pipelines create:*)", "Bash(az pipelines update:*)",
+        "Bash(az devops invoke:*)",
+    ]);
+
+    [Theory]
+    [MemberData(nameof(ExpectedDenied))]
+    public void Global_deny_list_contains(string entry)
+    {
+        Assert.Contains(entry, AgentSafety.DisallowedTools);
+        Assert.Contains(entry, ClaudeRunner.BuildArgs(new AgentProfile(), []));
+    }
+
+    [Fact]
+    public void Default_allow_list_has_only_read_verbs_for_az()
+    {
+        var allowed = new AppConfig().AgentAllowedTools;
+        Assert.DoesNotContain("Bash(az repos:*)", allowed);
+        Assert.DoesNotContain("Bash(az pipelines:*)", allowed);
+        Assert.Equal(
+            ["Bash(az repos pr show:*)", "Bash(az repos pr list:*)", "Bash(az repos pr policy list:*)", "Bash(az pipelines runs show:*)",
+             "Bash(az pipelines runs list:*)", "Bash(az pipelines build show:*)", "Bash(az pipelines build list:*)"],
+            allowed.Where(a => a.StartsWith("Bash(az ", StringComparison.Ordinal)));
+    }
+
     [Fact]
     public void Args_omit_allowed_flag_when_nothing_allowed()
     {
