@@ -63,8 +63,8 @@ public static class InboxPresenter
         var actions = (actionsFor?.Invoke(i) ?? []).Select(a => new RowActionButton(a, ActionText.ButtonLabel(a),
             !e.Stale && !sending,
             sending ? "Working…" : e.Stale ? "Source is unavailable — can't act right now" : null)).ToList();
-        var confirmEnabled = mode == RowMode.Confirming && preview is { Allowed: true }
-            && ui!.ConfirmOpenedAt is { } opened && now - opened >= TimeSpan.FromMilliseconds(600);
+        var confirmEnabled = mode == RowMode.Confirming && !e.Stale && preview is { Allowed: true }
+            && ui!.ConfirmOpenedAt is { } opened && now - opened >= ActionText.ConfirmDelay;
         var message = preview is { Allowed: false } ? preview.RefusalReason : ui?.Message;
         return new InboxRow(
             i.Key,

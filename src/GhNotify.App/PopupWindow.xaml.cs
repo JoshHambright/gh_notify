@@ -81,6 +81,7 @@ public partial class PopupWindow : Window
 
     public void ShowNearTray()
     {
+        _host.OnPopupShown();
         Render();
         var area = SystemParameters.WorkArea;
         MaxHeight = area.Height - 40;

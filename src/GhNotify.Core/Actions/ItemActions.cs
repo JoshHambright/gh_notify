@@ -36,6 +36,9 @@ public static class ActionText
 {
     public const string NoPreReview = "No pre-review at this commit.";
 
+    /// <summary>The confirm button stays disabled this long after the confirm panel opens (or the popup is re-shown).</summary>
+    public static readonly TimeSpan ConfirmDelay = TimeSpan.FromMilliseconds(600);
+
     public static IReadOnlyList<ItemAction> DefaultActions(InboxItem item) => item.Kind switch
     {
         ItemKind.ApprovalPending => [ItemAction.Approve, ItemAction.Reject],

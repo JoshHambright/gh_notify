@@ -226,6 +226,15 @@ public sealed class AppController : IPopupHost, IDisposable
 
     public ThemeMode ThemeMode => _themeMode;
 
+    const string StaleMessage = "Source is unavailable — can't act right now";
+
+    public void OnPopupShown()
+    {
+        var now = DateTimeOffset.Now;
+        foreach (var (key, s) in _rowStates)
+            if (s.Mode == RowMode.Confirming) _rowStates.TryUpdate(key, RowStateMachine.Rearm(s, now), s);
+    }
+
     public void CycleTheme()
     {
         _themeMode = ThemeResolver.Next(_themeMode);
@@ -291,7 +300,13 @@ public sealed class AppController : IPopupHost, IDisposable
     {
         // Defence in depth: the button's ConfirmEnabled is not trusted; re-check the guard here.
         if (_rowStates.GetValueOrDefault(key) is not { } state || !RowStateMachine.CanConfirm(state, DateTimeOffset.Now)) return;
-        if (FindEntry(key) is not { Stale: false } entry) return;
+        if (FindEntry(key) is not { } entry) return;
+        if (entry.Stale)
+        {
+            _rowStates.TryUpdate(key, state with { Message = StaleMessage }, state);
+            Changed?.Invoke();
+            return;
+        }
         var sending = RowStateMachine.Sending(state);
         if (!_rowStates.TryUpdate(key, sending, state)) return; // a concurrent confirm already moved this row on
         Changed?.Invoke();
@@ -325,7 +340,7 @@ public sealed class AppController : IPopupHost, IDisposable
     }
 
     public (int Count, bool Unhealthy) TrayState() =>
-        (_reconciler.Entries.Count, _config.Error is not null || _reconciler.Statuses.Any(s => !s.Healthy));
+        (_reconciler.Entries.Count(e => !_doneHidden.ContainsKey(e.Item.Key)), _config.Error is not null || _reconciler.Statuses.Any(s => !s.Healthy));
 
     public void RunAgent(string key)
     {

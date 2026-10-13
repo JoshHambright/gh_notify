@@ -49,10 +49,11 @@ Click the tray icon to open the popup. Opening or focusing it refreshes the inbo
 - **Approvals:** approvals get **Approve…** and **Reject…**. Review requests get **Approve PR…**. Your own PRs get none.
   Every action takes two steps:
   1. The first click checks the live state and shows exactly what will happen, such as
-     "Approve deployment of acme/deploy run 9001 to production". A PR without a pre-review at its current commit shows
+     "Approve deployment of acme/deploy run 9001 to production" (GitHub) or "Approve platform-release 20261013.4 in contoso/platform" (ADO). A PR without a pre-review at its current commit shows
      a yellow "No pre-review at this commit." warning. You can add an optional one-line comment.
-  2. The second click, on a button that names the target (**Approve production**, **Approve PR**), sends it.
-     This button stays disabled for the first 600 ms, so a double-click can't go through both steps.
+  2. The second click, on a button that names the target (**Approve production**, **Approve platform-release 20261013.4**,
+     **Approve PR #12**), sends it. It stays disabled for 600 ms after the panel opens, and again whenever the popup is re-shown,
+     so a double-click can't go through both steps.
 
   The app checks the state again just before sending. If anything changed (new commits, approval already handled),
   it refuses and asks you to refresh. Actions use your own `gh` / `az` login. Agents never trigger them.

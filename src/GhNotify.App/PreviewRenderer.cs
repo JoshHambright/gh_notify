@@ -13,10 +13,10 @@ namespace GhNotify.App;
 /// </summary>
 public static class PreviewRenderer
 {
-    static readonly ActionPreview ApprovalPreview = new(true, "Approve deployment of contoso/platform run 20261013.4 to production",
-        "Approve production", null, null, null);
+    static readonly ActionPreview ApprovalPreview = new(true, "Approve platform-release 20261013.4 in contoso/platform",
+        "Approve platform-release 20261013.4", null, null, null);
     static readonly ActionPreview PrPreview = new(true, "Approve PR #482 in fabrikam/customer-platform/checkout-service-api at 9f3c2ab",
-        "Approve PR", ActionText.NoPreReview, null, null);
+        "Approve PR #482", ActionText.NoPreReview, null, null);
 
     public static int Run(string dir)
     {
@@ -42,7 +42,8 @@ public static class PreviewRenderer
         }
         catch (Exception ex)
         {
-            File.WriteAllText(Path.Combine(dir, "preview-error.txt"), ex.ToString());
+            try { File.WriteAllText(Path.Combine(dir, "preview-error.txt"), ex.ToString()); }
+            catch (Exception writeEx) { Console.Error.WriteLine($"{ex}\n(could not write preview-error.txt: {writeEx.Message})"); }
             return 1;
         }
     }

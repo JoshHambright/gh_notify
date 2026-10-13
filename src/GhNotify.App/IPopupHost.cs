@@ -23,6 +23,8 @@ public interface IPopupHost
     void CancelAction(string key);
     /// <summary>Sends the action; re-checks the confirm guard itself (600 ms, allowed preview).</summary>
     Task ConfirmActionAsync(string key, string? comment);
+    /// <summary>Called when the popup is shown: re-arms the 600 ms guard on any open confirm panel.</summary>
+    void OnPopupShown();
     void CycleTheme();
     Task RefreshAsync();
     void OpenConfig();

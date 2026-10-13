@@ -57,6 +57,15 @@ public class InboxPresenterTests
     }
 
     [Fact]
+    public void Stale_source_disables_confirm()
+    {
+        var preview = new ActionPreview(true, "s", "Approve production", null, null, null);
+        var ui = new RowUiState(RowMode.Confirming, ItemAction.Approve, preview, ConfirmOpenedAt: Now.AddSeconds(-5));
+        Assert.True(Row(It(ItemKind.ApprovalPending), ui).ConfirmEnabled);
+        Assert.False(Row(It(ItemKind.ApprovalPending), ui, stale: true).ConfirmEnabled);
+    }
+
+    [Fact]
     public void Refused_preview_shows_reason_and_no_confirm()
     {
         var ui = new RowUiState(RowMode.Confirming, ItemAction.ApprovePr, ActionText.Refuse("New commits since you looked — refresh."), ConfirmOpenedAt: Now.AddSeconds(-5));

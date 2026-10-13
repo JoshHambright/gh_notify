@@ -5,7 +5,7 @@ namespace GhNotify.App;
 /// <summary>Pure row-state transitions for expand / two-step confirm, used by AppController.</summary>
 public static class RowStateMachine
 {
-    public static readonly TimeSpan ConfirmDelay = TimeSpan.FromMilliseconds(600);
+
     public const string Checking = "Checking…";
 
     /// <summary>null/Collapsed → Expanded; Expanded → Collapsed; any action mode is left unchanged.</summary>
@@ -23,7 +23,7 @@ public static class RowStateMachine
         s with { Preview = p, Message = p.Allowed ? null : p.RefusalReason };
 
     public static bool CanConfirm(RowUiState? s, DateTimeOffset now) =>
-        s is { Mode: RowMode.Confirming, Preview.Allowed: true, ConfirmOpenedAt: { } opened } && now - opened >= ConfirmDelay;
+        s is { Mode: RowMode.Confirming, Preview.Allowed: true, ConfirmOpenedAt: { } opened } && now - opened >= ActionText.ConfirmDelay;
 
     public static RowUiState Sending(RowUiState s) =>
         s with { Mode = RowMode.Sending, Message = s.Action == ItemAction.Reject ? "Rejecting…" : "Approving…" };
@@ -33,6 +33,10 @@ public static class RowStateMachine
         : s with { Mode = RowMode.Failed, Message = r.Error ?? "The action failed" };
 
     public static RowUiState Cancel(RowUiState s) => new(RowMode.Expanded);
+
+    /// <summary>Popup re-shown: a confirm panel left open gets a fresh 600 ms guard (its preview is kept).</summary>
+    public static RowUiState Rearm(RowUiState s, DateTimeOffset now) =>
+        s.Mode == RowMode.Confirming ? s with { ConfirmOpenedAt = now } : s;
 }
 
 public static class RefreshPolicy

@@ -122,6 +122,7 @@ public sealed class SampleHost : IPopupHost
     public Task BeginActionAsync(string key, ItemAction action) => Task.CompletedTask;
     public void CancelAction(string key) { }
     public Task ConfirmActionAsync(string key, string? comment) => Task.CompletedTask;
+    public void OnPopupShown() { }
     public void CycleTheme() { }
     public Task RefreshAsync() => Task.CompletedTask;
     public void OpenConfig() { }

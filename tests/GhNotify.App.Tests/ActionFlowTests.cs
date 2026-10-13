@@ -59,6 +59,30 @@ public class ActionFlowTests
     }
 }
 
+public class RearmTests
+{
+    static readonly DateTimeOffset T = DateTimeOffset.Parse("2026-10-13T12:00:00Z");
+    static readonly ActionPreview Ok = new(true, "s", "Approve production", null, null, null);
+
+    [Fact]
+    public void Reshowing_the_popup_rearms_the_confirm_guard_and_keeps_the_preview()
+    {
+        var s = RowStateMachine.WithPreview(RowStateMachine.Begin(ItemAction.Approve, T), Ok);
+        Assert.True(RowStateMachine.CanConfirm(s, T.AddSeconds(30)));
+        var rearmed = RowStateMachine.Rearm(s, T.AddSeconds(30));
+        Assert.Same(Ok, rearmed.Preview);
+        Assert.False(RowStateMachine.CanConfirm(rearmed, T.AddSeconds(30).AddMilliseconds(100)));
+        Assert.True(RowStateMachine.CanConfirm(rearmed, T.AddSeconds(30) + ActionText.ConfirmDelay));
+    }
+
+    [Fact]
+    public void Rearm_leaves_other_modes_alone()
+    {
+        var expanded = new RowUiState(RowMode.Expanded);
+        Assert.Same(expanded, RowStateMachine.Rearm(expanded, T));
+    }
+}
+
 public class RefreshPolicyTests
 {
     static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-10-13T12:00:00Z");
