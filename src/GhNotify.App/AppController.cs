@@ -285,7 +285,7 @@ public sealed class AppController : IPopupHost, IDisposable
             preview = ActionText.Refuse(ex.Message);
         }
         // Only apply if the row is still in this confirm session (not cancelled or restarted meanwhile).
-        _rowStates.TryUpdate(key, RowStateMachine.WithPreview(begun, preview), begun);
+        _rowStates.TryUpdate(key, RowStateMachine.WithPreview(begun, preview, DateTimeOffset.Now), begun);
         Changed?.Invoke();
     }
 

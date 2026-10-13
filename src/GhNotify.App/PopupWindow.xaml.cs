@@ -14,6 +14,8 @@ public partial class PopupWindow : Window
     readonly DispatcherTimer _confirmTick;
     // Comment drafts survive re-renders (the row templates are rebuilt on every Changed / tick).
     readonly Dictionary<string, string> _comments = new();
+    // Per-row pointer guard for the confirm button; reset on every render because the button is rebuilt.
+    readonly Dictionary<string, ConfirmPointerGuard> _pointerGuards = new();
     string? _restoreFocusKey;
 
     public PopupWindow(IPopupHost host)
@@ -35,6 +37,9 @@ public partial class PopupWindow : Window
         _restoreFocusKey = Keyboard.FocusedElement is TextBox { Name: "CommentBox", Tag: string k } ? k : null;
         var open = rows.Where(r => r.Mode is RowMode.Confirming or RowMode.Sending).Select(r => r.Key).ToHashSet();
         foreach (var key in _comments.Keys.Where(key => !open.Contains(key)).ToList()) _comments.Remove(key);
+
+        foreach (var g in _pointerGuards.Values) g.Reset();
+        foreach (var key in _pointerGuards.Keys.Where(key => !open.Contains(key)).ToList()) _pointerGuards.Remove(key);
 
         var offset = Scroller.VerticalOffset;
         Sections.ItemsSource = sections;
@@ -142,7 +147,39 @@ public partial class PopupWindow : Window
     void OnConfirm(object sender, RoutedEventArgs e)
     {
         var key = Key(sender);
+        // A mouse click only counts once the pointer moved onto the enabled button (see ConfirmPointerGuard); keyboard is fine.
+        if (InputManager.Current.MostRecentInputDevice is MouseDevice && !Guard(key).IsArmed) return;
         _ = _host.ConfirmActionAsync(key, _comments.GetValueOrDefault(key));
+    }
+
+    ConfirmPointerGuard Guard(string key)
+    {
+        if (!_pointerGuards.TryGetValue(key, out var g)) _pointerGuards[key] = g = new ConfirmPointerGuard();
+        return g;
+    }
+
+    static Point ScreenPos(object sender, MouseEventArgs e)
+    {
+        var b = (Button)sender;
+        return b.PointToScreen(e.GetPosition(b));
+    }
+
+    void OnConfirmMouseEnter(object sender, MouseEventArgs e) =>
+        Guard(Key(sender)).Entered(ScreenPos(sender, e), ((Button)sender).IsEnabled);
+
+    void OnConfirmMouseMove(object sender, MouseEventArgs e) =>
+        Guard(Key(sender)).Moved(ScreenPos(sender, e), ((Button)sender).IsEnabled);
+
+    void OnConfirmMouseLeave(object sender, MouseEventArgs e) => Guard(Key(sender)).Left();
+
+    void OnConfirmEnabledChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (((FrameworkElement)sender).Tag is string key) Guard(key).Reset();
+    }
+
+    void OnConfirmPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!Guard(Key(sender)).IsArmed) e.Handled = true; // swallow the press so no Click is raised
     }
 
     void OnCopy(object sender, RoutedEventArgs e)

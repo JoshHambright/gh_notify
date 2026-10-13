@@ -19,8 +19,13 @@ public static class RowStateMachine
     public static RowUiState Begin(ItemAction a, DateTimeOffset now) =>
         new(RowMode.Confirming, a, Preview: null, Message: Checking, ConfirmOpenedAt: now);
 
-    public static RowUiState WithPreview(RowUiState s, ActionPreview p) =>
-        s with { Preview = p, Message = p.Allowed ? null : p.RefusalReason };
+    /// <summary>
+    /// Applies the live check. An allowed preview starts the 600 ms confirm guard at <paramref name="now"/> — the moment the
+    /// confirm button can first appear — not when the panel opened (a slow preview must not let the button arrive enabled).
+    /// </summary>
+    public static RowUiState WithPreview(RowUiState s, ActionPreview p, DateTimeOffset now) => p.Allowed
+        ? s with { Preview = p, Message = null, ConfirmOpenedAt = now }
+        : s with { Preview = p, Message = p.RefusalReason };
 
     public static bool CanConfirm(RowUiState? s, DateTimeOffset now) =>
         s is { Mode: RowMode.Confirming, Preview.Allowed: true, ConfirmOpenedAt: { } opened } && now - opened >= ActionText.ConfirmDelay;

@@ -330,7 +330,9 @@
                       </Style>
                     </Button.Style>
                   </Button>
-                  <Button Content="{Binding ConfirmLabel}" Tag="{Binding Key}" Click="OnConfirm" IsEnabled="{Binding ConfirmEnabled}">
+                  <Button Content="{Binding ConfirmLabel}" Tag="{Binding Key}" Click="OnConfirm" IsEnabled="{Binding ConfirmEnabled}"
+                          MouseEnter="OnConfirmMouseEnter" MouseMove="OnConfirmMouseMove" MouseLeave="OnConfirmMouseLeave"
+                          IsEnabledChanged="OnConfirmEnabledChanged" PreviewMouseLeftButtonDown="OnConfirmPreviewMouseDown">
                     <Button.Style>
                       <Style TargetType="Button" BasedOn="{StaticResource SmallPrimary}">
                         <Setter Property="Visibility" Value="Collapsed" />
