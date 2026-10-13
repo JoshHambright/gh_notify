@@ -29,7 +29,7 @@ public static class Log
                 File.AppendAllText(Path.Combine(_dir, $"{DateTime.Now:yyyy-MM-dd}.log"),
                     $"{DateTime.Now:HH:mm:ss} {level} {message}{Environment.NewLine}");
             }
-            catch (IOException) { }
+            catch (Exception) { } // logging must never take the app down (IO, access denied, disk full...)
         }
     }
 }
