@@ -7,6 +7,7 @@
     <Project Path="src/GhNotify.GitHub/GhNotify.GitHub.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/GhNotify.App.Tests/GhNotify.App.Tests.csproj" />
     <Project Path="tests/GhNotify.Tests/GhNotify.Tests.csproj" />
   </Folder>
 </Solution>
