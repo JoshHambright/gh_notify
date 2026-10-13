@@ -42,5 +42,13 @@ public sealed class ConfigStore(string path)
         for (var i = 0; i < c.Hooks.Count; i++)
             if (c.Hooks[i].Run.Count == 0 || string.IsNullOrWhiteSpace(c.Hooks[i].Run[0]))
                 throw new InvalidDataException($"hooks[{i}].run must name a command");
+        WorkHours.Validate(c.WorkHours);
+        foreach (var (name, profile) in c.AgentProfiles)
+            if (string.IsNullOrWhiteSpace(profile.Prompt))
+                throw new InvalidDataException($"agentProfiles.{name}.prompt must not be empty");
+        var profiles = ProfileCatalog.All(c);
+        for (var i = 0; i < c.Rules.Count; i++)
+            if (c.Rules[i].Profile is { } p && !profiles.ContainsKey(p))
+                throw new InvalidDataException($"rules[{i}].profile '{p}' is not a known agent profile");
     }
 }
