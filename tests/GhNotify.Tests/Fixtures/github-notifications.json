@@ -1,0 +1,4 @@
+[
+  { "reason": "approval_requested", "repository": { "full_name": "acme/deploy" }, "subject": { "type": "CheckSuite", "title": "Deploy" } },
+  { "reason": "review_requested", "repository": { "full_name": "acme/other" }, "subject": { "type": "PullRequest", "title": "x" } }
+]
