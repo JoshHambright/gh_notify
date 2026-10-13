@@ -74,11 +74,22 @@ public class PollerTests
     [Fact]
     public async Task RunAsync_stops_on_cancellation()
     {
+        // Deterministic: the source itself cancels on the 3rd poll, so no wall-clock timing decides the count.
         var polls = 0;
-        var catalog = new StaticCatalog(() => [new Src("A", _ => { polls++; return Task.FromResult(SourceResult.Ok([])); })]);
+        using var cts = new CancellationTokenSource();
+        var catalog = new StaticCatalog(() => [new Src("A", _ =>
+        {
+            if (++polls == 3) cts.Cancel();
+            return Task.FromResult(SourceResult.Ok([]));
+        })]);
         var poller = new Poller(catalog, new Reconciler(), TimeSpan.FromSeconds(5));
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
-        await poller.RunAsync(() => TimeSpan.FromMilliseconds(50), cts.Token);
-        Assert.True(polls >= 2);
+        var raised = 0;
+        poller.Polled += _ => raised++;
+
+        // The timeout is only a hang guard for a regression; it never decides the outcome.
+        await poller.RunAsync(() => TimeSpan.Zero, cts.Token).WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(3, polls);
+        Assert.Equal(3, raised); // the cancelling poll still completes; the loop then stops before a 4th
     }
 }
