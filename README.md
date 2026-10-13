@@ -54,19 +54,25 @@ Use the popup's **⋯ → Start with Windows** to launch it at login.
 }
 ```
 
+Most changes apply when you save. A change to `maxConcurrentAgents` needs a restart: quit from the tray and start the app again.
+
 ## Agents and skills
 
 The app ships **no skills**: bring your own. The built-in profiles call `/peer-review` (for review requests) and
 `/pr-shepherd` (for your red PRs). A skill counts as installed if its `SKILL.md` is in one of these places:
 
 - `~/.claude/skills/<name>/`
-- the repo's `.claude/skills/<name>/`
 - an installed Claude Code plugin
+
+Skills in the repo's own `.claude/skills/` do not count; see below.
 
 If a skill is missing, the row's button is disabled and its tooltip says why.
 
 Agents run unattended in a throwaway git worktree of your local clone, found under `repoRoots`.
 They are told not to post, push or comment, and a deny list blocks the usual commands for that.
+The worktree holds the PR's own code, so runs pass `--setting-sources user`: the PR's `.claude/settings.json`
+(hooks, permission rules) never applies. That also stops Claude loading the repo's `.claude/skills/`, so keep the skills
+you use in `~/.claude/skills/` or a plugin.
 When a run finishes, the row shows **✓ Ready** and a toast appears.
 **Open in Claude** resumes that exact session in Windows Terminal, so you can approve what gets posted.
 
