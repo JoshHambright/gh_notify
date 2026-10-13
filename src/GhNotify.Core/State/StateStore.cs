@@ -6,6 +6,7 @@ public sealed class AppState
 {
     public Dictionary<string, List<InboxItem>> Snapshot { get; set; } = new();
     public List<AgentRun> AgentRuns { get; set; } = [];
+    public ThemeMode ThemeMode { get; set; } = ThemeMode.System;
 }
 
 public sealed class StateStore(string path)

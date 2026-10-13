@@ -26,7 +26,20 @@ public sealed record InboxItem(
     public string? SourceRef { get; init; }
     /// <summary>Remote URL used to find a local clone.</summary>
     public string? CloneUrl { get; init; }
+    /// <summary>GitHub workflow run id (approvals).</summary>
+    public long? RunId { get; init; }
+    /// <summary>ADO approval id.</summary>
+    public string? ApprovalId { get; init; }
+    /// <summary>ADO repository id.</summary>
+    public string? RepoId { get; init; }
+    /// <summary>ADO organization.</summary>
+    public string? Org { get; init; }
+    /// <summary>ADO project name.</summary>
+    public string? Project { get; init; }
+    public IReadOnlyList<ItemDetail>? Details { get; init; }
 }
+
+public sealed record ItemDetail(string Label, string Value);
 
 public static class ItemTag
 {

@@ -18,4 +18,6 @@ public sealed record AgentRun
     public DateTimeOffset? FinishedAt { get; init; }
     public DateTimeOffset? LastOpenedAt { get; init; }
     public DateTimeOffset? ItemRemovedAt { get; init; }
+    public string? ResultText { get; init; }
+    public int? DurationSeconds { get; init; }
 }

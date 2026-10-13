@@ -11,13 +11,25 @@ public class StateStoreTests
         var store = new StateStore(path);
         var item = new InboxItem("gh:review:acme/api#12", Provider.GitHub, ItemKind.ReviewRequested, "acme/api", "T", "https://u", "alice",
             DateTimeOffset.Parse("2026-10-13T12:00:00Z"), "sha", 35, null)
-        { Number = 12, SourceRef = "pull/12/head", CloneUrl = "https://github.com/acme/api" };
+        { Number = 12, SourceRef = "pull/12/head", CloneUrl = "https://github.com/acme/api", RunId = 9001, Org = "o", Project = "p" };
         var run = new AgentRun { Key = item.Key, Profile = "peer-review", State = AgentState.Ready, SessionId = "abc", CostUsd = 0.42m };
-        store.Save(new AppState { Snapshot = new() { ["GitHub"] = [item] }, AgentRuns = [run] });
+        store.Save(new AppState { Snapshot = new() { ["GitHub"] = [item] }, AgentRuns = [run], ThemeMode = ThemeMode.Light });
 
         var loaded = store.Load();
         Assert.Equal(item, loaded.Snapshot["GitHub"].Single());
         Assert.Equal(run, loaded.AgentRuns.Single());
+        Assert.Equal(ThemeMode.Light, loaded.ThemeMode);
+    }
+
+    [Fact]
+    public void Details_round_trip()
+    {
+        var path = Path.Combine(Directory.CreateTempSubdirectory("ghn-state").FullName, "state.json");
+        var item = new InboxItem("k", Provider.Ado, ItemKind.ApprovalPending, "o/p", "t", "u", "", DateTimeOffset.UnixEpoch, null, null, null)
+            { Details = [new ItemDetail("Pipeline", "api-release"), new ItemDetail("Run", "20261013.3")] };
+        new StateStore(path).Save(new AppState { Snapshot = new() { ["ADO:o"] = [item] } });
+        var loaded = new StateStore(path).Load().Snapshot["ADO:o"].Single();
+        Assert.Equal(item.Details, loaded.Details!.ToArray());
     }
 
     [Fact]
