@@ -65,6 +65,9 @@ public static class GitHubPrMapper
             Number = number,
             SourceRef = $"pull/{number}/head",
             CloneUrl = n.Obj("repository").Str("url"),
+            Details = DetailList.Of(("Repo", repo), ("Author", login),
+                ("Branch", n.Str("headRefName") is { } h ? $"{h} → {n.Str("baseRefName")}" : null),
+                ("Commit", DetailList.Short(n.Str("headRefOid"))), ("Created", DetailList.Local(n.Date("createdAt")))),
         };
     }
 }

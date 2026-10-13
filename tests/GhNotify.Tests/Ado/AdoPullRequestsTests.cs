@@ -35,6 +35,10 @@ public class AdoPullRequestsTests
         Assert.Equal("s101", r.HeadSha);
         Assert.Equal("Alice", r.Author);
         Assert.Null(r.ChangedLines);
+        Assert.Equal("contoso", r.Org);
+        Assert.Equal("Core Platform", r.Project);
+        Assert.Equal("repo-1", r.RepoId);
+        Assert.Equal("feature/retry → main", r.Details!.Single(x => x.Label == "Branch").Value);
 
         Assert.Equal("1 build failing", items.Single(i => i.Kind == ItemKind.MyPrCiFailing).Detail);
         Assert.Equal("Waiting for author, 1 active thread", items.Single(i => i.Kind == ItemKind.MyPrNeedsResponse).Detail);

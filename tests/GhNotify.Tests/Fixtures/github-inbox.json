@@ -5,7 +5,7 @@
       "nodes": [
         {
           "number": 12, "title": "Add retry to client", "url": "https://github.com/acme/api/pull/12", "isDraft": false,
-          "updatedAt": "2026-10-13T14:00:00Z", "additions": 30, "deletions": 5, "headRefOid": "aaa111",
+          "updatedAt": "2026-10-13T14:00:00Z", "additions": 30, "deletions": 5, "headRefOid": "aaa111", "headRefName": "feature/retry", "baseRefName": "main", "createdAt": "2026-10-12T09:00:00Z",
           "author": { "__typename": "User", "login": "alice" },
           "repository": { "nameWithOwner": "acme/api", "url": "https://github.com/acme/api" }
         },

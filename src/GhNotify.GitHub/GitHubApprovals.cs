@@ -106,6 +106,9 @@ public sealed class GitHubApprovals(GitHubClient client, TimeProvider? time = nu
                 run.Date("updated_at"), run.Str("head_sha"), null, $"Environment: {string.Join(", ", envs)}")
             {
                 CloneUrl = $"https://github.com/{repo}",
+                RunId = id,
+                Details = DetailList.Of(("Workflow", run.Str("name")), ("Environments", string.Join(", ", envs)),
+                    ("Branch", run.Str("head_branch")), ("Commit", DetailList.Short(run.Str("head_sha"))), ("Triggered by", run.Obj("actor").Str("login"))),
             });
         }
         return items;
