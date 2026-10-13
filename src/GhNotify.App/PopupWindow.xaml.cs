@@ -64,11 +64,11 @@ public partial class PopupWindow : Window
     {
         var menu = new ContextMenu { PlacementTarget = (UIElement)sender };
         var openConfig = new MenuItem { Header = "Open config" };
-        openConfig.Click += (_, _) => _c.OpenUrl(_c.ConfigPath);
+        openConfig.Click += (_, _) => _c.OpenPath(_c.ConfigPath);
         var startup = new MenuItem { Header = "Start with Windows", IsCheckable = true, IsChecked = StartupRegistration.IsEnabled() };
         startup.Click += (_, _) => StartupRegistration.Set(startup.IsChecked);
         var logs = new MenuItem { Header = "Open logs folder" };
-        logs.Click += (_, _) => _c.OpenUrl(AppPaths.Logs);
+        logs.Click += (_, _) => _c.OpenPath(AppPaths.Logs);
         var quit = new MenuItem { Header = "Quit" };
         quit.Click += (_, _) => Application.Current.Shutdown();
         menu.Items.Add(openConfig);

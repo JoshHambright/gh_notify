@@ -88,6 +88,9 @@ public sealed class AppController : IDisposable
     void HandleDiff(InboxDiff diff)
     {
         ProcessDiff(diff);
+        // A source disabled (config reload) while a poll was in flight is re-added by that poll's diff; retire it again.
+        var disabled = _reconciler.RetireWhere(IsDisabledSource);
+        if (disabled.Removed.Count > 0) ProcessDiff(disabled);
         // Once a real ADO:<org> source is healthy, the "ADO" pseudo-source (discovery failure placeholder) is superseded.
         if (SourceRetirement.ShouldRetireAdoPseudoSource(_reconciler.Statuses))
         {
@@ -192,7 +195,21 @@ public sealed class AppController : IDisposable
         }
     }
 
-    public void OpenUrl(string target)
+    /// <summary>Opens an item URL (row click, toast). Item URLs come from API data, so only https is shell-executed.</summary>
+    public void OpenUrl(string url)
+    {
+        if (!ItemUrl.IsOpenable(url))
+        {
+            Log.Error($"refusing to open non-https item URL: {url}");
+            return;
+        }
+        ShellOpen(url);
+    }
+
+    /// <summary>Opens one of our own local paths (config file, logs folder).</summary>
+    public void OpenPath(string path) => ShellOpen(path);
+
+    static void ShellOpen(string target)
     {
         try { Process.Start(new ProcessStartInfo(target) { UseShellExecute = true })?.Dispose(); }
         catch (Exception ex) { Log.Error($"could not open {target}", ex); }
