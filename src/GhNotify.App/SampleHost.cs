@@ -12,6 +12,8 @@ public sealed class SampleHost : IPopupHost
     public const string ReviewKey = "ado:review:fabrikam/customer-platform/checkout-service-api#482";
     public const string Review2Key = "ado:review:fabrikam/customer-platform/web-portal#479";
     public const string CiKey = "gh:ci:acme/api#57";
+    public const string SnoozedKey = "gh:review:fabrikam/web#203";
+    public const string MutedKey = "gh:review:acme/legacy-billing#12";
 
     readonly DateTimeOffset _now = DateTimeOffset.Now;
     readonly List<InboxEntry> _entries;
@@ -49,6 +51,10 @@ public sealed class SampleHost : IPopupHost
         var waiting2 = new InboxItem("ado:waiting:contoso/platform/portal#214", Provider.Ado, ItemKind.MyPrWaiting, "contoso/platform/portal",
             "Switch portal to the new auth client", "https://dev.azure.com/contoso/platform/_git/portal/pullrequest/214", "you", _now.AddHours(-20),
             "beef003", null, "Checks running") { Number = 214 };
+        var snoozed = new InboxItem(SnoozedKey, Provider.GitHub, ItemKind.ReviewRequested, "fabrikam/web", "Bump analyzer versions",
+            "https://github.com/fabrikam/web/pull/203", "bob", _now.AddHours(-2), "beef004", 12, null) { Number = 203 };
+        var muted = new InboxItem(MutedKey, Provider.GitHub, ItemKind.ReviewRequested, "acme/legacy-billing", "Fix rounding in invoice totals",
+            "https://github.com/acme/legacy-billing/pull/12", "alice", _now.AddHours(-6), "beef005", 18, null) { Number = 12 };
         _entries =
         [
             new(approval, "ADO:contoso", false),
@@ -58,6 +64,8 @@ public sealed class SampleHost : IPopupHost
             new(ready, "GitHub", false),
             new(waiting1, "GitHub", false),
             new(waiting2, "ADO:contoso", false),
+            new(snoozed, "GitHub", false),
+            new(muted, "GitHub", false),
         ];
         _runs = new()
         {
@@ -102,14 +110,16 @@ public sealed class SampleHost : IPopupHost
         SUMMARY: one test fixture uses the old section name; update it and CI goes green.
         """;
 
-    public IReadOnlyList<InboxSection> BuildSections()
-    {
-        // One muted row (acme/web) and one snoozed row (the web-portal review) for the previews.
-        var view = InboxView.Compose(Empty ? [] : _entries, new FiltersConfig { Mute = ["gh:acme/web"] }, [],
-            [new Snooze(Review2Key, _now.AddMinutes(95), false)], _now);
-        return InboxPresenter.Build(view, k => _runs.GetValueOrDefault(k), Decide, (_, _) => null, _now,
-            ActionText.DefaultActions, k => States.GetValueOrDefault(k), r => RepoNames.Display(r, null, 34), waitingExpanded: true, snoozedExpanded: true);
-    }
+    // One muted row (acme/legacy-billing) and one snoozed row (fabrikam/web); waiting on others collapsed, snoozed expanded.
+    InboxView View() => InboxView.Compose(Empty ? [] : _entries, new FiltersConfig { Mute = ["gh:acme/legacy-*"] }, [],
+        [new Snooze(SnoozedKey, _now.AddMinutes(130), false)], _now);
+
+    public IReadOnlyList<InboxSection> BuildSections() =>
+        InboxPresenter.Build(View(), k => _runs.GetValueOrDefault(k), Decide, (_, _) => null, _now,
+            ActionText.DefaultActions, k => States.GetValueOrDefault(k), r => RepoNames.Display(r, null, 34), waitingExpanded: false, snoozedExpanded: true);
+
+    /// <summary>Unmuted active rows (the muted, snoozed and waiting rows don't count).</summary>
+    public int HeaderCount => View().BadgeCount;
 
     static AgentDecision Decide(InboxItem i) => i.Kind switch
     {

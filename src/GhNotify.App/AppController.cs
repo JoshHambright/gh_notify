@@ -258,6 +258,7 @@ public sealed class AppController : IPopupHost, IDisposable
     }
 
     public IReadOnlyList<SourceStatus> Sources() => _reconciler.Statuses;
+    public int HeaderCount => CurrentView().BadgeCount;
 
     public string? ConfigError => _config.Error;
 

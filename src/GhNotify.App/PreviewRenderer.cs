@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -30,6 +31,7 @@ public static class PreviewRenderer
                 theme.Apply();
                 foreach (var (state, host) in States())
                     written.Add(RenderPopup(host, Path.Combine(dir, $"popup-{name}-{state}.png")));
+                written.Add(RenderPopup(new SampleHost(), Path.Combine(dir, $"popup-{name}-menu.png"), withRowMenu: true));
             }
             foreach (var size in new[] { 16, 20, 24, 32 })
             {
@@ -71,9 +73,14 @@ public static class PreviewRenderer
         yield return ("failed", failed);
 
         yield return ("empty", new SampleHost { Empty = true });
+
+        // Muted row, collapsed "Waiting on others", expanded "Snoozed" (the sample data's filter states).
+        yield return ("filters", new SampleHost());
     }
 
-    static string RenderPopup(SampleHost host, string path)
+    /// <param name="withRowMenu">Also draws the first row's ⋯ menu below its button. The menu is laid out detached
+    /// (never opened), so nothing flashes on screen.</param>
+    static string RenderPopup(SampleHost host, string path, bool withRowMenu = false)
     {
         var w = new PopupWindow(host) { ShowActivated = false, Left = -10000, Top = 0, MaxHeight = 1400 };
         try
@@ -87,11 +94,40 @@ public static class PreviewRenderer
             var bmp = new RenderTargetBitmap((int)Math.Ceiling(frame.ActualWidth * 2), (int)Math.Ceiling(frame.ActualHeight * 2),
                 192, 192, PixelFormats.Pbgra32);
             bmp.Render(frame);
+            if (withRowMenu) DrawRowMenu(w, host, bmp);
             return Save(bmp, path);
         }
         finally
         {
             w.Close();
+        }
+    }
+
+    static void DrawRowMenu(PopupWindow w, SampleHost host, RenderTargetBitmap bmp)
+    {
+        var key = host.BuildSections().SelectMany(s => s.Rows).First().Key;
+        var button = Descendants(w.Frame).OfType<Button>().First(b => b.Tag as string == key && "Snooze or mute".Equals(b.ToolTip));
+        var menu = w.RowMenuFor(button, key) ?? throw new InvalidOperationException("no row menu for " + key);
+        menu.ApplyTemplate();
+        menu.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        menu.Arrange(new Rect(menu.DesiredSize));
+        menu.UpdateLayout();
+        Pump();
+        // Bottom-right of the menu under the button's bottom-right, like a right-aligned dropdown.
+        var corner = button.TransformToAncestor(w.Frame).Transform(new Point(button.ActualWidth, button.ActualHeight));
+        var layer = new DrawingVisual();
+        using (var dc = layer.RenderOpen())
+            dc.DrawRectangle(new VisualBrush(menu), null, new Rect(new Point(corner.X - menu.ActualWidth, corner.Y + 2), menu.RenderSize));
+        bmp.Render(layer);
+    }
+
+    static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            yield return child;
+            foreach (var d in Descendants(child)) yield return d;
         }
     }
 

@@ -7,6 +7,8 @@ public interface IPopupHost
 {
     IReadOnlyList<InboxSection> BuildSections();
     IReadOnlyList<SourceStatus> Sources();
+    /// <summary>The header number: active rows that are neither muted, snoozed nor waiting on others (the tray badge count).</summary>
+    int HeaderCount { get; }
     string? ConfigError { get; }
     DateTimeOffset? LastPolledAt { get; }
     bool IsRefreshing { get; }
