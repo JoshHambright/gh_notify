@@ -82,7 +82,7 @@ public partial class App : Application
         var config = new ConfigStore(o.ConfigFile);
         config.Load();
         var runtime = new AppRuntime(dispatcher, o.Dirs, () => dispatcher.Post(shutdown), t => _copy(t));
-        var controller = _controller = new AppController(config, new StateStore(o.StateFile), o.Platform, runtime);
+        var controller = _controller = new AppController(config, new StateStore(o.StateFile), o.Platform, runtime) { Version = o.Version };
 
         _theme = new ThemeController(() => controller.ThemeMode, o.Platform.Theme, dispatcher); // persisted in state.json; the popup's theme button cycles it
         _theme.Apply();
