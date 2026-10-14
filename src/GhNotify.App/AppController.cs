@@ -142,7 +142,7 @@ public sealed class AppController : IPopupHost, IDisposable
     {
         var cfg = _config.Current;
         var now = DateTimeOffset.Now;
-        IReadOnlyList<InboxItem> woken; // Task 4 toasts these; until then only the snooze bookkeeping uses the evaluation.
+        IReadOnlyList<InboxItem> woken;
         lock (_filterGate)
         {
             var result = Snoozes.Evaluate(_snoozes, diff, _reconciler.Entries, now);
@@ -151,7 +151,9 @@ public sealed class AppController : IPopupHost, IDisposable
             _mutes = Snoozes.PruneMutes(_mutes, now).ToList();
         }
         var view = CurrentView();
-        foreach (var t in NotificationPolicy.Plan(diff, WorkHours.IsWithin(cfg.WorkHours, DateTime.Now))) _toasts.Apply(t);
+        var plan = NotificationPlanner.Plan(diff, woken, view, cfg, WorkHours.IsWithin(cfg.WorkHours, DateTime.Now));
+        foreach (var t in plan.Toasts) _toasts.Apply(t);
+        if (plan.Sound is { } sound) Application.Current?.Dispatcher.InvokeAsync(() => SoundPlayerService.PlayOrDefault(sound));
         foreach (var i in diff.InitialLoad) { _agents.OnItemAdded(i); MaybeAutoRun(i, cfg, view); }
         foreach (var i in diff.Added) { _agents.OnItemAdded(i); _ = _hooks.DispatchAsync(HookEvent.ItemAdded, i); MaybeAutoRun(i, cfg, view); }
         foreach (var c in diff.Changed) { _agents.OnItemChanged(c); _ = _hooks.DispatchAsync(HookEvent.ItemChanged, c.New); }

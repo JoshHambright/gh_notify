@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <Resource Include="Fonts\*.ttf" />
+    <Resource Include="Sounds\*.wav" />
     <InternalsVisibleTo Include="GhNotify.App.Tests" />
   </ItemGroup>
 
