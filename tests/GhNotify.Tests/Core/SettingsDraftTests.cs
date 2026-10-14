@@ -66,6 +66,14 @@ public class SettingsDraftTests
         Assert.Equal("Windows default", SettingsDraft.SoundLabel("default"));
     }
 
+    [Theory]
+    [InlineData("builtin:", "builtin:")]
+    [InlineData("builtin:a", "A")]
+    [InlineData("BUILTIN:chime", "Chime")]
+    [InlineData("", "")]
+    public void Sound_label_never_throws_on_partial_input(string sound, string expected) =>
+        Assert.Equal(expected, SettingsDraft.SoundLabel(sound));
+
     [Fact]
     public void Count_matches_for_filter_hints()
     {

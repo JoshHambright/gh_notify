@@ -71,7 +71,7 @@ public sealed class SettingsDraft
     {
         "default" => "Windows default",
         "none" => "None",
-        _ when sound.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase) =>
+        _ when sound.Length > "builtin:".Length && sound.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase) =>
             char.ToUpperInvariant(sound["builtin:".Length]) + sound["builtin:".Length..][1..],
         _ => Path.GetFileName(sound),
     };
