@@ -134,7 +134,9 @@ never split or interpreted by a shell.
 - No cost is shown, and **Open in Claude** is hidden (there is no session). `allowedTools` / `disallowedTools` don't apply.
 
 **Working directory.** With `needsWorktree: true`, a throwaway worktree of the PR's local clone (found under `repoRoots`). With
-`false`, the local clone if one is found, otherwise `%TEMP%\GhNotify\cmd`.
+`false`, the PR's local clone if one is found (command profiles only), otherwise a fresh per-item folder under
+`%LocalAppData%\GhNotify-data\scratch\<item tag>`. A Claude prompt profile with `needsWorktree: false` always runs in the
+scratch folder, never in your clone.
 
 **`.cmd` / `.bat` caveat.** Batch files run through `cmd.exe`, which can't quote safely. If any argument, after placeholder
 filling, contains `"`, `%`, `!`, CR or LF, the run is refused. A PR title with a `%` will therefore fail for a `.cmd` target. Use
@@ -153,7 +155,7 @@ Hooks run a program when something happens to an item:
 
 | Key | Meaning |
 |---|---|
-| `event` | `ItemAdded`, `ItemRemoved`, `ItemChanged` (new commit, vote or check state) or `AgentFinished`. |
+| `event` | `ItemAdded`, `ItemRemoved`, `ItemChanged` (the item's head commit, detail line or title changed between polls) or `AgentFinished`. |
 | `match` | Optional [item match](configuration.md#item-match). |
 | `run` | Program and arguments. Arguments are literal; no placeholders. |
 

@@ -34,8 +34,7 @@ rule the toast uses the Windows default sound. Rules use the same [item match](c
 
 ### One sound per poll
 
-If one poll adds several items, only **one** sound plays; every item still gets its own (silent) toast. The sound that plays is
-the one for the most important new item, in this order:
+If one poll adds several items, only **one** item gets a sound. The winner is the most important new item whose sound rule isn't `none`, in this order:
 
 1. `ApprovalPending`
 2. `MyPrCiFailing`
@@ -43,7 +42,7 @@ the one for the most important new item, in this order:
 4. `MyPrNeedsResponse`
 5. `MyPrReadyToMerge`
 
-Ties go to the oldest item. `MyPrWaiting` items never toast and never play a sound.
+Ties go to the oldest item. If the winner's sound is `default`, its own toast carries the Windows sound; every other toast is silent. If it is a built-in or custom sound, that sound plays separately and all toasts are silent. `MyPrWaiting` items never toast and never play a sound.
 
 ### Alert off-hours
 

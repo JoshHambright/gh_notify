@@ -4,7 +4,7 @@ gh_notify reads `%APPDATA%\GhNotify\config.json`. It is created on first run and
 **Settings** (tray menu or popup **⋯**) edits it for you; **Settings › Advanced** opens the file.
 
 Saving from Settings rewrites the file, so JSON comments are dropped. A backup of the previous file is kept as
-`config.json.bak`. Unknown keys are preserved. If the file is invalid, the popup shows a banner with **Fix in Settings**.
+`config.json.bak`. Unknown top-level keys are preserved. If the file is invalid, the popup shows a banner with **Fix in Settings**.
 Property names are camelCase and enums are strings. Most changes apply on save; a change to `maxConcurrentAgents`
 needs a restart (quit from the tray and start again).
 
