@@ -60,7 +60,7 @@ Actions use your own `gh` / `az` login. Agents can't trigger them.
 ## Updates
 
 The app checks GitHub Releases for this repository over HTTPS, every `updates.checkHours` hours (turn off with
-`updates.enabled`). Updates are downloaded quietly and applied only when you restart or quit; the app never restarts on its own.
+`updates.enabled`). Updates are downloaded quietly and applied when you choose **Restart to update**, or otherwise the next time gh_notify starts; the app never restarts on its own.
 Builds are **unsigned for now**, hence the SmartScreen prompt. The signing step is stubbed in the release workflow for later.
 `GHNOTIFY_UPDATE_FEED` points the updater at a local folder; it exists for the install tests and shouldn't be set otherwise.
 
