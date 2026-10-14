@@ -68,7 +68,7 @@ public sealed class AppController : IPopupHost, IDisposable
         _repos = new RepoLocator(() => _config.Current.RepoRoots);
         _claudeAvailable = CommandResolver.Find("claude") is not null;
         var deps = new AgentDeps(_repos, new WorktreeManager(runner, AppPaths.Worktrees), new ClaudeRunner(runner),
-            new SkillLocator(SkillLocator.DefaultClaudeHome), () => _claudeAvailable);
+            new SkillLocator(SkillLocator.DefaultClaudeHome), () => _claudeAvailable, new CommandRunner(runner));
         _agents = new AgentCoordinator(deps, () => _config.Current, AppPaths.Scratch, restored: state.AgentRuns);
         foreach (var r in state.AgentRuns)
             if (r.FinishedAt is { } f) _announced[r.Key] = f; // don't re-announce runs finished before a restart

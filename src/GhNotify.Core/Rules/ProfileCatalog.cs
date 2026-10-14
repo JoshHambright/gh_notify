@@ -7,6 +7,18 @@ public static class ProfileCatalog
     public static readonly IReadOnlyDictionary<string, AgentProfile> BuiltIn =
         new Dictionary<string, AgentProfile>(StringComparer.OrdinalIgnoreCase)
         {
+            ["review"] = new()
+            {
+                Prompt = "Review the pull request at {url}. Read the diff and the surrounding code. List bugs, risky changes and missing tests, " +
+                         "most important first, with file:line. Do not post, approve, comment or push anything. " +
+                         "End with a 1–3 line summary starting \"SUMMARY:\".",
+            },
+            ["diagnose-ci"] = new()
+            {
+                Prompt = "The pull request at {url} has failing checks. Read the failing check logs and the relevant code, find the root cause " +
+                         "of each failure, and suggest the smallest fix. Make no commits, pushes or comments. " +
+                         "End with a 1–3 line summary starting \"SUMMARY:\".",
+            },
             ["peer-review"] = new()
             {
                 RequiresSkill = "peer-review",

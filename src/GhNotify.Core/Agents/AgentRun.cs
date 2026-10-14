@@ -2,6 +2,8 @@ namespace GhNotify.Core;
 
 public enum AgentState { Queued, Running, Ready, Failed, Outdated }
 
+public enum AgentRunKind { Claude, Command }
+
 public sealed record AgentRun
 {
     public required string Key { get; init; }
@@ -20,4 +22,7 @@ public sealed record AgentRun
     public DateTimeOffset? ItemRemovedAt { get; init; }
     public string? ResultText { get; init; }
     public int? DurationSeconds { get; init; }
+    public AgentRunKind Kind { get; init; }
+    /// <summary>False when the run used an existing clone as its working directory: cleanup must never delete it.</summary>
+    public bool OwnsWorkingDir { get; init; } = true;
 }

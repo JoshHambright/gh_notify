@@ -42,6 +42,30 @@ public class AgentCoordinatorTests
         }
     }
 
+    sealed class FakeCommands : ICommandRunner
+    {
+        public List<(string Cwd, IReadOnlyList<string> Command)> Calls { get; } = [];
+        public Task<AgentOutcome> RunAsync(string cwd, IReadOnlyList<string> command, InboxItem item, TimeSpan t, CancellationToken ct)
+        {
+            lock (Calls) Calls.Add((cwd, command));
+            return Task.FromResult(new AgentOutcome(true, null, "done", null, null) { ResultText = "out" });
+        }
+    }
+
+    static (AgentCoordinator, FakeCommands, Claude, string Scratch) MakeCmd(string? clone, bool exists = true)
+    {
+        var cmds = new FakeCommands();
+        var claude = new Claude();
+        var scratch = Path.Combine(Path.GetTempPath(), "ghn-scratch-" + Guid.NewGuid());
+        var cfg = new AppConfig();
+        var c = new AgentCoordinator(new AgentDeps(new Repos(clone), new Worktrees(), claude, new Skills(true), () => false, cmds, _ => exists),
+            () => cfg, scratch);
+        return (c, cmds, claude, scratch);
+    }
+
+    static AgentDecision CmdDecision() =>
+        new(AgentMode.Button, "triage", new AgentProfile { Command = ["triage", "{url}"], NeedsWorktree = false });
+
     static InboxItem Item(string key = "gh:review:acme/api#12", string sha = "s1") =>
         new(key, Provider.GitHub, ItemKind.ReviewRequested, "acme/api", "T", "https://github.com/acme/api/pull/12", "alice",
             DateTimeOffset.UnixEpoch, sha, 10, null) { Number = 12, SourceRef = "pull/12/head", CloneUrl = "https://github.com/acme/api" };
@@ -56,7 +80,7 @@ public class AgentCoordinatorTests
         var claude = new Claude();
         var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-10-13T12:00:00Z"));
         var cfg = new AppConfig { MaxConcurrentAgents = max };
-        var c = new AgentCoordinator(new AgentDeps(new Repos(clone), wts, claude, new Skills(skill), () => claudeOk),
+        var c = new AgentCoordinator(new AgentDeps(new Repos(clone), wts, claude, new Skills(skill), () => claudeOk, new FakeCommands()),
             () => cfg, Path.Combine(Path.GetTempPath(), "ghn-scratch-" + Guid.NewGuid()), time, restored);
         return (c, wts, claude, time);
     }
@@ -309,5 +333,66 @@ public class AgentCoordinatorTests
         var run = c.Get(Item().Key)!;
         Assert.Equal("full text", run.ResultText);
         Assert.Equal(42, run.DurationSeconds);
+    }
+
+    [Fact]
+    public async Task Command_profile_runs_the_command_not_claude()
+    {
+        var (c, cmds, claude, _) = MakeCmd(null);
+        Assert.Null(c.WhyCannotRun(Item(), CmdDecision()));
+        Assert.True(c.TryStart(Item(), CmdDecision(), manual: true));
+        await c.WhenIdle();
+        Assert.Equal(["triage", "{url}"], cmds.Calls.Single().Command);
+        Assert.Empty(claude.Calls);
+        var run = c.Get(Item().Key)!;
+        Assert.Equal(AgentRunKind.Command, run.Kind);
+        Assert.Equal(AgentState.Ready, run.State);
+        Assert.Equal("done", run.Summary);
+        Assert.Null(run.SessionId);
+    }
+
+    [Fact]
+    public void Command_profile_missing_program_cannot_run()
+    {
+        var (c, _, _, _) = MakeCmd(null, exists: false);
+        Assert.Equal("'triage' not found on PATH", c.WhyCannotRun(Item(), CmdDecision()));
+        Assert.False(c.TryStart(Item(), CmdDecision(), manual: true));
+    }
+
+    [Fact]
+    public async Task Command_profile_without_worktree_runs_in_located_clone()
+    {
+        var (c, cmds, _, _) = MakeCmd(@"C:onespi");
+        Assert.True(c.TryStart(Item(), CmdDecision(), manual: true));
+        await c.WhenIdle();
+        Assert.Equal(@"C:onespi", cmds.Calls.Single().Cwd);
+        Assert.False(c.Get(Item().Key)!.OwnsWorkingDir);
+    }
+
+    [Fact]
+    public async Task Command_profile_without_clone_runs_in_scratch()
+    {
+        var (c, cmds, _, scratch) = MakeCmd(null);
+        Assert.True(c.TryStart(Item(), CmdDecision(), manual: true));
+        await c.WhenIdle();
+        Assert.Equal(Path.Combine(scratch, ItemTag.For(Item().Key)), cmds.Calls.Single().Cwd);
+    }
+
+    [Fact]
+    public async Task Sweeping_a_command_run_in_a_clone_keeps_the_clone()
+    {
+        var clone = Path.Combine(Path.GetTempPath(), "ghn-clone-" + Guid.NewGuid());
+        Directory.CreateDirectory(clone);
+        try
+        {
+            var (c, _, _, _) = MakeCmd(clone);
+            Assert.True(c.TryStart(Item(), CmdDecision(), manual: true));
+            await c.WhenIdle();
+            c.OnItemRemoved(Item());
+            await c.SweepAsync(default);
+            Assert.Null(c.Get(Item().Key));
+            Assert.True(Directory.Exists(clone));
+        }
+        finally { Directory.Delete(clone, true); }
     }
 }
