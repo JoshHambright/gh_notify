@@ -8,6 +8,16 @@ A small Windows tray app that shows everything on GitHub and Azure DevOps that's
 [![License: MIT](https://img.shields.io/github/license/JoshHambright/gh_notify)](LICENSE)
 ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)
 
+## Install
+
+**[⬇ Download GhNotify-win-Setup.exe](https://github.com/JoshHambright/gh_notify/releases/latest/download/GhNotify-win-Setup.exe)** — Windows 10/11, per-user, no admin rights. Updates install themselves.
+
+1. Run the installer. Windows SmartScreen may say "Windows protected your PC" because the build isn't code-signed yet: click **More info → Run anyway**.
+2. Sign in to GitHub once: `gh auth login` (needs the [GitHub CLI](https://cli.github.com/)).
+3. Optional, for Azure DevOps: `az login` (needs the [Azure CLI](https://aka.ms/installazurecliwindows)).
+
+gh_notify starts in the system tray (click the ^ arrow if it's hidden) and launches with Windows. Click the icon to open your inbox.
+
 <p align="center"><img src="docs/images/hero-dark.png" alt="The gh_notify popup with one row expanded" width="380"></p>
 
 | Dark | Light |
@@ -22,16 +32,6 @@ A small Windows tray app that shows everything on GitHub and Azure DevOps that's
 - your PRs needing a response
 - your PRs ready to merge
 - your other open PRs, as a quiet "Waiting on others" list
-
-## Quickstart (60 seconds)
-
-1. Download `GhNotify-win-Setup.exe` from the [latest release](https://github.com/JoshHambright/gh_notify/releases/latest).
-2. SmartScreen: **More info → Run anyway** (the build is unsigned; see the [FAQ](#faq)).
-3. Run `gh auth login`.
-4. Optional: run `az login` for Azure DevOps.
-5. Click the tray icon.
-
-It starts with Windows and updates itself.
 
 ## Tour
 
