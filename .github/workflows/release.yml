@@ -1,0 +1,67 @@
+name: Release
+on:
+  push:
+    tags: ["v*.*.*"]
+permissions:
+  contents: write
+env:
+  VELOPACK_VERSION: "1.2.161"
+defaults:
+  run:
+    shell: pwsh
+jobs:
+  gates:
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+  release:
+    needs: gates
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install vpk
+        run: dotnet tool install -g vpk --version $env:VELOPACK_VERSION
+      - name: Version from tag
+        id: v
+        run: |
+          $version = '${{ github.ref_name }}'.TrimStart('v')
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Previous release (for deltas and the upgrade test)
+        id: prev
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The first release has no predecessor: every step here tolerates that.
+          vpk download github --repoUrl "https://github.com/${{ github.repository }}" --token "$env:GH_TOKEN" --outputDir artifacts/releases
+          if ($LASTEXITCODE) { Write-Host "::notice::no previous release to download"; $global:LASTEXITCODE = 0 }
+          gh release download --repo "${{ github.repository }}" --pattern '*Setup.exe' --dir artifacts/releases --clobber
+          if ($LASTEXITCODE) { $global:LASTEXITCODE = 0 }
+          $old = Get-ChildItem artifacts/releases -Filter '*Setup.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          $setup = if ($old) { $old.FullName } else { '' }
+          "setup=$setup" >> $env:GITHUB_OUTPUT
+      - name: Release notes
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          $tag = '${{ github.ref_name }}'
+          $notes = (git tag -l --format='%(contents)' $tag | Out-String).Trim()
+          if (-not $notes) {
+            $prev = git describe --tags --abbrev=0 "$tag^" 2>$null
+            $notes = if ($prev) { git log --format='- %s' "$prev..$tag" } else { git log --format='- %s' -20 $tag }
+            $notes = ($notes -join "`n")
+          }
+          Set-Content artifacts/notes.md $notes
+      - name: Pack
+        run: ./build/pack.ps1 -Version ${{ steps.v.outputs.version }} -OutDir artifacts/new -PrevReleases artifacts/releases -ReleaseNotes artifacts/notes.md
+      - name: Upgrade test from the previous release
+        if: steps.prev.outputs.setup != ''
+        run: ./build/test-install.ps1 -OldSetup "${{ steps.prev.outputs.setup }}" -NewFeed artifacts/new
+      # SIGNING: sign artifacts/new/* here once a certificate or Trusted Signing account exists.
+      - name: Publish GitHub release
+        run: >
+          vpk upload github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ github.token }}"
+          --outputDir artifacts/new --publish --releaseName "gh_notify v${{ steps.v.outputs.version }}"
+          --tag "${{ github.ref_name }}"

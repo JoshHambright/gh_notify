@@ -1,0 +1,46 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+    secrets:
+      LEAK_TERMS:
+        required: false
+permissions:
+  contents: read
+env:
+  VELOPACK_VERSION: "1.2.161"
+defaults:
+  run:
+    shell: pwsh
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore GhNotify.slnx
+      - name: Build (warnings are errors)
+        run: dotnet build GhNotify.slnx -c Release --no-restore -warnaserror
+      - name: Format
+        run: dotnet format GhNotify.slnx --verify-no-changes --no-restore
+      - name: Test with coverage
+        run: dotnet test GhNotify.slnx -c Release --no-build --collect:"XPlat Code Coverage" --results-directory artifacts/coverage
+      - name: Coverage floor
+        run: ./build/check-coverage.ps1 -Results artifacts/coverage
+      - name: Leak scan
+        env:
+          LEAK_TERMS: ${{ secrets.LEAK_TERMS }}
+        run: ./build/leak-scan.ps1
+      - name: Install vpk
+        run: dotnet tool install -g vpk --version $env:VELOPACK_VERSION
+      - name: Install / upgrade / uninstall test
+        run: |
+          ./build/pack.ps1 -Version 0.0.1-ci -OutDir artifacts/old
+          ./build/pack.ps1 -Version 0.0.2-ci -OutDir artifacts/new
+          ./build/test-install.ps1 -OldSetup artifacts/old/GhNotify-win-Setup.exe -NewFeed artifacts/new
