@@ -57,6 +57,8 @@ Approving or rejecting from the tray is deliberately slow:
 
 Actions use your own `gh` / `az` login. Agents can't trigger them.
 
+**Merge** and **Re-run failed** use the same two-step, live-checked confirm. They never bypass branch protection or policies (a PR that isn't cleanly mergeable is refused), a merge is pinned to the commit you saw, and only same-repo branches are deleted. See [actions.md](actions.md).
+
 ## Updates
 
 The app checks GitHub Releases for this repository over HTTPS, every `updates.checkHours` hours (turn off with

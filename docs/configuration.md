@@ -22,6 +22,8 @@ For tests and development, `GHNOTIFY_CONFIG_DIR` and `GHNOTIFY_DATA_DIR` overrid
 | `maxConcurrentAgents` | int | `2` | Agent runs at once. At least 1. Needs a restart. |
 | `agentTimeoutMinutes` | int | `20` | Kill an agent or command run after this long. At least 1. |
 | `agentAllowedTools` | string[] | read-only set: `Read`, `Grep`, `Glob`, `gh pr view/diff/checks`, `gh run view`, `gh api`, `git`, read-only `az repos pr` / `az pipelines` verbs, `bash` | Tools Claude agents may use, on top of the profile's own. The always-on deny list is separate; see [security.md](security.md). |
+| `hotkey` | string | `"Win+Shift+G"` | Global hotkey that shows or hides the popup. Modifiers `Ctrl`, `Alt`, `Shift`, `Win` joined by `+`, then `A`–`Z`, `0`–`9` or `F1`–`F12`. Needs a modifier unless it is an `F` key. `""` turns it off. If another app owns it, Settings says so. |
+| `actions` | object | see below | In-tray actions. |
 | `display` | object | see below | Popup display. |
 | `updates` | object | see below | Auto-update. |
 | `notifications` | object | `{ "sounds": [] }` | Sound rules. |
@@ -58,6 +60,12 @@ For tests and development, `GHNOTIFY_CONFIG_DIR` and `GHNOTIFY_DATA_DIR` overrid
 | `includeDrafts` | bool | `false` | Include your draft PRs. |
 | `azSubscription` | string? | `null` | Request the `az` token with `--subscription`. Preferred when your default `az` account isn't the Azure DevOps one. |
 | `azTenant` | string? | `null` | Request the token with `--tenant` instead. |
+
+## `actions`
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `mergeMethod` | string? | `null` | Preferred merge method: `squash`, `merge` or `rebase`. Used when the repo allows it; otherwise squash, merge, rebase, whichever is allowed first. `null` = repo default. See [actions.md](actions.md#merge). |
 
 ## `display`
 

@@ -7,7 +7,7 @@ Every release follows the same pipeline: a design spec (`docs/superpowers/specs/
 | Release | Theme | Status |
 |---|---|---|
 | v1.0–v1.2 | Inbox, toasts, approvals, agents, installer, settings, mute/snooze | ✅ Shipped |
-| **v1.3** | Clear work from the tray | 🟡 Designing |
+| **v1.3** | Clear work from the tray | 🟡 In progress |
 | **v2.0** | macOS (cross-platform UI) | ⚪ Planned, [#1](https://github.com/JoshHambright/gh_notify/issues/1) |
 | **v2.1** | Broader inbox and smarter alerts | ⚪ Planned |
 | **v2.2** | Agent hand-off and insights | ⚪ Planned |
