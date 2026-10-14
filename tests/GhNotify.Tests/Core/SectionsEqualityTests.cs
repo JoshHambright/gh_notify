@@ -38,4 +38,11 @@ public class SectionsEqualityTests
         Assert.False(InboxSections.SameContent([Waiting(2, false)], [Waiting(3, false)]));
         Assert.False(InboxSections.SameContent([Waiting(2, false)], [Waiting(2, true)]));
     }
+
+    [Fact]
+    public void Mute_and_snooze_differences_are_not_equal()
+    {
+        Assert.False(InboxSections.SameContent(S(Row()), S(Row() with { MutedBy = "gh:acme/*" })));
+        Assert.False(InboxSections.SameContent(S(Row()), S(Row() with { SnoozeText = "2h 10m left" })));
+    }
 }

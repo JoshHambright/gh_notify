@@ -21,6 +21,8 @@ public sealed class SampleHost : IPopupHost
 
     public Dictionary<string, RowUiState> States { get; } = new();
     public bool Empty { get; set; }
+    /// <summary>No active mutes (the footer menu shows "Nothing muted").</summary>
+    public bool NoMutes { get; set; }
     public ThemeMode ThemeMode { get; set; } = ThemeMode.System;
 
     public SampleHost()
@@ -157,7 +159,7 @@ public sealed class SampleHost : IPopupHost
     public void SnoozeItem(string key, SnoozeChoice choice) { }
     public void Unsnooze(string key) { }
     public void Mute(string key, MuteScope scope, MuteDuration duration) { }
-    public IReadOnlyList<ActiveMute> ActiveMutes() =>
+    public IReadOnlyList<ActiveMute> ActiveMutes() => NoMutes ? [] :
         [new ActiveMute("gh:acme/legacy-*", "forever", true), new ActiveMute("ado:contoso/platform", "45m left", false)];
     public void Unmute(string pattern) { }
     public void ToggleSection(string id) { }

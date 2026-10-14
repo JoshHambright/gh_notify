@@ -31,7 +31,9 @@ public static class PreviewRenderer
                 theme.Apply();
                 foreach (var (state, host) in States())
                     written.Add(RenderPopup(host, Path.Combine(dir, $"popup-{name}-{state}.png")));
-                written.Add(RenderPopup(new SampleHost(), Path.Combine(dir, $"popup-{name}-menu.png"), withRowMenu: true));
+                written.Add(RenderPopup(new SampleHost(), Path.Combine(dir, $"popup-{name}-menu.png"), DrawRowMenu));
+                written.Add(RenderPopup(new SampleHost(), Path.Combine(dir, $"popup-{name}-footer-menu.png"), DrawFooterMenu));
+                written.Add(RenderPopup(new SampleHost { NoMutes = true }, Path.Combine(dir, $"popup-{name}-footer-menu-empty.png"), DrawFooterMenu));
             }
             foreach (var size in new[] { 16, 20, 24, 32 })
             {
@@ -78,9 +80,8 @@ public static class PreviewRenderer
         yield return ("filters", new SampleHost());
     }
 
-    /// <param name="withRowMenu">Also draws the first row's ⋯ menu below its button. The menu is laid out detached
-    /// (never opened), so nothing flashes on screen.</param>
-    static string RenderPopup(SampleHost host, string path, bool withRowMenu = false)
+    /// <param name="overlay">Draws on top of the rendered popup (the ⋯ menus).</param>
+    static string RenderPopup(SampleHost host, string path, Action<PopupWindow, SampleHost, RenderTargetBitmap>? overlay = null)
     {
         var w = new PopupWindow(host) { ShowActivated = false, Left = -10000, Top = 0, MaxHeight = 1400 };
         try
@@ -94,7 +95,7 @@ public static class PreviewRenderer
             var bmp = new RenderTargetBitmap((int)Math.Ceiling(frame.ActualWidth * 2), (int)Math.Ceiling(frame.ActualHeight * 2),
                 192, 192, PixelFormats.Pbgra32);
             bmp.Render(frame);
-            if (withRowMenu) DrawRowMenu(w, host, bmp);
+            overlay?.Invoke(w, host, bmp);
             return Save(bmp, path);
         }
         finally
@@ -103,22 +104,62 @@ public static class PreviewRenderer
         }
     }
 
+    /// <summary>
+    /// Draws the first row's ⋯ menu under its button, with its Snooze submenu to the left. Menus are laid out detached
+    /// (never opened, so nothing flashes on screen), which is also why the submenu is drawn as its own menu.
+    /// </summary>
     static void DrawRowMenu(PopupWindow w, SampleHost host, RenderTargetBitmap bmp)
     {
-        var key = host.BuildSections().SelectMany(s => s.Rows).First().Key;
-        var button = Descendants(w.Frame).OfType<Button>().First(b => b.Tag as string == key && "Snooze or mute".Equals(b.ToolTip));
-        var menu = w.RowMenuFor(button, key) ?? throw new InvalidOperationException("no row menu for " + key);
+        var row = host.BuildSections().SelectMany(s => s.Rows).First();
+        var button = Descendants(w.Frame).OfType<Button>().First(b => b.Tag as string == row.Key && "Snooze or mute".Equals(b.ToolTip));
+        var menu = w.RowMenuFor(button, row.Key) ?? throw new InvalidOperationException("no row menu for " + row.Key);
+        // Top-right of the menu under the button's bottom-right, like a right-aligned dropdown.
+        var corner = button.TransformToAncestor(w.Frame).Transform(new Point(button.ActualWidth, button.ActualHeight));
+        var at = DrawMenu(bmp, menu, size => new Point(corner.X - size.Width, corner.Y + 2));
+        var first = (FrameworkElement)menu.ItemContainerGenerator.ContainerFromIndex(0);
+        var firstTop = at.Y + first.TransformToAncestor(menu).Transform(new Point()).Y;
+        DrawMenu(bmp, w.MenuOf(button, row.Key, RowMenus.For(row)[0].Children), size => SubmenuAt(at, size, firstTop));
+    }
+
+    /// <summary>Draws the footer ⋯ menu above its button, with the "Muted (n)" submenu to the left when there are mutes.</summary>
+    static void DrawFooterMenu(PopupWindow w, SampleHost host, RenderTargetBitmap bmp)
+    {
+        var button = Descendants(w.Frame).OfType<Button>().First(b => "Menu".Equals(b.ToolTip));
+        var menu = w.FooterMenu(button);
+        var corner = button.TransformToAncestor(w.Frame).Transform(new Point(button.ActualWidth, 0));
+        var at = DrawMenu(bmp, menu, size => new Point(corner.X - size.Width, corner.Y - size.Height - 2));
+        var muted = menu.Items.OfType<MenuItem>().First(m => m.Header is string h && (h.StartsWith("Muted", StringComparison.Ordinal) || h == "Nothing muted"));
+        if (!muted.HasItems) return;
+        var mutedTop = at.Y + muted.TransformToAncestor(menu).Transform(new Point()).Y;
+        // Move the unmute entries into a menu of their own (the drawn parent is already in the bitmap).
+        var entries = muted.Items.Cast<object>().ToList();
+        muted.Items.Clear();
+        var sub = new ContextMenu();
+        foreach (var e in entries) sub.Items.Add(e);
+        DrawMenu(bmp, sub, size => SubmenuAt(at, size, mutedTop));
+    }
+
+    /// <summary>
+    /// A submenu drawn to the left of its parent (at <paramref name="parent"/>), its first item level with the parent item at
+    /// <paramref name="itemTop"/>. The 8 px card margin and 4 px padding (Style.MenuCard) offset both; kept inside the frame.
+    /// </summary>
+    static Point SubmenuAt(Point parent, Size size, double itemTop) =>
+        new(Math.Max(0, parent.X - size.Width + 16), itemTop - 13);
+
+    /// <summary>Lays a detached menu out, draws it at the point <paramref name="place"/> picks for its size, and returns that point.</summary>
+    static Point DrawMenu(RenderTargetBitmap bmp, ContextMenu menu, Func<Size, Point> place)
+    {
         menu.ApplyTemplate();
         menu.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         menu.Arrange(new Rect(menu.DesiredSize));
         menu.UpdateLayout();
         Pump();
-        // Bottom-right of the menu under the button's bottom-right, like a right-aligned dropdown.
-        var corner = button.TransformToAncestor(w.Frame).Transform(new Point(button.ActualWidth, button.ActualHeight));
+        var at = place(menu.RenderSize);
         var layer = new DrawingVisual();
         using (var dc = layer.RenderOpen())
-            dc.DrawRectangle(new VisualBrush(menu), null, new Rect(new Point(corner.X - menu.ActualWidth, corner.Y + 2), menu.RenderSize));
+            dc.DrawRectangle(new VisualBrush(menu), null, new Rect(at, menu.RenderSize));
         bmp.Render(layer);
+        return at;
     }
 
     static IEnumerable<DependencyObject> Descendants(DependencyObject root)

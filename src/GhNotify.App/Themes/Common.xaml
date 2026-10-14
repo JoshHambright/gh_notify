@@ -89,4 +89,85 @@
       </Setter.Value>
     </Setter>
   </Style>
+
+  <!-- Menus (popup row ⋯ and footer ⋯): a themed card that follows dark / light through DynamicResource.
+       The card's margin leaves room for its shadow (menu popups allow transparency). -->
+  <Style x:Key="Style.MenuCard" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Brush.Raised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="4" />
+    <Setter Property="Margin" Value="8" />
+    <Setter Property="Effect"><Setter.Value><DropShadowEffect BlurRadius="12" Opacity="0.3" ShadowDepth="2" Direction="270" /></Setter.Value></Setter>
+  </Style>
+
+  <Style TargetType="ContextMenu">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+    <Setter Property="HasDropShadow" Value="False" />
+    <Setter Property="OverridesDefaultStyle" Value="True" />
+    <Setter Property="Grid.IsSharedSizeScope" Value="True" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ContextMenu">
+          <Border Style="{StaticResource Style.MenuCard}" MinWidth="150">
+            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style TargetType="Separator" x:Key="{x:Static MenuItem.SeparatorStyleKey}">
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Separator">
+          <Border Height="1" Margin="6,4" Background="{DynamicResource Brush.Hairline}" />
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style TargetType="MenuItem">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+    <Setter Property="OverridesDefaultStyle" Value="True" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="MenuItem">
+          <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Padding="4,5,8,5">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="*" SharedSizeGroup="MenuHeader" />
+                <ColumnDefinition Width="16" />
+              </Grid.ColumnDefinitions>
+              <Path x:Name="Check" Data="M0,4 L3.5,7.5 L10,1" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.6"
+                    StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" />
+              <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center" />
+              <Path x:Name="Arrow" Grid.Column="2" Data="M0,0 L4,4 L0,8" Stroke="{DynamicResource Brush.Muted}" StrokeThickness="1.5"
+                    StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                    HorizontalAlignment="Right" VerticalAlignment="Center" Visibility="Collapsed" />
+              <Popup x:Name="PART_Popup" Placement="Right" HorizontalOffset="-4" VerticalOffset="-13" AllowsTransparency="True" Focusable="False"
+                     IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}" PopupAnimation="Fade">
+                <Border Style="{StaticResource Style.MenuCard}" MinWidth="130" Grid.IsSharedSizeScope="True">
+                  <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                </Border>
+              </Popup>
+            </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="HasItems" Value="True"><Setter TargetName="Arrow" Property="Visibility" Value="Visible" /></Trigger>
+            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Check" Property="Visibility" Value="Visible" /></Trigger>
+            <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Hairline}" /></Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="{DynamicResource Brush.Muted}" /></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
 </ResourceDictionary>

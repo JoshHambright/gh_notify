@@ -160,9 +160,14 @@ public partial class PopupWindow : Window
     internal ContextMenu? RowMenuFor(UIElement target, string key)
     {
         var row = _rendered?.SelectMany(s => s.Rows).FirstOrDefault(r => r.Key == key);
-        if (row is null) return null;
+        return row is null ? null : MenuOf(target, key, RowMenus.For(row));
+    }
+
+    /// <summary>A context menu of row menu entries for <paramref name="key"/> (the preview renderer also draws a submenu with it).</summary>
+    internal ContextMenu MenuOf(UIElement target, string key, IEnumerable<RowMenuEntry> entries)
+    {
         var menu = new ContextMenu { PlacementTarget = target };
-        foreach (var entry in RowMenus.For(row)) menu.Items.Add(MenuItemFor(key, entry));
+        foreach (var entry in entries) menu.Items.Add(MenuItemFor(key, entry));
         return menu;
     }
 
@@ -252,9 +257,12 @@ public partial class PopupWindow : Window
 
     void OnCycleTheme(object sender, RoutedEventArgs e) => _host.CycleTheme();
 
-    void OnMenu(object sender, RoutedEventArgs e)
+    void OnMenu(object sender, RoutedEventArgs e) => FooterMenu((UIElement)sender).IsOpen = true;
+
+    /// <summary>The footer ⋯ menu. Internal for the preview renderer.</summary>
+    internal ContextMenu FooterMenu(UIElement target)
     {
-        var menu = new ContextMenu { PlacementTarget = (UIElement)sender };
+        var menu = new ContextMenu { PlacementTarget = target };
         var openConfig = new MenuItem { Header = "Open config" };
         openConfig.Click += (_, _) => _host.OpenConfig();
         var startup = new MenuItem { Header = "Start with Windows", IsCheckable = true, IsChecked = StartupRegistration.IsEnabled() };
@@ -269,7 +277,7 @@ public partial class PopupWindow : Window
         menu.Items.Add(MutedMenu());
         menu.Items.Add(new Separator());
         menu.Items.Add(quit);
-        menu.IsOpen = true;
+        return menu;
     }
 
     /// <summary>"Muted (n)" with an Unmute entry per active mute; a disabled "Nothing muted" when there are none.</summary>
