@@ -81,13 +81,13 @@ toasts.
 | `ado:contoso/platform` | Only the ADO project `contoso/platform`. |
 | `gh:fabrikam/sandbox` | Only that GitHub repo. |
 
-Manage the lists in **Settings › Filters**, which also shows how many current items each pattern matches.
+Manage the lists in **Settings › Filters** (the **Muted** and **Hidden** chips), which also shows how many current items each pattern matches. Its **Timed mutes** list unmutes timed entries only; to remove a permanent (forever) mute, delete its chip under **Muted**.
 
 ### Timed mutes
 
 Each row's **⋯** menu has **Mute repo**, **Mute org** and, for Azure DevOps, **Mute project**, each for **1 hour**, **Until
 tomorrow** (the next work-day start) or **Forever**. Timed mutes are kept in the state file and expire on their own. **Forever**
-adds the pattern to `filters.mute`, exactly as if you had typed it in Settings. The popup's **⋯** menu lists active timed mutes
+adds the pattern to `filters.mute`, exactly as if you had typed it in Settings. The popup's **⋯** menu (**Muted (n)**) lists active mutes
 with their time left and an **Unmute** button.
 
 ### Snooze

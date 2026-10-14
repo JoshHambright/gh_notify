@@ -57,18 +57,22 @@ See [docs/notifications.md](docs/notifications.md).
 ### Mute, hide and snooze
 
 **Mute** a repo, org or project (silent but still listed), **hide** it entirely, or **snooze** a single item until it changes.
-The row's **⋯** menu does timed mutes and snoozes in two clicks.
+The row's **⋯** menu does timed mutes and snoozes in two clicks (**Snooze** › 1 hour, 4 hours, Until tomorrow, Next week, Until it changes; **Mute repo / org / project** › 1 hour, Until tomorrow, Forever). Active mutes are listed, with **Unmute**, in the popup's own **⋯** menu.
 
-![Row menu with mute and snooze options](docs/images/filters.png)
+![Popup with a muted row (dimmed, 🔇) and a snoozed item at the bottom](docs/images/filters.png)
 
 ### The settings window
 
 Everything in `config.json` has a visual editor: sources, sound rules, filters, workflows and profiles, hooks.
-Raw JSON stays one click away.
+Open it from the popup's **⋯** menu › **Settings…** (the tray icon has no right-click menu; the same menu has **Check for updates** and, once one is downloaded, **Restart to update**, next to the footer's **Update ready · Restart** link). Raw JSON stays one click away.
 
 ![Settings, Workflows page](docs/images/settings-workflows.png)
 
 ![Settings, Notifications page](docs/images/settings-notifications.png)
+
+### Pull request numbers
+
+PR rows and toasts show the number after the repo, for example `acme/api #57`, and the expanded row has a **PR** detail line.
 
 ### The calm / red tray icon
 
