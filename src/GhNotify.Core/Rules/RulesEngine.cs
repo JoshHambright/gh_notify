@@ -6,7 +6,9 @@ public static class RulesEngine
 {
     public static AgentDecision Decide(InboxItem item, AppConfig config)
     {
-        var rule = config.Rules.FirstOrDefault(r => ItemMatcher.Matches(r.Match, item));
+        // Ready-to-merge / waiting rows have no default profile: only a rule that names the kind applies (pre-1.2 kind-less rules must not reach them).
+        var explicitKindOnly = item.Kind is ItemKind.MyPrReadyToMerge or ItemKind.MyPrWaiting;
+        var rule = config.Rules.FirstOrDefault(r => (!explicitKindOnly || r.Match?.Kind == item.Kind) && ItemMatcher.Matches(r.Match, item));
         var mode = rule?.Agent ?? AgentMode.Button;
         var name = rule?.Profile ?? DefaultProfileFor(item.Kind, config);
         if (mode == AgentMode.None || name is null) return new(AgentMode.None, name, null);

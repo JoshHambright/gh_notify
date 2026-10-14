@@ -135,3 +135,45 @@ public class RulesEngineTests
         Assert.Contains("agentProfiles.x.prompt", ex.Message);
     }
 }
+
+public class RulesEngineKindlessRuleTests
+{
+    static InboxItem Item(ItemKind kind) =>
+        new($"k:{kind}", Provider.GitHub, kind, "acme/api", "Title", "https://x", "alice", DateTimeOffset.UnixEpoch, "sha", 10, null);
+
+    static AppConfig LegacyRule() => new()
+    {
+        Rules = [new Rule { Match = new ItemMatch { Repo = "acme/*" }, Agent = AgentMode.Auto, Profile = "peer-review" }],
+    };
+
+    [Theory]
+    [InlineData(ItemKind.MyPrReadyToMerge)]
+    [InlineData(ItemKind.MyPrWaiting)]
+    public void Kindless_rule_does_not_apply_to_ready_or_waiting(ItemKind kind)
+    {
+        var d = RulesEngine.Decide(Item(kind), LegacyRule());
+        Assert.Equal(AgentMode.None, d.Mode);
+        Assert.Null(d.Profile);
+    }
+
+    [Theory]
+    [InlineData(ItemKind.MyPrReadyToMerge)]
+    [InlineData(ItemKind.MyPrWaiting)]
+    public void Rule_naming_the_kind_still_applies(ItemKind kind)
+    {
+        var cfg = new AppConfig { Rules = [new Rule { Match = new ItemMatch { Kind = kind }, Agent = AgentMode.Button, Profile = "review" }] };
+        Assert.Equal(AgentMode.Button, RulesEngine.Decide(Item(kind), cfg).Mode);
+    }
+
+    [Theory]
+    [InlineData(ItemKind.ReviewRequested)]
+    [InlineData(ItemKind.MyPrCiFailing)]
+    [InlineData(ItemKind.MyPrNeedsResponse)]
+    [InlineData(ItemKind.ApprovalPending)]
+    public void Kindless_rule_still_applies_to_other_kinds(ItemKind kind)
+    {
+        var d = RulesEngine.Decide(Item(kind), LegacyRule());
+        Assert.Equal(AgentMode.Auto, d.Mode);
+        Assert.Equal("peer-review", d.ProfileName);
+    }
+}
