@@ -86,7 +86,7 @@ No red when nothing is waiting. A red sweep and a red count appear the moment so
 
 **Why does Windows warn when I install it?**
 The installer isn't code-signed yet, so SmartScreen shows "Windows protected your PC". Click **More info → Run anyway**.
-Releases are built by CI from tagged source; see [docs/security.md](docs/security.md).
+Releases are built by CI from tagged source (versions come from conventional commits via release-please); see [docs/security.md](docs/security.md).
 
 **Azure DevOps shows ✗ or an AADSTS error.**
 Your default `az` account probably isn't the one Azure DevOps uses. Set the subscription in

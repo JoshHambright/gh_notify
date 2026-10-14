@@ -57,23 +57,34 @@ and tenant names). In CI the terms come from the `LEAK_TERMS` secret. Locally, p
 repo** (or git-ignored) and pass `-TermsFile`. The terms are never committed, and hits print only `file:line`. Without terms the
 scan is skipped with a notice. Use placeholder names (contoso, fabrikam, acme, alice, bob) everywhere.
 
-## Release
+## Commit messages
 
-1. Make sure `main` is green.
-2. Tag with an **annotated** message; the message becomes the release notes:
+Use [Conventional Commits](https://www.conventionalcommits.org/): `feat: ...` (minor bump), `fix: ...` (patch bump),
+`perf:`, `docs:`, and the hidden types `ci:`, `build:`, `test:`, `style:`, `chore:`, `refactor:`. Add `!` after the type or a
+`BREAKING CHANGE:` footer for a major bump. The types drive both the version and the changelog.
 
-   ```powershell
-   git tag -a v1.2.0 -m "gh_notify 1.2.0`n`n- Installer and auto-update`n- Settings window`n- Sounds, mute, hide, snooze"
-   git push origin v1.2.0
-   ```
+## Release process
 
-3. The pushed tag triggers `.github/workflows/release.yml`, which runs the CI gates, publishes self-contained `win-x64`,
-   downloads the previous release (for delta packages), packs with `vpk` (`build/pack.ps1`), runs the install test against the
-   real previous release, then uploads and publishes `GhNotify-win-Setup.exe`, the full and delta packages and
-   `releases.win.json` to a GitHub Release.
+Releases are managed by [release-please](https://github.com/googleapis/release-please) (`.github/workflows/release-please.yml`,
+configured by `release-please-config.json` and `.release-please-manifest.json`).
 
-Installed apps pick the new release up within `updates.checkHours`. The tag sets the version. Signing is not set up yet; the
-release workflow marks where it goes.
+1. Merge work to `main` with conventional commit messages.
+2. release-please keeps a pull request titled `chore(main): release X.Y.Z` open. It bumps `version.txt`, updates
+   `CHANGELOG.md` and proposes the next version from the `feat:`/`fix:` commits since the last release.
+3. Merging that PR creates the `vX.Y.Z` tag and GitHub release (with the changelog as its notes). The same workflow then
+   calls `.github/workflows/release.yml`, which runs the CI gates, publishes self-contained `win-x64`, downloads the previous
+   release (for delta packages), packs with `vpk` (`build/pack.ps1`), runs the install test against the real previous
+   release, then merges `GhNotify-win-Setup.exe`, the full and delta packages and `releases.win.json` into that release a few
+   minutes later.
+
+To re-run the packaging for an existing release, use Actions → Release → Run workflow and enter the tag (for example
+`v1.2.0`).
+
+One-time repository setting: Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests" must
+be on, or release-please cannot open its PR.
+
+Installed apps pick the new release up within `updates.checkHours`. Signing is not set up yet; the release workflow marks
+where it goes.
 
 ## Project layout
 
