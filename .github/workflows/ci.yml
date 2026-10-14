@@ -4,12 +4,18 @@ on:
     branches: [main]
   pull_request:
   workflow_call:
+    inputs:
+      ref:
+        description: Ref to test (default is the triggering commit)
+        required: false
+        type: string
+        default: ""
     secrets:
       LEAK_TERMS:
         required: false
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 env:
@@ -23,6 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0
       - uses: actions/setup-dotnet@v6
         with:

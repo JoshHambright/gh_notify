@@ -80,6 +80,14 @@ configured by `release-please-config.json` and `.release-please-manifest.json`).
 To re-run the packaging for an existing release, use Actions → Release → Run workflow and enter the tag (for example
 `v1.2.0`).
 
+Notes:
+
+- The release PR itself gets no CI run (pull requests created with `GITHUB_TOKEN` don't trigger workflows). Merging it
+  triggers CI on `main` and the release.
+- For a few minutes after release-please publishes, the release exists without update files until Velopack attaches them.
+- If the publish job fails, recover with Actions → Release → Run workflow and the tag.
+- Dependency bumps (`chore:`) don't cut releases.
+
 One-time repository setting: Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests" must
 be on, or release-please cannot open its PR.
 

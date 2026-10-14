@@ -12,6 +12,9 @@ on:
         description: Release tag (vMAJOR.MINOR.PATCH)
         required: true
         type: string
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
 permissions:
   contents: write
 env:
@@ -22,6 +25,8 @@ defaults:
 jobs:
   gates:
     uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ inputs.tag }}
     secrets: inherit
   release:
     needs: gates
@@ -89,12 +94,14 @@ jobs:
             }
             if (-not $notes) {
               $prev = git describe --tags --abbrev=0 "$tag^" 2>$null
+              $global:LASTEXITCODE = 0
               $lines = if ($prev) { git log --format='- %s' "$prev..$tag" } else { git log --format='- %s' -20 $tag }
               $notes = ($lines -join "`n")
             }
           }
           $notes = (($notes -split "`r?`n") | Where-Object { $_ -notmatch '^\s*Co-Authored-By:' }) -join "`n"
           Set-Content artifacts/notes.md $notes.Trim()
+          $global:LASTEXITCODE = 0
       - name: Pack
         run: |
           $p = @{ Version = '${{ steps.v.outputs.version }}'; OutDir = 'artifacts/new'; ReleaseNotes = 'artifacts/notes.md' }
@@ -112,4 +119,4 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: >
           vpk upload github --repoUrl "https://github.com/$env:GITHUB_REPOSITORY" --token "$env:GH_TOKEN"
-          --outputDir artifacts/new --merge --publish --tag "$env:TAG" --releaseName "gh_notify $env:TAG"
+          --outputDir artifacts/new --merge --publish --tag "$env:TAG"
