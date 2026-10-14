@@ -53,7 +53,7 @@ public partial class PopupWindow : Window
         }
 
         EmptyState.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        CountText.Text = sections.Where(s => s.Id != "waiting").Sum(s => s.Rows.Count).ToString();
+        CountText.Text = _host.HeaderCount.ToString();
         ConfigErrorText.Text = _host.ConfigError;
         ConfigErrorText.Visibility = _host.ConfigError is null ? Visibility.Collapsed : Visibility.Visible;
         ThemeButton.ToolTip = $"Theme: {_host.ThemeMode}";
@@ -151,6 +151,47 @@ public partial class PopupWindow : Window
 
     void OnCancel(object sender, RoutedEventArgs e) => _host.CancelAction(Key(sender));
 
+    void OnRowMenu(object sender, RoutedEventArgs e)
+    {
+        if (RowMenuFor((UIElement)sender, Key(sender)) is { } menu) menu.IsOpen = true;
+    }
+
+    /// <summary>The row's snooze / mute menu, or null when the row is no longer shown. Internal for the preview renderer.</summary>
+    internal ContextMenu? RowMenuFor(UIElement target, string key)
+    {
+        var row = _rendered?.SelectMany(s => s.Rows).FirstOrDefault(r => r.Key == key);
+        return row is null ? null : MenuOf(target, key, RowMenus.For(row));
+    }
+
+    /// <summary>A context menu of row menu entries for <paramref name="key"/> (the preview renderer also draws a submenu with it).</summary>
+    internal ContextMenu MenuOf(UIElement target, string key, IEnumerable<RowMenuEntry> entries)
+    {
+        var menu = new ContextMenu { PlacementTarget = target };
+        foreach (var entry in entries) menu.Items.Add(MenuItemFor(key, entry));
+        return menu;
+    }
+
+    MenuItem MenuItemFor(string key, RowMenuEntry entry)
+    {
+        var item = new MenuItem { Header = entry.Header };
+        foreach (var child in entry.Children) item.Items.Add(MenuItemFor(key, child));
+        if (entry.Command is { } cmd)
+            item.Click += (_, _) =>
+            {
+                switch (cmd.Kind)
+                {
+                    case RowMenuKind.Snooze: _host.SnoozeItem(key, cmd.Snooze!.Value); break;
+                    case RowMenuKind.Mute: _host.Mute(key, cmd.Scope!.Value, cmd.Duration!.Value); break;
+                    case RowMenuKind.Unsnooze: _host.Unsnooze(key); break;
+                }
+            };
+        return item;
+    }
+
+    void OnUnsnooze(object sender, RoutedEventArgs e) => _host.Unsnooze(Key(sender));
+
+    void OnToggleSection(object sender, RoutedEventArgs e) => _host.ToggleSection(Key(sender));
+
     void OnConfirm(object sender, RoutedEventArgs e)
     {
         var key = Key(sender);
@@ -216,9 +257,12 @@ public partial class PopupWindow : Window
 
     void OnCycleTheme(object sender, RoutedEventArgs e) => _host.CycleTheme();
 
-    void OnMenu(object sender, RoutedEventArgs e)
+    void OnMenu(object sender, RoutedEventArgs e) => FooterMenu((UIElement)sender).IsOpen = true;
+
+    /// <summary>The footer ⋯ menu. Internal for the preview renderer.</summary>
+    internal ContextMenu FooterMenu(UIElement target)
     {
-        var menu = new ContextMenu { PlacementTarget = (UIElement)sender };
+        var menu = new ContextMenu { PlacementTarget = target };
         var openConfig = new MenuItem { Header = "Open config" };
         openConfig.Click += (_, _) => _host.OpenConfig();
         var startup = new MenuItem { Header = "Start with Windows", IsCheckable = true, IsChecked = StartupRegistration.IsEnabled() };
@@ -230,8 +274,25 @@ public partial class PopupWindow : Window
         menu.Items.Add(openConfig);
         menu.Items.Add(startup);
         menu.Items.Add(logs);
+        menu.Items.Add(MutedMenu());
         menu.Items.Add(new Separator());
         menu.Items.Add(quit);
-        menu.IsOpen = true;
+        return menu;
+    }
+
+    /// <summary>"Muted (n)" with an Unmute entry per active mute; a disabled "Nothing muted" when there are none.</summary>
+    MenuItem MutedMenu()
+    {
+        var mutes = _host.ActiveMutes();
+        if (mutes.Count == 0) return new MenuItem { Header = "Nothing muted", IsEnabled = false };
+        var item = new MenuItem { Header = $"Muted ({mutes.Count})" };
+        foreach (var m in mutes)
+        {
+            // "__": a single underscore in a MenuItem header marks an access key and is not shown.
+            var unmute = new MenuItem { Header = $"Unmute {m.Pattern} · {m.Remaining}".Replace("_", "__") };
+            unmute.Click += (_, _) => _host.Unmute(m.Pattern);
+            item.Items.Add(unmute);
+        }
+        return item;
     }
 }

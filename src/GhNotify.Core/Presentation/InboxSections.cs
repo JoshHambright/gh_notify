@@ -4,6 +4,7 @@ public static class InboxSections
 {
     static readonly IReadOnlyList<ItemDetail> NoDetails = [];
     static readonly IReadOnlyList<RowActionButton> NoActions = [];
+    static readonly IReadOnlyList<InboxRow> NoRows = [];
 
     /// <summary>
     /// True when two builds would render identically. The popup uses this to skip rebuilding row visuals,
@@ -14,7 +15,7 @@ public static class InboxSections
         if (a is null || b is null || a.Count != b.Count) return false;
         for (var i = 0; i < a.Count; i++)
         {
-            if (a[i].Title != b[i].Title || a[i].Rows.Count != b[i].Rows.Count) return false;
+            if (a[i].Rows.Count != b[i].Rows.Count || a[i] with { Rows = NoRows } != b[i] with { Rows = NoRows }) return false;
             for (var j = 0; j < a[i].Rows.Count; j++)
                 if (!SameRow(a[i].Rows[j], b[i].Rows[j])) return false;
         }

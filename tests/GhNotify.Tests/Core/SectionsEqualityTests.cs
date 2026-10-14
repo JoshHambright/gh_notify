@@ -28,4 +28,21 @@ public class SectionsEqualityTests
         Assert.False(InboxSections.SameContent(S(Row()), [new InboxSection("APPROVALS", [Row()])]));
         Assert.False(InboxSections.SameContent(null, S(Row())));
     }
+
+    [Fact]
+    public void Section_header_changes_are_not_equal()
+    {
+        // A collapsed section has no rows, but its header shows the count and the expand state.
+        InboxSection Waiting(int count, bool expanded) => new("Waiting on others", []) { Id = "waiting", Collapsible = true, Expanded = expanded, Count = count };
+        Assert.True(InboxSections.SameContent([Waiting(2, false)], [Waiting(2, false)]));
+        Assert.False(InboxSections.SameContent([Waiting(2, false)], [Waiting(3, false)]));
+        Assert.False(InboxSections.SameContent([Waiting(2, false)], [Waiting(2, true)]));
+    }
+
+    [Fact]
+    public void Mute_and_snooze_differences_are_not_equal()
+    {
+        Assert.False(InboxSections.SameContent(S(Row()), S(Row() with { MutedBy = "gh:acme/*" })));
+        Assert.False(InboxSections.SameContent(S(Row()), S(Row() with { SnoozeText = "2h 10m left" })));
+    }
 }
