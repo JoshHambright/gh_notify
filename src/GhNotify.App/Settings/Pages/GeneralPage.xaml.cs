@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using GhNotify.Core;
 using ThemeMode = GhNotify.Core.ThemeMode;
 
@@ -43,7 +44,83 @@ public partial class GeneralPage : UserControl, ISettingsPage
         _themeMode = host.ThemeMode;
         (_themeMode switch { ThemeMode.Dark => ThemeDark, ThemeMode.Light => ThemeLight, _ => ThemeSystem }).IsChecked = true;
         ShowUpdateStatus();
+        (draft.Config.Actions.MergeMethod switch
+        {
+            MergeMethod.Squash => MergeSquash,
+            MergeMethod.Merge => MergeMerge,
+            MergeMethod.Rebase => MergeRebase,
+            _ => MergeDefault,
+        }).IsChecked = true;
+        ShowHotkey();
         _loading = false;
+    }
+
+    string? _captureProblem;
+
+    /// <summary>The box shows the draft's hotkey; the in-use line shows only for the combination the app tried to register.</summary>
+    void ShowHotkey()
+    {
+        var text = _draft.Config.Hotkey;
+        HotkeyBox.Text = string.IsNullOrWhiteSpace(text) ? "Off" : text;
+        HotkeyClear.IsEnabled = !string.IsNullOrWhiteSpace(text);
+        var inUse = _host.HotkeyError is { } error && string.Equals(text, _host.CurrentConfig.Hotkey, StringComparison.OrdinalIgnoreCase) ? error : null;
+        var message = _captureProblem ?? inUse;
+        HotkeyErrorText.Text = message ?? "";
+        HotkeyErrorText.Visibility = message is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    static string? KeyName(Key key) => key switch
+    {
+        >= Key.A and <= Key.Z => key.ToString(),
+        >= Key.D0 and <= Key.D9 => ((char)('0' + (key - Key.D0))).ToString(),
+        >= Key.NumPad0 and <= Key.NumPad9 => ((char)('0' + (key - Key.NumPad0))).ToString(),
+        >= Key.F1 and <= Key.F12 => key.ToString(),
+        _ => null,
+    };
+
+    /// <summary>Records the next key combination while the box has focus; Tab and Esc keep their normal meaning.</summary>
+    void OnHotkeyKeyDown(object sender, KeyEventArgs e)
+    {
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key is Key.Tab or Key.Escape) return;
+        e.Handled = true;
+        if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin) return;
+        var mods = Keyboard.Modifiers;
+        if (key is Key.Back or Key.Delete && mods == ModifierKeys.None)
+        {
+            OnClearHotkey(sender, e);
+            return;
+        }
+        var name = KeyName(key);
+        var text = (mods.HasFlag(ModifierKeys.Control) ? "Ctrl+" : "") + (mods.HasFlag(ModifierKeys.Alt) ? "Alt+" : "")
+            + (mods.HasFlag(ModifierKeys.Shift) ? "Shift+" : "") + (mods.HasFlag(ModifierKeys.Windows) ? "Win+" : "") + name;
+        if (name is null) _captureProblem = "Use a letter, a digit or F1–F12, with Ctrl, Alt or Win.";
+        else if (!HotkeyParser.TryParse(text, out var hotkey, out var problem)) _captureProblem = $"Hotkey {problem}.";
+        else
+        {
+            _captureProblem = null;
+            _draft.Config.Hotkey = hotkey.ToString();
+            _changed();
+        }
+        ShowHotkey();
+    }
+
+    void OnClearHotkey(object sender, RoutedEventArgs e)
+    {
+        _captureProblem = null;
+        _draft.Config.Hotkey = "";
+        ShowHotkey();
+        _changed();
+    }
+
+    void OnMergeChoice(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        _draft.Config.Actions.MergeMethod = MergeSquash.IsChecked == true ? MergeMethod.Squash
+            : MergeMerge.IsChecked == true ? MergeMethod.Merge
+            : MergeRebase.IsChecked == true ? MergeMethod.Rebase
+            : null;
+        _changed();
     }
 
     static bool SafeStartWithWindows(ISettingsHost host)

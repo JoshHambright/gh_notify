@@ -14,6 +14,8 @@ public interface ISettingsHost
     string? ConfigFileHash();
     /// <summary>The config file's current load error (CurrentConfig is then the last working config), or null.</summary>
     string? ConfigError { get; }
+    /// <summary>Why the global hotkey could not be registered ("Win+Shift+G is in use by another app — pick another"), or null.</summary>
+    string? HotkeyError { get; }
     /// <summary>Throws InvalidDataException (invalid) or ConfigConflictException (changed on disk since expectedHash).</summary>
     void SaveConfig(AppConfig config, string? expectedHash);
     IReadOnlyList<string> DiscoveredAdoOrgs();

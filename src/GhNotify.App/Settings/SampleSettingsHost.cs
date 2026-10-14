@@ -45,6 +45,8 @@ public sealed class SampleSettingsHost : ISettingsHost
     public string DataPath => @"C:\Users\alice\AppData\Local\GhNotify-data";
     public string? ConfigFileHash() => _store is not null ? _store.LoadedHash : "sample";
     public string? ConfigError => _store?.Error;
+    /// <summary>Tests and previews set this to show the "in use" line.</summary>
+    public string? HotkeyError { get; set; }
 
     public void SaveConfig(AppConfig config, string? expectedHash)
     {
