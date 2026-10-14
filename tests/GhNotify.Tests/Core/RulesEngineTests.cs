@@ -12,13 +12,41 @@ public class RulesEngineTests
     {
         var d = RulesEngine.Decide(Item(), new AppConfig());
         Assert.Equal(AgentMode.Button, d.Mode);
-        Assert.Equal("peer-review", d.ProfileName);
-        Assert.Equal("peer-review", d.Profile!.RequiresSkill);
+        Assert.Equal("review", d.ProfileName);
+        Assert.Null(d.Profile!.RequiresSkill);
     }
 
     [Fact]
-    public void Ci_failing_defaults_to_shepherd() =>
-        Assert.Equal("pr-shepherd", RulesEngine.Decide(Item(ItemKind.MyPrCiFailing), new AppConfig()).ProfileName);
+    public void Ci_failing_defaults_to_diagnose() =>
+        Assert.Equal("diagnose-ci", RulesEngine.Decide(Item(ItemKind.MyPrCiFailing), new AppConfig()).ProfileName);
+
+    [Theory]
+    [InlineData(ItemKind.ReviewRequested, "review")]
+    [InlineData(ItemKind.MyPrCiFailing, "diagnose-ci")]
+    [InlineData(ItemKind.MyPrNeedsResponse, "diagnose-ci")]
+    [InlineData(ItemKind.ApprovalPending, null)]
+    [InlineData(ItemKind.MyPrReadyToMerge, null)]
+    [InlineData(ItemKind.MyPrWaiting, null)]
+    public void Built_in_defaults_are_generic(ItemKind kind, string? profile) =>
+        Assert.Equal(profile, RulesEngine.DefaultProfileFor(kind, new AppConfig()));
+
+    [Fact]
+    public void DefaultProfiles_override_case_insensitively()
+    {
+        var cfg = new AppConfig();
+        cfg.DefaultProfiles["reviewRequested"] = "peer-review";
+        Assert.Equal("peer-review", RulesEngine.DefaultProfileFor(ItemKind.ReviewRequested, cfg));
+        Assert.Equal("peer-review", RulesEngine.Decide(Item(ItemKind.ReviewRequested), cfg).ProfileName);
+    }
+
+    [Fact]
+    public void Generic_profiles_need_no_skill()
+    {
+        Assert.Null(ProfileCatalog.BuiltIn["review"].RequiresSkill);
+        Assert.Null(ProfileCatalog.BuiltIn["diagnose-ci"].RequiresSkill);
+        Assert.Contains("{url}", ProfileCatalog.BuiltIn["review"].Prompt);
+        Assert.True(ProfileCatalog.BuiltIn["review"].NeedsWorktree);
+    }
 
     [Fact]
     public void Approvals_have_no_default_profile()
@@ -81,7 +109,7 @@ public class RulesEngineTests
             AgentProfiles = new()
             {
                 ["deploy-check"] = new AgentProfile { Prompt = "/post-deploy-verify {url}", NeedsWorktree = false },
-                ["PEER-REVIEW"] = new AgentProfile { Prompt = "custom {url}" },
+                ["REVIEW"] = new AgentProfile { Prompt = "custom {url}" },
             },
             Rules = [new Rule { Match = new ItemMatch { Kind = ItemKind.ApprovalPending }, Agent = AgentMode.Auto, Profile = "deploy-check" }],
         };

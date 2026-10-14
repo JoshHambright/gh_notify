@@ -133,9 +133,9 @@ public class InboxPresenterTests
     {
         var run = new AgentRun { Key = "k1", Profile = "pr-shepherd", State = AgentState.Ready, CostUsd = 0.23m, DurationSeconds = 125, ResultText = "full" };
         var r = Row(It(ItemKind.MyPrCiFailing), run: run);
-        Assert.Equal("Shepherd · ready · $0.23 · 2m 05s", r.RunInfo);
+        Assert.Equal("Diagnose · ready · $0.23 · 2m 05s", r.RunInfo);
         Assert.Equal("full", r.ResultText);
-        Assert.Equal("Shepherd · ready", Row(It(ItemKind.MyPrCiFailing), run: run with { CostUsd = null, DurationSeconds = null }).RunInfo);
+        Assert.Equal("Diagnose · ready", Row(It(ItemKind.MyPrCiFailing), run: run with { CostUsd = null, DurationSeconds = null }).RunInfo);
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public class InboxPresenterTests
     {
         var entries = new[] { E("x", ItemKind.ReviewRequested, TimeSpan.Zero) };
         Assert.Equal("Pre-review", Build(entries)[0].Rows[0].RunButton);
-        Assert.Equal("Shepherd", Build(entries, decide: _ => Button("pr-shepherd"))[0].Rows[0].RunButton);
+        Assert.Equal("Diagnose", Build(entries, decide: _ => Button("pr-shepherd"))[0].Rows[0].RunButton);
         Assert.Equal("Run deploy-check", Build(entries, decide: _ => Button("deploy-check"))[0].Rows[0].RunButton);
         Assert.Null(Build(entries, decide: _ => new AgentDecision(AgentMode.None, null, null))[0].Rows[0].RunButton);
 
@@ -250,4 +250,12 @@ public class InboxPresenterTests
         var view = InboxView.Compose([E("a", ItemKind.ReviewRequested, TimeSpan.FromHours(1))], new FiltersConfig(), [], [], Now);
         Assert.Equal(["Review requests"], BuildView(view, true, true).Select(s => s.Title));
     }
+
+    [Theory]
+    [InlineData("review", "Pre-review")]
+    [InlineData("peer-review", "Pre-review")]
+    [InlineData("diagnose-ci", "Diagnose")]
+    [InlineData("pr-shepherd", "Diagnose")]
+    [InlineData("triage", "Run triage")]
+    public void LabelFor_names_profiles(string profile, string label) => Assert.Equal(label, InboxPresenter.LabelFor(profile));
 }

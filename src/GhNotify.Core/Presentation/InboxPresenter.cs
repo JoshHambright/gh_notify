@@ -158,8 +158,8 @@ public static class InboxPresenter
 
     public static string LabelFor(string? profileName) => profileName switch
     {
-        "peer-review" => "Pre-review",
-        "pr-shepherd" => "Shepherd",
+        "review" or "peer-review" => "Pre-review",
+        "diagnose-ci" or "pr-shepherd" => "Diagnose",
         _ => $"Run {profileName}",
     };
 
