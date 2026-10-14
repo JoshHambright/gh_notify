@@ -245,3 +245,39 @@ public sealed record ProfileChip(string Name, bool BuiltIn, bool? SkillInstalled
         _ => BuiltIn ? "Built-in (read-only)" : null,
     };
 }
+
+/// <summary>
+/// A number box that writes straight through to an int setting. Text that isn't a whole number never reaches the config,
+/// so it is reported through <see cref="Error"/> (and blocks Save) instead.
+/// </summary>
+public sealed class NumberInput
+{
+    readonly SettingsPage _page;
+    readonly string _field;
+    readonly string _label;
+
+    public NumberInput(SettingsPage page, string field, string label, int value, Action<int> set, Action changed, double width)
+    {
+        _page = page;
+        _field = field;
+        _label = label;
+        Box = new Avalonia.Controls.TextBox { Text = value.ToString(System.Globalization.CultureInfo.CurrentCulture), Width = width, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left };
+        Box.Classes.Add("pill");
+        Box.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != Avalonia.Controls.TextBox.TextProperty) return;
+            if (TryValue(out var n)) set(n);
+            changed();
+        };
+    }
+
+    public Avalonia.Controls.TextBox Box { get; }
+
+    public bool TryValue(out int value) =>
+        int.TryParse(Box.Text?.Trim(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.CurrentCulture, out value);
+
+    public SettingsError? Error => TryValue(out _) ? null : new SettingsError(_page, _field, $"{_label}: enter a whole number");
+
+    public static IEnumerable<SettingsError> Errors(params NumberInput[] inputs) =>
+        inputs.Select(i => i.Error).OfType<SettingsError>();
+}
