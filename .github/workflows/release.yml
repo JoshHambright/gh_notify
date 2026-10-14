@@ -66,9 +66,9 @@ jobs:
           Set-Content artifacts/notes.md $notes.Trim()
       - name: Pack
         run: |
-          $packArgs = @('-Version', '${{ steps.v.outputs.version }}', '-OutDir', 'artifacts/new', '-ReleaseNotes', 'artifacts/notes.md')
-          if ('${{ steps.prev.outputs.has_releases }}' -eq 'True') { $packArgs += @('-PrevReleases', 'artifacts/releases') }
-          ./build/pack.ps1 @args
+          $p = @{ Version = '${{ steps.v.outputs.version }}'; OutDir = 'artifacts/new'; ReleaseNotes = 'artifacts/notes.md' }
+          if ('${{ steps.prev.outputs.has_releases }}' -eq 'True') { $p.PrevReleases = 'artifacts/releases' }
+          ./build/pack.ps1 @p
       - name: Upgrade test from the previous release
         if: steps.prev.outputs.setup != ''
         run: ./build/test-install.ps1 -OldSetup "${{ steps.prev.outputs.setup }}" -NewFeed artifacts/new
