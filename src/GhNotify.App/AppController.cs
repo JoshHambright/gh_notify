@@ -483,22 +483,16 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         Changed?.Invoke();
     }
 
-    /// <summary>Applies an edit to filters.mute in config.json (overwriting, no conflict check); false when it could not be saved.</summary>
+    /// <summary>Applies an edit to filters.mute in config.json with the Settings guards; false (after a toast) when it was not saved.</summary>
     bool EditMuteConfig(Action<List<string>> edit)
     {
-        try
-        {
-            var next = ConfigStore.Clone(_config.Current);
-            edit(next.Filters.Mute);
-            _config.Save(next, expectedHash: null);
-            return true;
-        }
-        catch (Exception ex) when (ex is InvalidDataException or IOException)
-        {
-            Log.Error("could not save mute", ex);
-            _toasts.Apply(new ToastRequest(ToastAction.Show, ItemTag.For("mute-error"), "gh_notify", $"Couldn't save mute: {ex.Message}"));
-            return false;
-        }
+        var result = MuteConfigEditor.TrySave(_config, edit, _commentsWarningShown);
+        if (result == MuteSaveResult.Saved) return true;
+        var message = result == MuteSaveResult.CommentsNotAcknowledged
+            ? "Couldn't save mute: config.json has comments — use Settings to save it once"
+            : "Couldn't save mute: config.json changed or has an error. Fix it or use Settings.";
+        _toasts.Apply(new ToastRequest(ToastAction.Show, ItemTag.For("mute-error"), "gh_notify", message));
+        return false;
     }
 
     public void ToggleSection(string id)
