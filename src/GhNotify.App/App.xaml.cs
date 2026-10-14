@@ -17,6 +17,8 @@ public partial class App : Application
     FileSystemWatcher? _watcher;
     DispatcherTimer? _debounce;
     ThemeService? _theme;
+    UpdateService? _updates;
+    readonly CancellationTokenSource _cts = new();
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -73,6 +75,10 @@ public partial class App : Application
         controller.ThemeModeChanged += _theme.Apply;
         ToastPresenter.PrepareLogo(AppPaths.ToastLogo);
 
+        _updates = new UpdateService(new VelopackUpdateClient(), () => controller.Config.Updates);
+        controller.AttachUpdates(_updates);
+        _updates.Changed += () => Dispatcher.InvokeAsync(controller.RaiseChanged);
+
         _popup = new PopupWindow(_controller);
 
         _tray = new TaskbarIcon { ToolTipText = "gh_notify" };
@@ -90,6 +96,7 @@ public partial class App : Application
 
         WatchConfig();
         _controller.Start();
+        _ = _updates.RunAsync(_cts.Token);
         Log.Info("gh_notify started");
     }
 
@@ -117,6 +124,7 @@ public partial class App : Application
         var problem = _controller.TrayProblem();
         var tip = count == 0 ? "gh_notify — nothing waiting" : $"gh_notify — {count} waiting";
         if (problem is not null) tip += "\n" + (problem.Length > 80 ? problem[..79] + "…" : problem);
+        tip += "\nv" + AppVersion.Current;
         _tray.ToolTipText = tip;
     }
 
@@ -142,6 +150,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _cts.Cancel();
         _theme?.Dispose();
         _watcher?.Dispose();
         _controller?.Dispose();

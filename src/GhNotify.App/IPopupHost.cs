@@ -41,6 +41,12 @@ public interface IPopupHost
     void Unmute(string pattern);
     /// <summary>Expands or collapses a collapsible section ("waiting", "snoozed").</summary>
     void ToggleSection(string id);
+    UpdateStatus Update { get; }
+    /// <summary>Runs, or queued, agents: what a restart would interrupt.</summary>
+    int RunningAgents { get; }
+    /// <summary>Applies the downloaded update and shuts down, unless agents are running and <paramref name="confirmed"/> is false.</summary>
+    RestartDecision RestartToUpdate(bool confirmed);
+    Task CheckForUpdatesAsync();
 }
 
 /// <summary>A mute shown in the popup's active-mutes list. <paramref name="Remaining"/> is display text ("forever", "45m left").</summary>

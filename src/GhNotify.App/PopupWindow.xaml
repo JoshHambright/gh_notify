@@ -403,7 +403,7 @@
                           ToolTip="Menu" Click="OnMenu" />
                 </StackPanel>
                 <TextBlock x:Name="FooterText" Foreground="{DynamicResource Brush.Muted}" FontSize="11" VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis" />
+                           TextWrapping="Wrap" />
               </DockPanel>
             </Border>
           </StackPanel>

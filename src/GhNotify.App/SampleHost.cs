@@ -163,4 +163,8 @@ public sealed class SampleHost : IPopupHost
         [new ActiveMute("gh:acme/legacy-*", "forever", true), new ActiveMute("ado:contoso/platform", "45m left", false)];
     public void Unmute(string pattern) { }
     public void ToggleSection(string id) { }
+    public UpdateStatus Update { get; set; } = new(UpdatePhase.Ready, "1.2.0", "1.2.1", null, null);
+    public int RunningAgents { get; set; }
+    public RestartDecision RestartToUpdate(bool confirmed) => RestartDecision.NothingToApply;
+    public Task CheckForUpdatesAsync() => Task.CompletedTask;
 }
