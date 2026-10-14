@@ -84,7 +84,7 @@ Notes:
 
 - The release PR itself gets no CI run (pull requests created with `GITHUB_TOKEN` don't trigger workflows). Merging it
   triggers CI on `main` and the release.
-- For a few minutes after release-please publishes, the release exists without update files until Velopack attaches them.
+- Until the Release workflow finishes (CI gates, pack and upgrade test; typically 15–30 minutes), the release exists without update files.
 - If the publish job fails, recover with Actions → Release → Run workflow and the tag.
 - Dependency bumps (`chore:`) don't cut releases.
 

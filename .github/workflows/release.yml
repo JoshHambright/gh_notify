@@ -96,12 +96,12 @@ jobs:
               $prev = git describe --tags --abbrev=0 "$tag^" 2>$null
               $global:LASTEXITCODE = 0
               $lines = if ($prev) { git log --format='- %s' "$prev..$tag" } else { git log --format='- %s' -20 $tag }
+              if ($LASTEXITCODE) { Write-Host "::error::git log failed"; exit 1 }
               $notes = ($lines -join "`n")
             }
           }
           $notes = (($notes -split "`r?`n") | Where-Object { $_ -notmatch '^\s*Co-Authored-By:' }) -join "`n"
           Set-Content artifacts/notes.md $notes.Trim()
-          $global:LASTEXITCODE = 0
       - name: Pack
         run: |
           $p = @{ Version = '${{ steps.v.outputs.version }}'; OutDir = 'artifacts/new'; ReleaseNotes = 'artifacts/notes.md' }
