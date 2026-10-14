@@ -37,6 +37,7 @@ public static class PreviewRenderer
                 foreach (var page in Enum.GetValues<SettingsPage>())
                     written.Add(RenderSettings(page, Path.Combine(dir, $"settings-{page.ToString().ToLowerInvariant()}-{name}.png")));
                 written.Add(RenderSettings(SettingsPage.Workflows, Path.Combine(dir, $"settings-workflows-profile-{name}.png"), scrollToEnd: true));
+                written.Add(RenderSettings(SettingsPage.Workflows, Path.Combine(dir, $"settings-workflows-builtin-{name}.png"), scrollToEnd: true, profile: "peer-review"));
             }
             foreach (var size in new[] { 16, 20, 24, 32 })
             {
@@ -84,7 +85,7 @@ public static class PreviewRenderer
     }
 
     /// <summary>The settings window (sample settings) at 880×620 on <paramref name="page"/>; Workflows opens the sample command profile.</summary>
-    static string RenderSettings(SettingsPage page, string path, bool scrollToEnd = false)
+    static string RenderSettings(SettingsPage page, string path, bool scrollToEnd = false, string profile = "triage")
     {
         var w = new SettingsWindow(new SampleSettingsHost())
         {
@@ -96,7 +97,7 @@ public static class PreviewRenderer
         try
         {
             w.ShowPage(page);
-            if (w.CurrentPage is WorkflowsPage workflows) workflows.SelectProfile("triage");
+            if (w.CurrentPage is WorkflowsPage workflows) workflows.SelectProfile(profile);
             w.Show();
             Pump();
             w.UpdateLayout();

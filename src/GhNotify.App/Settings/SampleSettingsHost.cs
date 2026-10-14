@@ -43,7 +43,8 @@ public sealed class SampleSettingsHost : ISettingsHost
     public string ConfigPath => _store?.Path ?? @"C:\Users\alice\AppData\Roaming\GhNotify\config.json";
     public string LogsPath => @"C:\Users\alice\AppData\Local\GhNotify-data\logs";
     public string DataPath => @"C:\Users\alice\AppData\Local\GhNotify-data";
-    public string? ConfigFileHash() => _store is not null ? _store.FileHash() : "sample";
+    public string? ConfigFileHash() => _store is not null ? _store.LoadedHash : "sample";
+    public string? ConfigError => _store?.Error;
 
     public void SaveConfig(AppConfig config, string? expectedHash)
     {
@@ -61,7 +62,7 @@ public sealed class SampleSettingsHost : ISettingsHost
 
     readonly List<ActiveMute> _mutes = [new("gh:acme/legacy-*", "forever", true), new("ado:contoso/platform", "45m left", false)];
     public IReadOnlyList<ActiveMute> ActiveMutes() => _mutes.ToList();
-    public void Unmute(string pattern) => _mutes.RemoveAll(m => m.Pattern == pattern);
+    public void Unmute(string pattern) => _mutes.RemoveAll(m => !m.Permanent && m.Pattern == pattern);
 
     public IReadOnlyList<InboxItem> CurrentItems()
     {

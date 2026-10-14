@@ -128,7 +128,7 @@
     <Button Content="+ Add alias" Style="{StaticResource Style.LinkButton}" Click="OnAddAlias" Margin="0,2,0,14" />
     <DockPanel>
       <TextBlock Text="Max repo name length" Style="{StaticResource Style.FieldLabel}" />
-      <TextBox Width="56" Text="{Binding Display.MaxRepoChars, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
+      <TextBox x:Name="MaxRepoCharsBox" Width="56" Text="{Binding Display.MaxRepoChars, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
       <TextBlock Text="characters" Foreground="{DynamicResource Brush.Muted}" VerticalAlignment="Center" Margin="8,0,0,0" />
     </DockPanel>
   </StackPanel>

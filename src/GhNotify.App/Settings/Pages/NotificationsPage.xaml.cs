@@ -22,19 +22,35 @@ public partial class NotificationsPage : UserControl, ISettingsPage
 
     void ShowRules()
     {
-        var rows = Sounds.Select(r => new SoundRow(r, _changed, PickWav)).ToList();
+        var rows = Sounds.Select(r => new SoundRow(r, _changed)).ToList();
         Rules.ItemsSource = rows;
         Summaries.ItemsSource = rows;
     }
 
-    /// <summary>"Custom file…": a .wav picker; the list is rebuilt afterwards so the combo shows the picked file (or the old sound).</summary>
-    string? PickWav()
+    /// <summary>"Custom file…" picked with the keyboard on a closed box: put the selection back (arrowing must never pop a picker).</summary>
+    void OnSoundSelected(object sender, SelectionChangedEventArgs e)
     {
-        var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Choose a sound", Filter = "Wave sounds (*.wav)|*.wav" };
-        var path = dialog.ShowDialog(Window.GetWindow(this)) == true ? dialog.FileName : null;
-        Dispatcher.InvokeAsync(ShowRules, DispatcherPriority.Background);
-        return path;
+        var combo = (ComboBox)sender;
+        if (combo.DataContext is SoundRow row && combo.SelectedIndex == row.CustomIndex && !combo.IsDropDownOpen) Revert(combo, row);
     }
+
+    /// <summary>"Custom file…" committed from the open list: pick a .wav; cancelling puts the old sound back.</summary>
+    void OnSoundDropDownClosed(object? sender, EventArgs e)
+    {
+        var combo = (ComboBox)sender!;
+        if (combo.DataContext is not SoundRow row || combo.SelectedIndex != row.CustomIndex) return;
+        var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Choose a sound", Filter = "Wave sounds (*.wav)|*.wav" };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true)
+        {
+            Revert(combo, row);
+            return;
+        }
+        row.SetCustomSound(dialog.FileName);
+        Dispatcher.InvokeAsync(ShowRules, DispatcherPriority.Background); // the list now names the picked file
+    }
+
+    void Revert(ComboBox combo, SoundRow row) =>
+        Dispatcher.InvokeAsync(() => combo.SelectedIndex = row.SoundIndex, DispatcherPriority.Background);
 
     void OnPlay(object sender, RoutedEventArgs e)
     {

@@ -8,6 +8,11 @@ public sealed class ConfigStore(string path)
     public string Path { get; } = path;
     public AppConfig Current { get; private set; } = new();
     public string? Error { get; private set; }
+    /// <summary>SHA-256 of the exact bytes <see cref="Current"/> was loaded from (kept from the last good load when a load fails); null before any load.</summary>
+    public string? LoadedHash { get; private set; }
+
+    /// <summary>The last load succeeded and the file still holds exactly those bytes (so a reload would change nothing).</summary>
+    public bool IsCurrent => Error is null && LoadedHash is not null && FileHash() == LoadedHash;
 
     public void Load()
     {
@@ -18,13 +23,16 @@ public sealed class ConfigStore(string path)
                 Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
                 File.WriteAllText(Path, JsonSerializer.Serialize(new AppConfig(), Json.Options));
                 Current = new AppConfig();
+                LoadedHash = FileHash();
                 Error = null;
                 return;
             }
-            var config = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(Path), Json.Options)
+            var bytes = File.ReadAllBytes(Path);
+            var config = JsonSerializer.Deserialize<AppConfig>(Decode(bytes), Json.Options)
                          ?? throw new InvalidDataException("config.json is empty");
             Validate(config);
             Current = config;
+            LoadedHash = Hash(bytes);
             Error = null;
         }
         catch (Exception ex)
@@ -44,7 +52,16 @@ public sealed class ConfigStore(string path)
     public string? FileHash()
     {
         if (!File.Exists(Path)) return null;
-        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(Path)));
+        return Hash(File.ReadAllBytes(Path));
+    }
+
+    static string Hash(byte[] bytes) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
+
+    /// <summary>Decodes like File.ReadAllText (UTF-8 by default, BOMs honoured).</summary>
+    static string Decode(byte[] bytes)
+    {
+        using var reader = new StreamReader(new MemoryStream(bytes), detectEncodingFromByteOrderMarks: true);
+        return reader.ReadToEnd();
     }
 
     public static AppConfig Clone(AppConfig c) =>

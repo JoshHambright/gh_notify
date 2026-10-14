@@ -65,12 +65,21 @@ public abstract class MatchRow(Action edited) : SettingsRow(edited)
         set => Edit(m => m.Author = SettingsOptions.Blank(value));
     }
 
-    /// <summary>Text for "≤ N lines"; anything that isn't a positive number clears the limit.</summary>
+    string? _badMaxLines;
+
+    /// <summary>Text for "≤ N lines": empty clears the limit; text that isn't a positive whole number is kept (and reported) without touching the limit.</summary>
     public string MaxLines
     {
-        get => Match?.MaxChangedLines?.ToString() ?? "";
-        set => Edit(m => m.MaxChangedLines = int.TryParse(value, out var n) && n > 0 ? n : null);
+        get => _badMaxLines ?? Match?.MaxChangedLines?.ToString() ?? "";
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value)) { _badMaxLines = null; Edit(m => m.MaxChangedLines = null); }
+            else if (int.TryParse(value.Trim(), out var n) && n > 0) { _badMaxLines = null; Edit(m => m.MaxChangedLines = n); }
+            else { _badMaxLines = value; Edited(); }
+        }
     }
+
+    public bool MaxLinesInvalid => _badMaxLines is not null;
 
     void Edit(Action<ItemMatch> edit)
     {
@@ -83,13 +92,11 @@ public abstract class MatchRow(Action edited) : SettingsRow(edited)
 
 public sealed class SoundRow : MatchRow
 {
-    readonly Func<string?> _pickFile;
     readonly List<string> _values;
 
-    public SoundRow(SoundRule rule, Action edited, Func<string?> pickFile) : base(edited)
+    public SoundRow(SoundRule rule, Action edited) : base(edited)
     {
         Rule = rule;
-        _pickFile = pickFile;
         _values = ["default", "none", .. SoundNames.BuiltIn.Select(n => "builtin:" + n)];
         if (!_values.Contains(rule.Sound, StringComparer.OrdinalIgnoreCase)) _values.Add(rule.Sound);
         SoundOptions = [.. _values.Select(SettingsDraft.SoundLabel), SettingsOptions.CustomSound];
@@ -107,12 +114,20 @@ public sealed class SoundRow : MatchRow
         get => _values.FindIndex(v => string.Equals(v, Rule.Sound, StringComparison.OrdinalIgnoreCase));
         set
         {
-            if (value < 0) return;
-            if (value < _values.Count) Rule.Sound = _values[value];
-            else if (_pickFile() is { } path) Rule.Sound = path; // "Custom file…"
-            else return;
+            // "Custom file…" (the last entry) changes nothing here: the page opens the picker once the selection is committed.
+            if (value < 0 || value >= _values.Count) return;
+            Rule.Sound = _values[value];
             Edited();
         }
+    }
+
+    public int CustomIndex => _values.Count;
+
+    /// <summary>A .wav picked through "Custom file…".</summary>
+    public void SetCustomSound(string path)
+    {
+        Rule.Sound = path;
+        Edited();
     }
 
     public bool AlertOffHours
@@ -229,4 +244,14 @@ public sealed record ProfileChip(string Name, bool BuiltIn, bool? SkillInstalled
         false => "Skill not installed — runs are disabled",
         _ => BuiltIn ? "Built-in (read-only)" : null,
     };
+}
+
+/// <summary>Number boxes bound straight to int properties: text that isn't a whole number never reaches the config, so it is reported here.</summary>
+public static class NumberInput
+{
+    public static IEnumerable<SettingsError> Errors(SettingsPage page, params (System.Windows.Controls.TextBox Box, string Field, string Label)[] boxes) =>
+        // Only live bindings: a box whose binding isn't attached yet (window not shown) has no text to judge.
+        boxes.Where(b => b.Box.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty) is { Status: System.Windows.Data.BindingStatus.Active or System.Windows.Data.BindingStatus.UpdateSourceError }
+                         && !int.TryParse(b.Box.Text.Trim(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.CurrentCulture, out _))
+            .Select(b => new SettingsError(page, b.Field, $"{b.Label}: enter a whole number"));
 }

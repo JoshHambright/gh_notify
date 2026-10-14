@@ -159,5 +159,8 @@ public partial class SourcesPage : UserControl, ISettingsPage
         AliasesEdited();
     }
 
+    public IReadOnlyList<SettingsError> InputErrors() =>
+        NumberInput.Errors(SettingsPage.Sources, (MaxRepoCharsBox, "display.maxRepoChars", "Max repo name length")).ToList();
+
     public void ShowErrors(IReadOnlyList<SettingsError> errors) => ErrorList.ItemsSource = errors.Select(e => e.Message).ToList();
 }

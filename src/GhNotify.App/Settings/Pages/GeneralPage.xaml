@@ -10,7 +10,7 @@
     </StackPanel>
     <DockPanel Margin="0,0,0,22">
       <TextBlock Text="Poll interval" Style="{StaticResource Style.FieldLabel}" />
-      <TextBox Width="70" Text="{Binding PollSeconds, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
+      <TextBox x:Name="PollBox" Width="70" Text="{Binding PollSeconds, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
       <TextBlock Text="seconds" Foreground="{DynamicResource Brush.Muted}" VerticalAlignment="Center" Margin="8,0,0,0" />
     </DockPanel>
 
@@ -58,7 +58,7 @@
     </DockPanel>
     <DockPanel Margin="0,0,0,10">
       <TextBlock Text="Check every" Style="{StaticResource Style.FieldLabel}" />
-      <TextBox Width="56" Text="{Binding Updates.CheckHours, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
+      <TextBox x:Name="CheckHoursBox" Width="56" Text="{Binding Updates.CheckHours, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
       <TextBlock Text="hours" Foreground="{DynamicResource Brush.Muted}" VerticalAlignment="Center" Margin="8,0,0,0" />
     </DockPanel>
     <DockPanel Margin="0,0,0,4">
@@ -74,11 +74,11 @@
     </StackPanel>
     <DockPanel Margin="0,0,0,10">
       <TextBlock Text="Max concurrent agents" Style="{StaticResource Style.FieldLabel}" />
-      <TextBox Width="56" Text="{Binding MaxConcurrentAgents, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" HorizontalAlignment="Left" />
+      <TextBox x:Name="MaxAgentsBox" Width="56" Text="{Binding MaxConcurrentAgents, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" HorizontalAlignment="Left" />
     </DockPanel>
     <DockPanel Margin="0,0,0,10">
       <TextBlock Text="Agent timeout" Style="{StaticResource Style.FieldLabel}" />
-      <TextBox Width="56" Text="{Binding AgentTimeoutMinutes, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
+      <TextBox x:Name="TimeoutBox" Width="56" Text="{Binding AgentTimeoutMinutes, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
       <TextBlock Text="minutes" Foreground="{DynamicResource Brush.Muted}" VerticalAlignment="Center" Margin="8,0,0,0" />
     </DockPanel>
   </StackPanel>

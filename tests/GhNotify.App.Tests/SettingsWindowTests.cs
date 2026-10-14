@@ -254,4 +254,118 @@ public class SettingsWindowTests
         Assert.True(w.CanSave);
         w.Close();
     });
+
+    [Fact]
+    public void A_broken_config_on_disk_is_never_silently_replaced() => SettingsUi.Run(() =>
+    {
+        var dir = TempDir();
+        try
+        {
+            var store = StoreWith(dir, """{ "pollSeconds": 120 }""");
+            const string broken = """{ "pollSeconds": 5, "note": "hand edit" }""";
+            File.WriteAllText(store.Path, broken);
+            store.Load(); // fails validation: Current stays the last good config
+            Assert.NotNull(store.Error);
+            var w = new SettingsWindow(new SampleSettingsHost(store));
+            Assert.True(w.ConfigErrorShown);
+            w.Draft.Config.PollSeconds = 150;
+            w.Save();
+            Assert.True(w.ConflictBarShown);
+            Assert.Equal(broken, File.ReadAllText(store.Path));
+            w.Overwrite(); // the user's explicit choice
+            Assert.Contains("\"pollSeconds\": 150", File.ReadAllText(store.Path));
+        }
+        finally { Directory.Delete(dir, true); }
+    });
+
+    [Fact]
+    public void An_edit_on_disk_not_yet_reloaded_conflicts() => SettingsUi.Run(() =>
+    {
+        var dir = TempDir();
+        try
+        {
+            var store = StoreWith(dir, """{ "pollSeconds": 120 }""");
+            const string edited = """{ "pollSeconds": 300 }""";
+            File.WriteAllText(store.Path, edited); // inside the watcher's debounce: not reloaded yet
+            var w = new SettingsWindow(new SampleSettingsHost(store));
+            Assert.False(w.ConfigErrorShown);
+            w.Draft.Config.PollSeconds = 150;
+            w.Save();
+            Assert.True(w.ConflictBarShown);
+            Assert.Equal(edited, File.ReadAllText(store.Path));
+            w.Close();
+        }
+        finally { Directory.Delete(dir, true); }
+    });
+
+    [Fact]
+    public void Text_that_is_not_a_number_blocks_save() => SettingsUi.Run(() =>
+    {
+        var w = new SettingsWindow(new SampleSettingsHost());
+        w.ShowActivated = false;
+        w.WindowStartupLocation = WindowStartupLocation.Manual;
+        w.Left = -10000;
+        w.Show(); // live bindings, as in the app
+        var general = (GeneralPage)w.Page(SettingsPage.General);
+        general.PollBox.Text = "12a";
+        w.Revalidate();
+        Assert.False(w.CanSave);
+        Assert.Equal("1 problem on General", w.StatusMessage);
+        Assert.Equal(120, w.Draft.Config.PollSeconds);
+        general.PollBox.Text = "150";
+        w.Revalidate();
+        Assert.True(w.CanSave);
+        Assert.Equal(150, w.Draft.Config.PollSeconds);
+        w.Close();
+    });
+
+    [Fact]
+    public void Max_lines_that_is_not_a_positive_number_is_an_error_not_a_clear() => SettingsUi.Run(() =>
+    {
+        var w = new SettingsWindow(new SampleSettingsHost());
+        var workflows = (WorkflowsPage)w.Page(SettingsPage.Workflows);
+        var row = workflows.Rules.Items.OfType<RuleRow>().First();
+        row.MaxLines = "4OO";
+        w.Revalidate();
+        Assert.Equal(400, row.Rule.Match!.MaxChangedLines);
+        Assert.False(w.CanSave);
+        Assert.Equal("1 problem on Workflows", w.StatusMessage);
+        row.MaxLines = "0";
+        Assert.True(row.MaxLinesInvalid);
+        row.MaxLines = "";
+        w.Revalidate();
+        Assert.Null(row.Rule.Match!.MaxChangedLines);
+        Assert.True(w.CanSave);
+        w.Close();
+    });
+
+    [Fact]
+    public void Renaming_a_profile_commits_on_leaving_the_box() => SettingsUi.Run(() =>
+    {
+        var w = new SettingsWindow(new SampleSettingsHost());
+        var workflows = (WorkflowsPage)w.Page(SettingsPage.Workflows);
+        workflows.SelectProfile("triage");
+        workflows.NameBox.Text = "triage-ci";
+        Assert.True(w.Draft.Config.AgentProfiles.ContainsKey("triage")); // typing alone renames nothing
+        workflows.CommitRename();
+        Assert.True(w.Draft.Config.AgentProfiles.ContainsKey("triage-ci"));
+        Assert.Equal("triage-ci", w.Draft.Config.Rules[1].Profile);
+        workflows.NameBox.Text = "review";
+        workflows.CommitRename();
+        w.Revalidate();
+        Assert.True(w.Draft.Config.AgentProfiles.ContainsKey("triage-ci"));
+        Assert.False(w.CanSave); // the refused name is a problem until fixed
+        w.Close();
+    });
+
+    [Fact]
+    public void Choosing_custom_file_through_the_binding_changes_nothing()
+    {
+        var rule = new SoundRule { Sound = "builtin:chime" };
+        var row = new SoundRow(rule, () => { });
+        row.SoundIndex = row.CustomIndex; // e.g. arrowing onto "Custom file…": the page opens the picker on commit, not here
+        Assert.Equal("builtin:chime", rule.Sound);
+        row.SetCustomSound(@"C:\sounds\ding.wav");
+        Assert.Equal(@"C:\sounds\ding.wav", rule.Sound);
+    }
 }

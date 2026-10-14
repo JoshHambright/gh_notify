@@ -136,6 +136,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
 
     public void ReloadConfig()
     {
+        if (_config.IsCurrent) return; // e.g. the watcher seeing our own Settings save: already loaded
         _config.Load();
         AfterConfigChanged();
     }
@@ -553,7 +554,15 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     public AppConfig CurrentConfig => _config.Current;
     public string LogsPath => AppPaths.Logs;
     public string DataPath => AppPaths.DataDir;
-    public string? ConfigFileHash() => _config.FileHash();
+    public string? ConfigFileHash() => _config.LoadedHash;
+
+    /// <summary>Settings only lifts timed mutes; permanent ones are edited in the draft's filters.mute and saved with it.</summary>
+    void ISettingsHost.Unmute(string pattern)
+    {
+        lock (_filterGate) _mutes.RemoveAll(m => string.Equals(m.Pattern, pattern, StringComparison.OrdinalIgnoreCase));
+        Save();
+        Changed?.Invoke();
+    }
 
     /// <summary>Saves through the store (validation, conflict check, .bak), then applies it like a file-watcher reload.</summary>
     public void SaveConfig(AppConfig config, string? expectedHash)

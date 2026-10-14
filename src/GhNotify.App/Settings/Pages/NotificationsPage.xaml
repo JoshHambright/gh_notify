@@ -33,6 +33,7 @@
                 <StackPanel Orientation="Horizontal">
                   <TextBlock Text="→" Style="{StaticResource Style.Keyword}" FontSize="13" />
                   <ComboBox ItemsSource="{Binding SoundOptions}" SelectedIndex="{Binding SoundIndex}" ToolTip="{Binding SoundToolTip}"
+                            SelectionChanged="OnSoundSelected" DropDownClosed="OnSoundDropDownClosed"
                             MinWidth="130" Margin="0,2,4,2" />
                   <Button Style="{StaticResource Style.IconButton}" Content="▶" FontSize="10" ToolTip="Play" Tag="{Binding}" Click="OnPlay"
                           IsEnabled="{Binding CanPlay}" Margin="0,2,10,2" />

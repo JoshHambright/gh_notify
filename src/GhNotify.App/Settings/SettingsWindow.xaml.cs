@@ -41,6 +41,7 @@ public partial class SettingsWindow : Window
         _debounce.Tick += (_, _) => Revalidate();
         Draft = new SettingsDraft(host.CurrentConfig, host.ConfigFileHash());
         BuildPages();
+        ShowConfigError();
         ShowPage(SettingsPage.General);
         Revalidate();
     }
@@ -100,7 +101,8 @@ public partial class SettingsWindow : Window
     public void Revalidate()
     {
         _debounce.Stop();
-        _errors = Draft.Validate();
+        // Draft rules, plus text the pages could not turn into a value (e.g. "abc" in a number box).
+        _errors = [.. Draft.Validate(), .. _pages.Values.SelectMany(p => ((ISettingsPage)p).InputErrors())];
         foreach (var (page, (_, dot)) in _nav)
             dot.Visibility = _errors.Any(e => e.Page == page) ? Visibility.Visible : Visibility.Collapsed;
         foreach (var (page, element) in _pages)
@@ -118,6 +120,19 @@ public partial class SettingsWindow : Window
         }
         return Draft.IsDirty || _general.HasLocalChanges ? "Unsaved changes" : "";
     }
+
+    /// <summary>The top bar shown while config.json on disk is broken: the window edits the last working settings.</summary>
+    void ShowConfigError()
+    {
+        var error = _host.ConfigError;
+        ConfigErrorBar.Visibility = error is null ? Visibility.Collapsed : Visibility.Visible;
+        if (error is null) return;
+        const string prefix = "config.json: ";
+        if (error.StartsWith(prefix, StringComparison.Ordinal)) error = error[prefix.Length..];
+        ConfigErrorText.Text = $"config.json has an error: {error} — you're editing the last working settings; Save will ask before replacing the file.";
+    }
+
+    internal bool ConfigErrorShown => ConfigErrorBar.Visibility == Visibility.Visible;
 
     /// <summary>Shows one inline bar (or none) in place of the status text.</summary>
     void ShowBar(FrameworkElement? bar)
@@ -142,7 +157,7 @@ public partial class SettingsWindow : Window
                 return;
             }
             // ConfigStore treats a null hash as "overwrite": a file that appeared since the window opened is a conflict too.
-            if (Draft.FileHashAtOpen is null && _host.ConfigFileHash() is not null)
+            if (Draft.FileHashAtOpen is null && File.Exists(_host.ConfigPath))
             {
                 ShowBar(ConflictBar);
                 return;
@@ -209,6 +224,7 @@ public partial class SettingsWindow : Window
     {
         Draft = new SettingsDraft(_host.CurrentConfig, _host.ConfigFileHash());
         BuildPages();
+        ShowConfigError();
         ShowBar(null);
         Revalidate();
     }

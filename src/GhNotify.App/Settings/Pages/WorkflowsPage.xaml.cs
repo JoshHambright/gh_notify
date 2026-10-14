@@ -14,6 +14,8 @@ public partial class WorkflowsPage : UserControl, ISettingsPage
     readonly Action _changed;
     readonly Dictionary<string, bool> _skills = new(StringComparer.OrdinalIgnoreCase);
     string? _selected;
+    string? _renameError;
+    List<RuleRow> _ruleRows = [];
     bool _loading;
     // The other half of a profile while its type is switched (prompt ↔ command), so switching back loses nothing.
     string? _stashedPrompt;
@@ -85,7 +87,7 @@ public partial class WorkflowsPage : UserControl, ISettingsPage
     void ShowRules()
     {
         var names = ProfileNames;
-        Rules.ItemsSource = Config.Rules.Select(r => new RuleRow(r, names, _changed)).ToList();
+        Rules.ItemsSource = _ruleRows = Config.Rules.Select(r => new RuleRow(r, names, _changed)).ToList();
     }
 
     void OnAddRule(object sender, RoutedEventArgs e)
@@ -178,6 +180,11 @@ public partial class WorkflowsPage : UserControl, ISettingsPage
         {
             BuiltInName.Text = _selected;
             BuiltInPrompt.Text = profile.Command is { } cmd ? string.Join(" ", cmd) : profile.Prompt;
+            var allowed = Config.AgentAllowedTools.Concat(profile.AllowedTools).Distinct().ToList();
+            BuiltInAllowed.Text = allowed.Count == 0 ? "none" : string.Join(", ", allowed);
+            var denied = GhNotify.Agents.AgentSafety.DisallowedTools.Concat(profile.DisallowedTools).Distinct().ToList();
+            BuiltInDenied.Text = $"{denied.Count} write commands — posting, approving, merging, pushing and committing (gh pr review/merge, gh api writes, git push/commit, az repos/pipelines writes…)";
+            BuiltInDenied.ToolTip = string.Join("\n", denied);
             return;
         }
 
@@ -188,10 +195,13 @@ public partial class WorkflowsPage : UserControl, ISettingsPage
             {
                 _stashedPrompt = null;
                 _stashedCommand = null;
+                _renameError = null;
+                NameError.Visibility = Visibility.Collapsed;
                 EditorCard.DataContext = profile;
+                NameBox.Text = _selected;
             }
-            if (NameBox.Text != _selected) NameBox.Text = _selected;
-            NameError.Visibility = Visibility.Collapsed;
+            // Never rewrite the box under the caret, nor over a refused name the user still has to fix.
+            else if (!NameBox.IsKeyboardFocusWithin && _renameError is null && NameBox.Text != _selected) NameBox.Text = _selected;
             var isCommand = profile.Command is not null;
             (isCommand ? CommandType : PromptType).IsChecked = true;
             PromptPanel.Visibility = isCommand ? Visibility.Collapsed : Visibility.Visible;
@@ -238,24 +248,28 @@ public partial class WorkflowsPage : UserControl, ISettingsPage
         }, _selected + "-copy");
     }
 
-    /// <summary>Renaming re-keys the profile; rules and defaults that pointed at the old name follow it.</summary>
-    void OnNameChanged(object sender, TextChangedEventArgs e)
+    void OnNameKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (_loading || _selected is not { } old || SelectedUserProfile is not { } profile) return;
-        var name = NameBox.Text.Trim();
-        string? error = name.Length == 0 ? "The profile needs a name."
-            : !string.Equals(name, old, StringComparison.OrdinalIgnoreCase) && ProfileCatalog.All(Config).ContainsKey(name) ? $"A profile named '{name}' already exists."
-            : null;
-        NameError.Text = error ?? "";
-        NameError.Visibility = error is null ? Visibility.Collapsed : Visibility.Visible;
-        if (error is not null || name == old) return;
+        if (e.Key != System.Windows.Input.Key.Enter) return;
+        e.Handled = true;
+        CommitRename();
+    }
 
-        Config.AgentProfiles.Remove(old);
-        Config.AgentProfiles[name] = profile;
-        foreach (var rule in Config.Rules.Where(r => string.Equals(r.Profile, old, StringComparison.OrdinalIgnoreCase))) rule.Profile = name;
-        foreach (var key in Config.DefaultProfiles.Where(kv => string.Equals(kv.Value, old, StringComparison.OrdinalIgnoreCase)).Select(kv => kv.Key).ToList())
-            Config.DefaultProfiles[key] = name;
-        _selected = name;
+    void OnNameLostFocus(object sender, RoutedEventArgs e) => CommitRename();
+
+    /// <summary>
+    /// Renames the open profile to what the name box says (on Enter or leaving the box, never per keystroke). Rules and
+    /// defaults that named it follow (SettingsDraft.RenameProfile). A refused name stays in the box with its error and blocks Save.
+    /// </summary>
+    internal void CommitRename()
+    {
+        if (_loading || _selected is not { } opened || SelectedUserProfile is null) return;
+        _renameError = _draft.RenameProfile(opened, NameBox.Text);
+        NameError.Text = _renameError ?? "";
+        NameError.Visibility = _renameError is null ? Visibility.Collapsed : Visibility.Visible;
+        var renamed = Config.AgentProfiles.Keys.FirstOrDefault(k => string.Equals(k, NameBox.Text.Trim(), StringComparison.Ordinal));
+        if (_renameError is not null || renamed is null || renamed == opened) { _changed(); return; }
+        _selected = renamed;
         ShowDefaults();
         ShowRules();
         ShowProfiles();
@@ -353,6 +367,15 @@ public partial class WorkflowsPage : UserControl, ISettingsPage
         arg.List.RemoveAt(arg.Index);
         ShowHooks();
         _changed();
+    }
+
+    public IReadOnlyList<SettingsError> InputErrors()
+    {
+        var errors = _ruleRows.Select((row, i) => (row, i)).Where(x => x.row.MaxLinesInvalid)
+            .Select(x => new SettingsError(SettingsPage.Workflows, $"rules[{x.i}].match.maxChangedLines", $"Rule {x.i + 1}: ≤ lines must be a positive whole number"))
+            .ToList();
+        if (_renameError is not null) errors.Add(new SettingsError(SettingsPage.Workflows, "agentProfiles", $"Profile name: {_renameError}"));
+        return errors;
     }
 
     public void ShowErrors(IReadOnlyList<SettingsError> errors)

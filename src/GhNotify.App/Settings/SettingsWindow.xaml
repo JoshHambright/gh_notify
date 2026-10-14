@@ -103,9 +103,16 @@
     </Border>
 
     <!-- Page -->
-    <ScrollViewer x:Name="PageScroller" Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <ContentControl x:Name="PageHost" Margin="28,22,28,22" Focusable="False" />
-    </ScrollViewer>
+    <DockPanel Grid.Column="1">
+      <!-- config.json is broken on disk: say what is being edited and that Save will ask first. -->
+      <Border x:Name="ConfigErrorBar" DockPanel.Dock="Top" Background="{DynamicResource Brush.RedTint}" BorderBrush="{DynamicResource Brush.Red}"
+              BorderThickness="0,0,0,1" Padding="28,10" Visibility="Collapsed">
+        <TextBlock x:Name="ConfigErrorText" TextWrapping="Wrap" FontSize="12" />
+      </Border>
+      <ScrollViewer x:Name="PageScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ContentControl x:Name="PageHost" Margin="28,22,28,22" Focusable="False" />
+      </ScrollViewer>
+    </DockPanel>
 
     <!-- Bottom bar -->
     <Border Grid.Row="1" Grid.Column="1" Background="{DynamicResource Brush.Header}" BorderBrush="{DynamicResource Brush.Hairline}"

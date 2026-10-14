@@ -105,5 +105,9 @@ public partial class GeneralPage : UserControl, ISettingsPage
         CheckNowButton.ToolTip = tip;
     }
 
+    public IReadOnlyList<SettingsError> InputErrors() => NumberInput.Errors(SettingsPage.General,
+        (PollBox, "pollSeconds", "Poll interval"), (CheckHoursBox, "updates.checkHours", "Check every"),
+        (MaxAgentsBox, "maxConcurrentAgents", "Max concurrent agents"), (TimeoutBox, "agentTimeoutMinutes", "Agent timeout")).ToList();
+
     public void ShowErrors(IReadOnlyList<SettingsError> errors) => ErrorList.ItemsSource = errors.Select(e => e.Message).ToList();
 }
