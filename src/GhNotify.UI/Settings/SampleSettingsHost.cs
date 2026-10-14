@@ -88,5 +88,7 @@ public sealed class SampleSettingsHost : ISettingsHost
     public void SetThemeMode(ThemeMode mode) => ThemeMode = mode;
     public bool CommentsWarningShown { get; set; }
     public void OpenPath(string path) { }
-    public void PlaySound(string sound) { }
+    /// <summary>Sounds the Notifications page test button played (tests).</summary>
+    public List<string> PlayedSounds { get; } = [];
+    public void PlaySound(string sound) => PlayedSounds.Add(sound);
 }
