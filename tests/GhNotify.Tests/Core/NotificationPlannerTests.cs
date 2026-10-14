@@ -124,6 +124,14 @@ public class NotificationPlannerTests
     }
 
     [Fact]
+    public void Initial_load_summary_lines_use_repo_and_number()
+    {
+        var a = It("a") with { Number = 7 };
+        var p = NotificationPlanner.Plan(new InboxDiff([], [], [], [a]), [], View([a]), new AppConfig(), true);
+        Assert.Equal("acme/api #7: T a", Assert.Single(Shown(p)).Body);
+    }
+
+    [Fact]
     public void Added_toast_carries_title_body_and_url()
     {
         var a = It("a", ItemKind.ApprovalPending);
