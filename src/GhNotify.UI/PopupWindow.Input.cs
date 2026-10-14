@@ -15,8 +15,6 @@ public partial class PopupWindow
 {
     // The last input was a pointer press (a confirm click then needs the pointer guard); a key press clears it.
     bool _pointerInput;
-    // "/" opens the search box; the character that follows the key press must not land in it.
-    bool _swallowSlash;
 
     // ----- search -----
 
@@ -110,6 +108,13 @@ public partial class PopupWindow
         }
     }
 
+    /// <summary>Drops the keyboard selection ring (for documentation screenshots).</summary>
+    internal void ClearSelection()
+    {
+        _selectedKey = null;
+        ApplySelection(scrollIntoView: false);
+    }
+
     /// <summary>A new row visual reads the selection when it first loads, so a rebuild never loses the ring.</summary>
     void OnRingLoaded(object? sender, RoutedEventArgs e)
     {
@@ -147,9 +152,11 @@ public partial class PopupWindow
 
     void OnPreviewTextInput(object? sender, TextInputEventArgs e)
     {
-        if (!_swallowSlash) return;
-        _swallowSlash = false;
-        if (e.Text == "/") e.Handled = true;
+        // "/" opens the search box from the typed character (layout-independent: the key that types "/" differs per layout).
+        // Handling the text input also keeps that "/" out of the search box.
+        if (e.Text != "/") return;
+        var command = KeyMap.Resolve(new KeyInput("/", false, false, false), Context());
+        if (command.Kind == KeyCommandKind.FocusSearch && Execute(command)) e.Handled = true;
     }
 
     static KeyInput? ToKeyInput(KeyEventArgs e)
@@ -163,9 +170,8 @@ public partial class PopupWindow
             Key.Space => "Space",
             Key.Enter => "Enter",
             Key.Escape => "Esc",
-            Key.OemQuestion or Key.Divide => "/",
             >= Key.A and <= Key.Z => e.Key.ToString(),
-            _ => e.KeySymbol == "/" ? "/" : null,
+            _ => null,
         };
         if (name is null) return null;
         var m = e.KeyModifiers;
@@ -231,7 +237,6 @@ public partial class PopupWindow
                 else _host.CancelBatch();
                 return true;
             case KeyCommandKind.FocusSearch:
-                _swallowSlash = true;
                 ShowSearch();
                 return true;
             case KeyCommandKind.ClearSearch:

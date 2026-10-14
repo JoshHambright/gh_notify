@@ -141,9 +141,17 @@ try {
         New-Item -ItemType Directory -Force $dl | Out-Null
         if ($env:GITHUB_TOKEN -and -not $env:GH_TOKEN) { $env:GH_TOKEN = $env:GITHUB_TOKEN }
         $repo = if ($env:GITHUB_REPOSITORY) { @('--repo', $env:GITHUB_REPOSITORY) } else { @() }
-        & gh release download --pattern 'GhNotify-win-Setup.exe' --dir $dl @repo 2>&1 | Out-Host
+        # Skip only when there is no release or it has no Setup asset; any other gh failure (auth, network) fails the step.
+        # (Under workflow_call from release.yml the "latest" release is the new, asset-less one, so this skips there; release.yml has its own previous-release test.)
+        $ghOut = & gh release download --pattern 'GhNotify-win-Setup.exe' --dir $dl @repo 2>&1 | Out-String
+        $ghExit = $LASTEXITCODE
         $relSetup = Join-Path $dl 'GhNotify-win-Setup.exe'
-        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $relSetup)) {
+        $noRelease = $ghExit -ne 0 -and $ghOut -match '(?i)release not found|no assets match|no release|no assets'
+        if ($ghExit -ne 0 -and -not $noRelease) {
+            Write-Host "::error::gh release download failed: $($ghOut.Trim())"
+            Fail "gh release download failed (not a missing release); refusing to skip the release upgrade step"
+        }
+        if ($noRelease -or -not (Test-Path $relSetup)) {
             Write-Host "::notice::no published release with GhNotify-win-Setup.exe found; skipping the release upgrade step"
         }
         else {
@@ -154,8 +162,8 @@ try {
 
             # v1.3-shaped user data: a config and a state file in the (env-redirected) config and data dirs.
             $state = Join-Path $env:GHNOTIFY_DATA_DIR 'state.json'
-            Set-Content $state '{ "seen": { "gh:review:acme/api#1": "2026-10-01T00:00:00Z" } }' -NoNewline
-            $stateHash = (Get-FileHash $state).Hash
+            # The app rewrites state.json at startup (full schema), so the file is not hashed; a seeded mute must survive instead.
+            Set-Content $state '{ "mutes": [ { "pattern": "gh:contoso/legacy", "until": null } ] }' -NoNewline
             $configHash = (Get-FileHash $config).Hash
 
             & $relSetup --silent | Out-Null
@@ -180,14 +188,14 @@ try {
 
             if ((Get-FileHash $config).Hash -ne $configHash) { Fail "config.json changed across the release upgrade" }
             if (-not (Test-Path $state)) { Fail "state.json missing after the release upgrade" }
-            if ((Get-FileHash $state).Hash -ne $stateHash) { Fail "state.json changed across the release upgrade" }
             $run = (Get-ItemProperty $runKey -Name GhNotify -ErrorAction SilentlyContinue).GhNotify
             if ($run -ne "`"$exe`"") { Fail "Run key wrong after the release upgrade: '$run'" }
             if (-not (Test-Path $shortcut)) { Fail "Start-menu shortcut missing after the release upgrade" }
             Assert-Sentinels "by the release upgrade"
             Start-Check
             if (-not (Test-Path $state)) { Fail "state.json missing after the upgraded app ran" }
-            $null = Get-Content $state -Raw | ConvertFrom-Json   # still valid JSON
+            try { $stateJson = Get-Content $state -Raw | ConvertFrom-Json } catch { Fail "state.json no longer parses after the upgraded app ran: $_" }
+            if (-not (@($stateJson.mutes) | Where-Object { $_.pattern -eq 'gh:contoso/legacy' })) { Fail "seeded mute gh:contoso/legacy was lost across the release upgrade" }
 
             & $updateExe --uninstall --silent | Out-Null
             Wait-Until { -not (Test-Path $installRoot) } 30 "install root $installRoot to be removed"

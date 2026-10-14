@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Media.Imaging;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using GhNotify.Core;
@@ -13,6 +14,9 @@ namespace GhNotify.UI.Tests;
 [Trait("Category", "Screenshots")]
 public class ScreenshotTests
 {
+    const double Scale = 2; // docs images are rendered at 2x for sharp text
+    const double MaxPopupHeight = 1200;
+
     internal static string? OutDir => Environment.GetEnvironmentVariable("GHNOTIFY_SCREENSHOTS");
 
     static readonly ActionPreview ApprovalPreview = new(true, "Approve platform-release 20261013.4 in contoso/platform",
@@ -74,16 +78,37 @@ public class ScreenshotTests
         try
         {
             w.Show();
-            if (w is PopupWindow p) p.Render();
+            if (w is PopupWindow p)
+            {
+                p.Render();
+                Dispatcher.UIThread.RunJobs();
+                FitToContent(p);
+                p.ClearSelection(); // no keyboard selection outline in docs images
+            }
             Dispatcher.UIThread.RunJobs();
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-            var frame = w.CaptureRenderedFrame() ?? throw new InvalidOperationException("no frame rendered for " + path);
-            frame.Save(path);
+            var size = new PixelSize((int)Math.Round(w.Bounds.Width * Scale), (int)Math.Round(w.Bounds.Height * Scale));
+            using var bmp = new RenderTargetBitmap(size, new Vector(96 * Scale, 96 * Scale));
+            bmp.Render(w);
+            bmp.Save(path);
         }
         finally
         {
             w.Close();
         }
+    }
+
+    /// <summary>Sizes the popup to its content (the row list scrolls, so SizeToContent alone clips), capped at a reasonable height.</summary>
+    static void FitToContent(PopupWindow p)
+    {
+        var scroller = p.FindControl<ScrollViewer>("Scroller") ?? throw new InvalidOperationException("no Scroller");
+        var chrome = p.Bounds.Height - scroller.Viewport.Height;
+        var want = Math.Min(scroller.Extent.Height + chrome, MaxPopupHeight);
+        p.SizeToContent = SizeToContent.Manual;
+        p.MaxHeight = double.PositiveInfinity;
+        p.Height = Math.Max(p.MinHeight, want);
+        Dispatcher.UIThread.RunJobs();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
     }
 
     static void Save(SKBitmap bmp, string path)

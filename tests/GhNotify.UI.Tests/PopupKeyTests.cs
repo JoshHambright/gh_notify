@@ -228,7 +228,7 @@ public class PopupKeyTests
     {
         using var h = new PopupHarness();
         Assert.False(h.All<Border>().First(b => b.Name == "SearchBar").IsVisible);
-        h.Press(Key.OemQuestion, symbol: "/");
+        h.Press(Key.D7, KeyModifiers.Shift, symbol: "/"); // e.g. a German layout: "/" is Shift+7, the typed character is what counts
         h.Type("/");
         var box = h.SearchBox;
         Assert.True(box.IsEffectivelyVisible);
@@ -241,6 +241,24 @@ public class PopupKeyTests
         h.Show();
         h.Press(Key.F, KeyModifiers.Control);
         Assert.True(h.SearchBox.IsFocused);
+    }
+
+    [AvaloniaFact]
+    public void A_slash_typed_after_Ctrl_F_is_kept_in_the_search_box()
+    {
+        using var h = new PopupHarness();
+        h.Press(Key.F, KeyModifiers.Control);
+        h.Type("/");
+        Assert.Equal("/", h.SearchBox.Text);
+    }
+
+    [AvaloniaFact]
+    public void Only_the_slash_character_opens_search_other_text_input_does_not()
+    {
+        using var h = new PopupHarness();
+        h.Press(Key.OemQuestion, symbol: "#"); // the key that types "/" on a US layout types something else elsewhere
+        h.Type("#");
+        Assert.False(h.All<Border>().First(b => b.Name == "SearchBar").IsVisible);
     }
 
     [AvaloniaFact]

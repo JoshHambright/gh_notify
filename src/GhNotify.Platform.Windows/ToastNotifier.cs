@@ -12,7 +12,38 @@ public sealed class ToastNotifier : INotifier
 
     public ToastNotifier() => ToastNotificationManagerCompat.OnActivated += OnActivated;
 
-    public event Action<string, string>? Activated;
+    readonly object _gate = new();
+    Action<string, string>? _activated;
+    List<(string Tag, string Action)> _pending = [];
+
+    /// <summary>Raised when a toast is clicked. Activations that arrive before the first handler attaches (a click that launched the app) are buffered and replayed to it.</summary>
+    public event Action<string, string>? Activated
+    {
+        add
+        {
+            List<(string Tag, string Action)> replay;
+            lock (_gate)
+            {
+                _activated += value;
+                replay = _pending;
+                _pending = [];
+            }
+            foreach (var (tag, action) in replay) value?.Invoke(tag, action);
+        }
+        remove { lock (_gate) _activated -= value; }
+    }
+
+    /// <summary>Delivers an activation to the handlers, or holds it until the first one attaches; internal for tests.</summary>
+    internal void Raise(string tag, string action)
+    {
+        Action<string, string>? handler;
+        lock (_gate)
+        {
+            handler = _activated;
+            if (handler is null) _pending.Add((tag, action));
+        }
+        handler?.Invoke(tag, action);
+    }
 
     /// <summary>Writes the toast app logo (the accent tile) to <paramref name="path"/> and uses it for later toasts.</summary>
     public void PrepareLogo(string path)
@@ -78,7 +109,7 @@ public sealed class ToastNotifier : INotifier
         try
         {
             var (tag, action) = Translate(e.Argument);
-            Activated?.Invoke(tag, action);
+            Raise(tag, action);
         }
         catch (Exception ex)
         {
