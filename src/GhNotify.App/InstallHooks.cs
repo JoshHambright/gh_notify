@@ -22,6 +22,8 @@ public static class InstallHooks
     {
         try
         {
+            // Same rule as App.StartUp: move legacy data before logging creates the new data dir (the hooks can run before the first start).
+            if (Environment.GetEnvironmentVariable("GHNOTIFY_DATA_DIR") is null or "") DataMigration.Run(AppPaths.LegacyDataDir, AppPaths.DataDir);
             Log.Configure(AppPaths.Logs);
             action();
         }

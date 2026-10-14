@@ -14,7 +14,14 @@ public static class DataMigration
             File.Move(oldState, newState);
             var oldLogs = Path.Combine(legacyDir, "logs");
             var newLogs = Path.Combine(newDir, "logs");
-            if (Directory.Exists(oldLogs) && !Directory.Exists(newLogs)) Directory.Move(oldLogs, newLogs);
+            if (!Directory.Exists(oldLogs)) return;
+            if (!Directory.Exists(newLogs)) { Directory.Move(oldLogs, newLogs); return; }
+            // Install hooks may have created the new logs dir first: merge, never overwrite.
+            foreach (var file in Directory.EnumerateFiles(oldLogs))
+            {
+                var target = Path.Combine(newLogs, Path.GetFileName(file));
+                if (!File.Exists(target)) File.Move(file, target);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

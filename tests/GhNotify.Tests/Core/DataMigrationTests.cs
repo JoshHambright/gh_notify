@@ -39,4 +39,21 @@ public class DataMigrationTests : IDisposable
 
     [Fact]
     public void Missing_legacy_dir_is_fine() => DataMigration.Run(Old, New);
+
+    [Fact]
+    public void Merges_legacy_logs_into_existing_target_logs_dir()
+    {
+        Directory.CreateDirectory(Path.Combine(Old, "logs"));
+        Directory.CreateDirectory(Path.Combine(New, "logs"));
+        File.WriteAllText(Path.Combine(Old, "state.json"), "{}");
+        File.WriteAllText(Path.Combine(Old, "logs", "old.log"), "old");
+        File.WriteAllText(Path.Combine(Old, "logs", "same.log"), "legacy");
+        File.WriteAllText(Path.Combine(New, "logs", "same.log"), "current");
+
+        DataMigration.Run(Old, New);
+
+        Assert.Equal("old", File.ReadAllText(Path.Combine(New, "logs", "old.log")));
+        Assert.Equal("current", File.ReadAllText(Path.Combine(New, "logs", "same.log"))); // never overwritten
+        Assert.True(File.Exists(Path.Combine(New, "state.json")));
+    }
 }
