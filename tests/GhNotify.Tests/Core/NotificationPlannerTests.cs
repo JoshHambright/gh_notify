@@ -87,6 +87,25 @@ public class NotificationPlannerTests
         Assert.Empty(Shown(p));
     }
 
+
+    [Fact]
+    public void Woken_item_that_is_hidden_does_not_toast()
+    {
+        var a = It("a", repo: "fabrikam/x");
+        var p = NotificationPlanner.Plan(InboxDiff.Empty, [a], View([a], new FiltersConfig { Hide = ["fabrikam"] }),
+            Cfg(new SoundRule { Sound = "builtin:alarm", AlertOffHours = true }), inWorkHours: true);
+        Assert.Empty(Shown(p));
+        Assert.Null(p.Sound);
+    }
+
+    [Fact]
+    public void None_sound_rule_toasts_silently_without_sound()
+    {
+        var a = It("a");
+        var p = NotificationPlanner.Plan(Added(a), [], View([a]), Cfg(new SoundRule { Sound = "none" }), true);
+        Assert.True(Assert.Single(Shown(p)).Silent);
+        Assert.Null(p.Sound);
+    }
     [Fact]
     public void Removed_items_clear_both_toasts_even_off_hours()
     {
