@@ -35,7 +35,7 @@ public static class NotificationPlanner
         {
             var carriesDefault = winner.Key == c.Item.Key && winner.Sound == "default";
             toasts.Add(new ToastRequest(ToastAction.Show, ItemTag.For(c.Item.Key),
-                (c.Back ? "Back: " : "") + NotificationPolicy.TitleFor(c.Item), $"{c.Item.Repo}: {c.Item.Title}", c.Item.Url)
+                (c.Back ? "Back: " : "") + NotificationPolicy.TitleFor(c.Item), $"{ItemText.RepoAndNumber(c.Item)}: {c.Item.Title}", c.Item.Url)
             { Silent = !carriesDefault });
         }
 

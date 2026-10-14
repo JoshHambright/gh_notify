@@ -11,6 +11,7 @@ public sealed record InboxRow(
 {
     public string? MutedBy { get; init; }
     public string? SnoozeText { get; init; }
+    public string? Number { get; init; }
 }
 
 public enum RowMode { Collapsed, Expanded, Confirming, Sending, Done, Failed }
@@ -140,10 +141,19 @@ public static class InboxPresenter
             Badge(run), Tooltip(run),
             button, button is not null && reason is null, reason,
             run is { State: AgentState.Ready or AgentState.Failed or AgentState.Outdated, SessionId: not null, WorktreePath: not null },
-            i.Kind is ItemKind.ApprovalPending or ItemKind.MyPrCiFailing, i.Details ?? [],
+            i.Kind is ItemKind.ApprovalPending or ItemKind.MyPrCiFailing, WithPr(i),
             run is null ? null : RunInfo(run), run?.ResultText,
             actions, mode, preview?.Statement, preview?.ConfirmLabel, confirmEnabled, preview?.Warning, message,
-            repoDisplay?.Invoke(i.Repo) ?? i.Repo);
+            repoDisplay?.Invoke(i.Repo) ?? i.Repo)
+        { Number = i.Number is { } n ? $"#{n}" : null };
+    }
+
+    static IReadOnlyList<ItemDetail> WithPr(InboxItem i)
+    {
+        var details = i.Details ?? [];
+        if (i.Number is not { } n || details.Any(d => d.Label == "PR")) return details;
+        var at = details.ToList().FindIndex(d => d.Label == "Repo") + 1;
+        return [.. details.Take(at), new ItemDetail("PR", $"#{n}"), .. details.Skip(at)];
     }
 
     static string RunInfo(AgentRun run)
