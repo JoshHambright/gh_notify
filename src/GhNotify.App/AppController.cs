@@ -205,7 +205,7 @@ public sealed class AppController : IPopupHost, IDisposable
                 var label = InboxPresenter.LabelFor(run.Profile);
                 if (WorkHours.IsWithin(_config.Current.WorkHours, DateTime.Now))
                     _toasts.Apply(new ToastRequest(ToastAction.Show, ItemTag.ForAgent(run.Key),
-                        $"{label} {(run.State == AgentState.Ready ? "ready" : "failed")}: {item.Repo}",
+                        $"{label} {(run.State == AgentState.Ready ? "ready" : "failed")}: {ItemText.RepoAndNumber(item)}",
                         $"{item.Title}\n{run.Summary ?? run.Error}", item.Url));
                 _ = _hooks.DispatchAsync(HookEvent.AgentFinished, item, run);
             }

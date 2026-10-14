@@ -144,4 +144,15 @@ public class NotificationPlannerTests
         var p = NotificationPlanner.Plan(new InboxDiff([], [], [new ItemChange(a, a)], []), [], View([a]), new AppConfig(), true);
         Assert.Empty(p.Toasts);
     }
+
+    [Fact]
+    public void Toast_body_includes_PR_number_only_when_present()
+    {
+        var a = It("a") with { Number = 7 };
+        var b = It("b");
+        var p = NotificationPlanner.Plan(Added(a, b), [a], View([a, b]), new AppConfig(), inWorkHours: true);
+        var bodies = Shown(p).Select(t => t.Body).ToList();
+        Assert.Equal(2, bodies.Count(x => x == "acme/api #7: T a"));
+        Assert.Contains("acme/api: T b", bodies);
+    }
 }
