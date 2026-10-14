@@ -13,6 +13,7 @@ public partial class App : Application
     Mutex? _mutex;
     TaskbarIcon? _tray;
     PopupWindow? _popup;
+    SettingsWindow? _settings;
     AppController? _controller;
     FileSystemWatcher? _watcher;
     DispatcherTimer? _debounce;
@@ -80,6 +81,7 @@ public partial class App : Application
         _updates.Changed += () => Dispatcher.InvokeAsync(controller.RaiseChanged);
 
         _popup = new PopupWindow(_controller);
+        controller.SettingsRequested += () => Dispatcher.InvokeAsync(OpenSettings);
 
         _tray = new TaskbarIcon { ToolTipText = "gh_notify" };
         _tray.TrayLeftMouseUp += (_, _) => TogglePopup();
@@ -98,6 +100,19 @@ public partial class App : Application
         _controller.Start();
         _ = _updates.RunAsync(_cts.Token);
         Log.Info("gh_notify started");
+    }
+
+    /// <summary>One settings window at a time: re-activates the open one, or opens a new one after the last closed.</summary>
+    void OpenSettings()
+    {
+        if (_settings is null)
+        {
+            var window = _settings = new SettingsWindow(_controller!);
+            window.Closed += (_, _) => { if (_settings == window) _settings = null; };
+            window.Show();
+        }
+        else if (_settings.WindowState == WindowState.Minimized) _settings.WindowState = WindowState.Normal;
+        _settings.Activate();
     }
 
     void TogglePopup()

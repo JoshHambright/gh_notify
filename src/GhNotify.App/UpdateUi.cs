@@ -29,4 +29,18 @@ public static class UpdateUi
     /// <summary>"Restart to update (vX)" when an update is ready, otherwise null.</summary>
     public static string? RestartItem(UpdateStatus s) =>
         s.Phase == UpdatePhase.Ready ? $"Restart to update (v{s.ReadyVersion})" : null;
+
+    /// <summary>The Settings › General update line.</summary>
+    public static string SettingsStatus(UpdateStatus s) => s.Phase switch
+    {
+        UpdatePhase.DevBuild => "Updates are off in dev builds",
+        UpdatePhase.Off => "Automatic updates are off",
+        UpdatePhase.Checking => "Checking for updates…",
+        UpdatePhase.Downloading => "Downloading update…",
+        UpdatePhase.Ready => $"Update ready (v{s.ReadyVersion}) — restart from the tray",
+        UpdatePhase.Failed => $"Last check failed: {s.LastError}",
+        _ => s.LastChecked is { } t ? $"Up to date · checked {t.ToLocalTime():HH:mm}" : "Not checked yet",
+    };
+
+    public static string SettingsVersion(UpdateStatus s) => $"Version {s.CurrentVersion ?? "dev build"}";
 }

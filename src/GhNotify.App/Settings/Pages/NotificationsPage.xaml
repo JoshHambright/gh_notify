@@ -1,0 +1,60 @@
+<UserControl x:Class="GhNotify.App.NotificationsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:GhNotify.App">
+  <StackPanel>
+    <ItemsControl x:Name="ErrorList" Foreground="{DynamicResource Brush.Red}" FontSize="12" Margin="0,0,0,8" />
+
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="SOUND RULES · FIRST MATCH WINS" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <ItemsControl x:Name="Rules">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="{x:Type local:SoundRow}">
+          <Border Style="{StaticResource Style.Card}" CornerRadius="10" Padding="14,10" Margin="0,0,0,10">
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                <Button Style="{StaticResource Style.IconButton}" Content="↑" ToolTip="Move up" Tag="{Binding}" Click="OnUp" />
+                <Button Style="{StaticResource Style.IconButton}" Content="↓" ToolTip="Move down" Tag="{Binding}" Click="OnDown" />
+                <Button Style="{StaticResource Style.IconButton}" Content="✕" ToolTip="Remove" Tag="{Binding}" Click="OnRemove" />
+              </StackPanel>
+              <WrapPanel>
+                <TextBlock Text="WHEN" Style="{StaticResource Style.Keyword}" Margin="0,4,8,4" />
+                <ComboBox ItemsSource="{Binding KindLabels}" SelectedIndex="{Binding KindIndex}" MinWidth="150" Margin="0,2,10,2" />
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="IN" Style="{StaticResource Style.Keyword}" />
+                  <TextBox Text="{Binding Repo, UpdateSourceTrigger=PropertyChanged}" Tag="any repo" Width="120" Margin="0,2,10,2" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="BY" Style="{StaticResource Style.Keyword}" />
+                  <TextBox Text="{Binding Author, UpdateSourceTrigger=PropertyChanged}" Tag="anyone" Width="90" Margin="0,2,10,2" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="→" Style="{StaticResource Style.Keyword}" FontSize="13" />
+                  <ComboBox ItemsSource="{Binding SoundOptions}" SelectedIndex="{Binding SoundIndex}" ToolTip="{Binding SoundToolTip}"
+                            MinWidth="130" Margin="0,2,4,2" />
+                  <Button Style="{StaticResource Style.IconButton}" Content="▶" FontSize="10" ToolTip="Play" Tag="{Binding}" Click="OnPlay"
+                          IsEnabled="{Binding CanPlay}" Margin="0,2,10,2" />
+                </StackPanel>
+                <CheckBox Content="alert off-hours" IsChecked="{Binding AlertOffHours}" Margin="0,2,0,2" />
+              </WrapPanel>
+            </DockPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <Button Content="+ Add sound rule" Style="{StaticResource Style.LinkButton}" Click="OnAdd" Margin="0,2,0,16" />
+
+    <ItemsControl x:Name="Summaries" Margin="0,0,0,10">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="{x:Type local:SoundRow}">
+          <TextBlock Text="{Binding Summary, Mode=OneWay}" Foreground="{DynamicResource Brush.Muted}" FontSize="12" Margin="0,0,0,3"
+                     TextWrapping="Wrap" />
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <TextBlock Text="First matching rule wins. Outside work hours only rules with 'alert off-hours' notify."
+               Foreground="{DynamicResource Brush.Muted}" FontSize="12" TextWrapping="Wrap" />
+  </StackPanel>
+</UserControl>

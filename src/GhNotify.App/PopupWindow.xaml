@@ -14,20 +14,6 @@
     <local:UpperCaseConverter x:Key="Upper" />
     <local:NotNullConverter x:Key="NotNull" />
 
-    <!-- Three slanted rounded bars: the "E" glyph used as a section bullet. -->
-    <Geometry x:Key="Geometry.EBars">M4.5,1.5 L13,1.5 M3,5 L11.5,5 M1.5,8.5 L10,8.5</Geometry>
-
-    <Style x:Key="EBars" TargetType="Path">
-      <Setter Property="Data" Value="{StaticResource Geometry.EBars}" />
-      <Setter Property="Stroke" Value="{DynamicResource Brush.Section}" />
-      <Setter Property="StrokeThickness" Value="2" />
-      <Setter Property="StrokeStartLineCap" Value="Round" />
-      <Setter Property="StrokeEndLineCap" Value="Round" />
-      <Setter Property="Width" Value="14" />
-      <Setter Property="Height" Value="10" />
-      <Setter Property="VerticalAlignment" Value="Center" />
-    </Style>
-
     <Style x:Key="Small" TargetType="Button" BasedOn="{StaticResource Style.PillGhost}">
       <Setter Property="Padding" Value="11,3" />
       <Setter Property="FontSize" Value="11.5" />
@@ -412,7 +398,7 @@
           <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="0,6,0,8">
               <StackPanel x:Name="EmptyState" Margin="16,36" HorizontalAlignment="Center" Visibility="Collapsed">
-                <Path Style="{StaticResource EBars}" HorizontalAlignment="Center" Width="28" Height="20" Stretch="Uniform" StrokeThickness="3" />
+                <Path Style="{StaticResource Style.EBars}" HorizontalAlignment="Center" Width="28" Height="20" Stretch="Uniform" StrokeThickness="3" />
                 <TextBlock Text="Nothing waiting on you." Foreground="{DynamicResource Brush.Muted}" FontSize="12.5" Margin="0,10,0,0" />
               </StackPanel>
               <ItemsControl x:Name="Sections">
@@ -427,7 +413,7 @@
                             </Style.Triggers>
                           </Style>
                         </StackPanel.Style>
-                        <Path Style="{StaticResource EBars}" />
+                        <Path Style="{StaticResource Style.EBars}" />
                         <TextBlock Text="{Binding Title, Converter={StaticResource Upper}}" Style="{StaticResource Style.SectionLabel}"
                                    FontSize="10.5" Margin="7,0,0,0" VerticalAlignment="Center" />
                       </StackPanel>
@@ -440,7 +426,7 @@
                           </ControlTemplate>
                         </Button.Template>
                         <StackPanel Orientation="Horizontal">
-                          <Path Style="{StaticResource EBars}" />
+                          <Path Style="{StaticResource Style.EBars}" />
                           <TextBlock Style="{StaticResource Style.SectionLabel}" FontSize="10.5" Margin="7,0,0,0" VerticalAlignment="Center">
                             <Run Text="{Binding Title, Converter={StaticResource Upper}, Mode=OneWay}" /><Run Text=" (" /><Run Text="{Binding Count, Mode=OneWay}" /><Run Text=")" />
                           </TextBlock>

@@ -1,0 +1,141 @@
+<Window x:Class="GhNotify.App.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="gh_notify settings" Width="880" Height="620" MinWidth="760" MinHeight="520"
+        ResizeMode="CanResize" WindowStartupLocation="CenterScreen" UseLayoutRounding="True"
+        Background="{DynamicResource Brush.Surface}" Foreground="{DynamicResource Brush.Text}"
+        FontFamily="{StaticResource Font.Body}" FontSize="13"
+        KeyDown="OnKeyDown" Closing="OnClosing">
+  <Window.Resources>
+    <!-- The pages' controls pick these up through the tree. -->
+    <Style TargetType="TextBox" BasedOn="{StaticResource Style.PillBox}" />
+    <Style TargetType="CheckBox" BasedOn="{StaticResource Style.Check}" />
+    <Style TargetType="ComboBox" BasedOn="{StaticResource Style.PillCombo}" />
+    <!-- A thin themed scroll bar (the page and the drop-down lists only scroll vertically). -->
+    <Style TargetType="ScrollBar">
+      <Setter Property="Width" Value="10" />
+      <Setter Property="MinWidth" Value="10" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ScrollBar">
+            <Track x:Name="PART_Track" IsDirectionReversed="True" Margin="2">
+              <Track.Thumb>
+                <Thumb>
+                  <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb">
+                      <Border CornerRadius="3" Background="{DynamicResource Brush.Muted}" Opacity="0.45" />
+                    </ControlTemplate>
+                  </Thumb.Template>
+                </Thumb>
+              </Track.Thumb>
+            </Track>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType="ToolTip">
+      <Setter Property="Background" Value="{DynamicResource Brush.Raised}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    </Style>
+
+    <Style x:Key="NavDot" TargetType="Ellipse">
+      <Setter Property="Width" Value="7" />
+      <Setter Property="Height" Value="7" />
+      <Setter Property="Fill" Value="{DynamicResource Brush.Red}" />
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Visibility" Value="Collapsed" />
+    </Style>
+
+    <Style x:Key="BarText" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Muted}" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="BarLink" TargetType="Button" BasedOn="{StaticResource Style.LinkButton}">
+      <Setter Property="Margin" Value="12,0,0,0" />
+    </Style>
+  </Window.Resources>
+
+  <Grid x:Name="Root" Background="{DynamicResource Brush.Surface}">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="200" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*" />
+      <RowDefinition Height="56" />
+    </Grid.RowDefinitions>
+
+    <!-- Nav -->
+    <Border Grid.RowSpan="2" Background="{DynamicResource Brush.Header}" BorderBrush="{DynamicResource Brush.Hairline}"
+            BorderThickness="0,0,1,0" ClipToBounds="True">
+      <Grid>
+        <!-- The red quarter-circle in the corner: a 180 px disc centred on the nav's bottom-right corner. -->
+        <Canvas HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="0" Height="0">
+          <Ellipse Width="180" Height="180" Canvas.Left="-90" Canvas.Top="-90" Fill="{DynamicResource Brush.Red}" Opacity="0.9" />
+        </Canvas>
+        <StackPanel Margin="0,22,0,0">
+          <TextBlock Text="G H _ N O T I F Y" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource Brush.Eyebrow}" Margin="22,0,22,2" />
+          <TextBlock Text="Settings" FontFamily="{StaticResource Font.Heavy}" FontWeight="Black" FontSize="22" Margin="22,0,22,20" />
+          <RadioButton x:Name="NavGeneral" Style="{StaticResource Style.NavItem}" Tag="General" Checked="OnNav">
+            <Grid><TextBlock Text="General" /><Ellipse x:Name="DotGeneral" Style="{StaticResource NavDot}" /></Grid>
+          </RadioButton>
+          <RadioButton x:Name="NavSources" Style="{StaticResource Style.NavItem}" Tag="Sources" Checked="OnNav">
+            <Grid><TextBlock Text="Sources" /><Ellipse x:Name="DotSources" Style="{StaticResource NavDot}" /></Grid>
+          </RadioButton>
+          <RadioButton x:Name="NavNotifications" Style="{StaticResource Style.NavItem}" Tag="Notifications" Checked="OnNav">
+            <Grid><TextBlock Text="Notifications" /><Ellipse x:Name="DotNotifications" Style="{StaticResource NavDot}" /></Grid>
+          </RadioButton>
+          <RadioButton x:Name="NavFilters" Style="{StaticResource Style.NavItem}" Tag="Filters" Checked="OnNav">
+            <Grid><TextBlock Text="Filters" /><Ellipse x:Name="DotFilters" Style="{StaticResource NavDot}" /></Grid>
+          </RadioButton>
+          <RadioButton x:Name="NavWorkflows" Style="{StaticResource Style.NavItem}" Tag="Workflows" Checked="OnNav">
+            <Grid><TextBlock Text="Workflows" /><Ellipse x:Name="DotWorkflows" Style="{StaticResource NavDot}" /></Grid>
+          </RadioButton>
+          <RadioButton x:Name="NavAdvanced" Style="{StaticResource Style.NavItem}" Tag="Advanced" Checked="OnNav">
+            <Grid><TextBlock Text="Advanced" /><Ellipse x:Name="DotAdvanced" Style="{StaticResource NavDot}" /></Grid>
+          </RadioButton>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Page -->
+    <ScrollViewer x:Name="PageScroller" Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <ContentControl x:Name="PageHost" Margin="28,22,28,22" Focusable="False" />
+    </ScrollViewer>
+
+    <!-- Bottom bar -->
+    <Border Grid.Row="1" Grid.Column="1" Background="{DynamicResource Brush.Header}" BorderBrush="{DynamicResource Brush.Hairline}"
+            BorderThickness="0,1,0,0" Padding="20,0">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button x:Name="CancelButton" Content="Cancel" Style="{StaticResource Style.PillGhost}" FontSize="14" Padding="18,6"
+                  Click="OnCancel" />
+          <Button x:Name="SaveButton" Content="Save" Style="{StaticResource Style.PillPrimary}" FontSize="14" Padding="20,6"
+                  Margin="10,0,0,0" Click="OnSave" />
+        </StackPanel>
+        <Grid Margin="0,0,16,0" VerticalAlignment="Center">
+          <TextBlock x:Name="StatusText" Style="{StaticResource BarText}" />
+          <StackPanel x:Name="DiscardBar" Orientation="Horizontal" Visibility="Collapsed">
+            <TextBlock Text="Discard changes?" Style="{StaticResource BarText}" Foreground="{DynamicResource Brush.Text}" />
+            <Button Content="Discard" Style="{StaticResource BarLink}" Click="OnDiscard" />
+            <Button Content="Keep editing" Style="{StaticResource BarLink}" Click="OnKeepEditing" />
+          </StackPanel>
+          <StackPanel x:Name="ConflictBar" Orientation="Horizontal" Visibility="Collapsed">
+            <TextBlock Text="config.json changed outside Settings —" Style="{StaticResource BarText}" Foreground="{DynamicResource Brush.Text}" />
+            <Button Content="Reload" Style="{StaticResource BarLink}" Click="OnReload" />
+            <Button Content="Overwrite" Style="{StaticResource BarLink}" Click="OnOverwrite" />
+          </StackPanel>
+          <DockPanel x:Name="CommentsBar" Visibility="Collapsed">
+            <Button DockPanel.Dock="Right" Content="Save anyway" Style="{StaticResource BarLink}" Click="OnSaveAnyway" />
+            <TextBlock Style="{StaticResource BarText}" Foreground="{DynamicResource Brush.Text}" FontSize="12"
+                       Text="Saving rewrites config.json and drops comments. A backup is kept as config.json.bak." />
+          </DockPanel>
+        </Grid>
+      </DockPanel>
+    </Border>
+  </Grid>
+</Window>

@@ -14,6 +14,8 @@ public sealed class AppState
     public List<Snooze> Snoozes { get; set; } = [];
     public bool WaitingExpanded { get; set; }
     public bool SnoozedExpanded { get; set; }
+    /// <summary>The settings window has warned once that saving drops comments from config.json.</summary>
+    public bool CommentsWarningShown { get; set; }
 }
 
 public sealed class StateStore(string path)
