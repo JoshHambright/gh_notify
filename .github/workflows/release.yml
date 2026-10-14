@@ -1,0 +1,83 @@
+name: Release
+on:
+  push:
+    tags: ["v*.*.*"]
+permissions:
+  contents: write
+env:
+  VELOPACK_VERSION: "1.2.161"
+defaults:
+  run:
+    shell: pwsh
+jobs:
+  gates:
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+  release:
+    needs: gates
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install vpk
+        run: dotnet tool install -g vpk --version $env:VELOPACK_VERSION
+      - name: Version from tag
+        id: v
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+            Write-Host "::error::tag '$tag' is not vMAJOR.MINOR.PATCH (prereleases are not supported)"
+            exit 1
+          }
+          "version=$($tag.TrimStart('v'))" >> $env:GITHUB_OUTPUT
+      - name: Previous release (for deltas and the upgrade test)
+        id: prev
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The first release has no predecessor: every step here tolerates that.
+          vpk download github --repoUrl "https://github.com/$env:GITHUB_REPOSITORY" --token "$env:GH_TOKEN" --outputDir artifacts/releases
+          if ($LASTEXITCODE) { Write-Host "::notice::no previous release to download"; $global:LASTEXITCODE = 0 }
+          gh release download --repo "$env:GITHUB_REPOSITORY" --pattern '*Setup.exe' --dir artifacts/releases --clobber
+          if ($LASTEXITCODE) { $global:LASTEXITCODE = 0 }
+          $files = @(Get-ChildItem artifacts/releases -File -ErrorAction SilentlyContinue)
+          $old = $files | Where-Object Name -like '*Setup.exe' | Select-Object -First 1
+          "setup=$(if ($old) { $old.FullName })" >> $env:GITHUB_OUTPUT
+          "has_releases=$($files.Count -gt 0)" >> $env:GITHUB_OUTPUT
+      - name: Release notes
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          $tag = $env:GITHUB_REF_NAME
+          $notes = ''
+          # Annotated tags carry their own message; a lightweight tag would return the commit message instead.
+          if ((git cat-file -t "refs/tags/$tag") -eq 'tag') {
+            $notes = (git tag -l --format='%(contents)' $tag | Out-String).Trim()
+          }
+          if (-not $notes) {
+            $prev = git describe --tags --abbrev=0 "$tag^" 2>$null
+            $lines = if ($prev) { git log --format='- %s' "$prev..$tag" } else { git log --format='- %s' -20 $tag }
+            $notes = ($lines -join "`n")
+          }
+          $notes = (($notes -split "`r?`n") | Where-Object { $_ -notmatch '^\s*Co-Authored-By:' }) -join "`n"
+          Set-Content artifacts/notes.md $notes.Trim()
+      - name: Pack
+        run: |
+          $p = @{ Version = '${{ steps.v.outputs.version }}'; OutDir = 'artifacts/new'; ReleaseNotes = 'artifacts/notes.md' }
+          if ('${{ steps.prev.outputs.has_releases }}' -eq 'True') { $p.PrevReleases = 'artifacts/releases' }
+          ./build/pack.ps1 @p
+      - name: Upgrade test from the previous release
+        if: steps.prev.outputs.setup != ''
+        run: ./build/test-install.ps1 -OldSetup "${{ steps.prev.outputs.setup }}" -NewFeed artifacts/new
+      # SIGNING: sign artifacts/new/* here once a certificate or Trusted Signing account exists.
+      # Release notes travel inside the package (vpk pack --releaseNotes); vpk upload github publishes them as the body.
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          vpk upload github --repoUrl "https://github.com/$env:GITHUB_REPOSITORY" --token "$env:GH_TOKEN"
+          --outputDir artifacts/new --publish --releaseName "gh_notify v${{ steps.v.outputs.version }}"
+          --tag "$env:GITHUB_REF_NAME"

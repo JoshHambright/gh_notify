@@ -26,7 +26,7 @@ public class StateStoreTests
     {
         var path = Path.Combine(Directory.CreateTempSubdirectory("ghn-state").FullName, "state.json");
         var item = new InboxItem("k", Provider.Ado, ItemKind.ApprovalPending, "o/p", "t", "u", "", DateTimeOffset.UnixEpoch, null, null, null)
-            { Details = [new ItemDetail("Pipeline", "api-release"), new ItemDetail("Run", "20261013.3")] };
+        { Details = [new ItemDetail("Pipeline", "api-release"), new ItemDetail("Run", "20261013.3")] };
         new StateStore(path).Save(new AppState { Snapshot = new() { ["ADO:o"] = [item] } });
         var loaded = new StateStore(path).Load().Snapshot["ADO:o"].Single();
         Assert.Equal(item.Details, loaded.Details!.ToArray());

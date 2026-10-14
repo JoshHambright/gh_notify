@@ -8,7 +8,8 @@ public class PromptTemplateTests
     public void Fills_all_placeholders()
     {
         var item = new InboxItem("k", Provider.GitHub, ItemKind.ReviewRequested, "acme/api", "Fix it", "https://u", "alice",
-            DateTimeOffset.UnixEpoch, null, null, "d") { Number = 12 };
+            DateTimeOffset.UnixEpoch, null, null, "d")
+        { Number = 12 };
         var s = PromptTemplate.Fill("{url}|{repo}|{number}|{title}|{kind}|{provider}|{author}|{detail}|{unknown}", item);
         Assert.Equal("https://u|acme/api|12|Fix it|ReviewRequested|GitHub|alice|d|{unknown}", s);
     }

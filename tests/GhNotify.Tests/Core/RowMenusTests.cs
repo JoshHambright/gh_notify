@@ -6,7 +6,8 @@ public class RowMenusTests
 {
     static InboxRow Row(string glyph, string? snooze = null) =>
         new("k", glyph, "acme/api", "T", "https://u", "1h", false, null, null, null, null, false, null, false, false, [], null, null, [],
-            RowMode.Collapsed, null, null, false, null, null, "acme/api") { SnoozeText = snooze };
+            RowMode.Collapsed, null, null, false, null, null, "acme/api")
+        { SnoozeText = snooze };
 
     [Fact]
     public void GitHub_row_offers_snooze_and_repo_and_org_mutes()

@@ -9,9 +9,11 @@ namespace GhNotify.Tests.Ado;
 public class AdoItemActionsTests
 {
     static InboxItem Approval() => new("ado:approval:contoso/Core Platform/appr-1", Provider.Ado, ItemKind.ApprovalPending, "contoso/Core Platform",
-        "api-release 20261013.3", "https://x", "", DateTimeOffset.UnixEpoch, null, null, null) { Org = "contoso", Project = "Core Platform", ApprovalId = "appr-1" };
+        "api-release 20261013.3", "https://x", "", DateTimeOffset.UnixEpoch, null, null, null)
+    { Org = "contoso", Project = "Core Platform", ApprovalId = "appr-1" };
     static InboxItem Pr(string sha = "s101") => new("ado:review:contoso/Core Platform/api#101", Provider.Ado, ItemKind.ReviewRequested, "contoso/Core Platform/api",
-        "Direct review", "https://x", "Alice", DateTimeOffset.UnixEpoch, sha, null, null) { Org = "contoso", Project = "Core Platform", RepoId = "repo-1", Number = 101 };
+        "Direct review", "https://x", "Alice", DateTimeOffset.UnixEpoch, sha, null, null)
+    { Org = "contoso", Project = "Core Platform", RepoId = "repo-1", Number = 101 };
 
     static FakeHttpHandler Dir() => new FakeHttpHandler()
         .On("connectionData", Fixture.Read("ado-connection.json"))
@@ -129,9 +131,11 @@ public class AdoItemActionsTests
 public class AdoItemActionsSafetyTests
 {
     static InboxItem Approval() => new("ado:approval:contoso/Core Platform/appr-1", Provider.Ado, ItemKind.ApprovalPending, "contoso/Core Platform",
-        "api-release 1", "https://x", "", DateTimeOffset.UnixEpoch, null, null, null) { Org = "contoso", Project = "Core Platform", ApprovalId = "appr-1" };
+        "api-release 1", "https://x", "", DateTimeOffset.UnixEpoch, null, null, null)
+    { Org = "contoso", Project = "Core Platform", ApprovalId = "appr-1" };
     static InboxItem Pr() => new("ado:review:contoso/Core Platform/api#101", Provider.Ado, ItemKind.ReviewRequested, "contoso/Core Platform/api",
-        "Direct review", "https://x", "Alice", DateTimeOffset.UnixEpoch, "s101", null, null) { Org = "contoso", Project = "Core Platform", RepoId = "repo-1", Number = 101 };
+        "Direct review", "https://x", "Alice", DateTimeOffset.UnixEpoch, "s101", null, null)
+    { Org = "contoso", Project = "Core Platform", RepoId = "repo-1", Number = 101 };
     static FakeHttpHandler Dir() => new FakeHttpHandler()
         .On("connectionData", Fixture.Read("ado-connection.json"))
         .On("queryMembership=expanded", Fixture.Read("ado-identity-expanded.json"))
