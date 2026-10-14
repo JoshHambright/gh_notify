@@ -5,7 +5,7 @@ namespace GhNotify.App;
 public static class IcoWriter
 {
     public static void Write(string path, params int[] sizes) =>
-        File.WriteAllBytes(path, Build(sizes.Select(s => TrayIconRenderer.Render(s, null, false)).ToArray()));
+        File.WriteAllBytes(path, Build(sizes.Select(s => TrayIconRenderer.RenderAccent(s)).ToArray()));
 
     /// <summary>Packs PNG-encoded frames into an .ico (Vista+ PNG entries).</summary>
     public static byte[] Build(params BitmapSource[] frames)

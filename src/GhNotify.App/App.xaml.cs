@@ -114,9 +114,10 @@ public partial class App : Application
         var px = GetSystemMetrics(49); // SM_CXSMICON: the tray icon size in pixels at the system DPI
         using (var ms = new MemoryStream(ico)) _tray.Icon = new System.Drawing.Icon(ms, px > 0 ? px : 16, px > 0 ? px : 16);
         old?.Dispose();
-        _tray.ToolTipText = unhealthy
-            ? $"gh_notify — {count} waiting (a source needs attention)"
-            : $"gh_notify — {count} waiting";
+        var problem = _controller.TrayProblem();
+        var tip = count == 0 ? "gh_notify — nothing waiting" : $"gh_notify — {count} waiting";
+        if (problem is not null) tip += "\n" + (problem.Length > 80 ? problem[..79] + "…" : problem);
+        _tray.ToolTipText = tip;
     }
 
     void WatchConfig()

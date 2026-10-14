@@ -350,6 +350,13 @@ public sealed class AppController : IPopupHost, IDisposable
         catch (Exception ex) { Log.Error("could not copy to clipboard", ex); }
     }
 
+    public string? TrayProblem()
+    {
+        if (_config.Error is not null) return _config.Error;
+        var s = _reconciler.Statuses.FirstOrDefault(x => !x.Healthy);
+        return s is null ? null : $"{s.Name}: {s.Problem}";
+    }
+
     public (int Count, bool Unhealthy) TrayState() =>
         (_reconciler.Entries.Count(e => e.Item.Kind != ItemKind.MyPrWaiting && !_doneHidden.ContainsKey(e.Item.Key)), _config.Error is not null || _reconciler.Statuses.Any(s => !s.Healthy));
 
