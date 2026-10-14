@@ -74,6 +74,7 @@ public class ScreenshotTests
         try
         {
             w.Show();
+            if (w is PopupWindow p) p.Render();
             Dispatcher.UIThread.RunJobs();
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
             var frame = w.CaptureRenderedFrame() ?? throw new InvalidOperationException("no frame rendered for " + path);
