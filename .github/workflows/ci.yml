@@ -7,6 +7,9 @@ on:
     secrets:
       LEAK_TERMS:
         required: false
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 env:
@@ -37,6 +40,15 @@ jobs:
         env:
           LEAK_TERMS: ${{ secrets.LEAK_TERMS }}
         run: ./build/leak-scan.ps1
+      - name: Velopack package and vpk versions match
+        run: |
+          $m = Select-String -Path src/GhNotify.App/GhNotify.App.csproj -Pattern '<PackageReference Include="Velopack" Version="([^"]+)"'
+          if (-not $m) { Write-Host "::error::Velopack PackageReference not found in GhNotify.App.csproj"; exit 1 }
+          $pkg = $m.Matches[0].Groups[1].Value
+          if ($pkg -ne $env:VELOPACK_VERSION) {
+            Write-Host "::error::Velopack package $pkg != VELOPACK_VERSION $env:VELOPACK_VERSION (ci.yml, release.yml): bump them together"
+            exit 1
+          }
       - name: Install vpk
         run: dotnet tool install -g vpk --version $env:VELOPACK_VERSION
       - name: Install / upgrade / uninstall test
