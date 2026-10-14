@@ -140,7 +140,7 @@ Check Windows Focus Assist / Do Not Disturb. Also, toasts are off outside your w
 - [Security](docs/security.md): tokens, agent limits, approvals, updates
 - [Troubleshooting](docs/troubleshooting.md)
 - [Development](docs/development.md): build, test, quality gates, releases
-- [Roadmap](docs/roadmap.md): what is planned for v1.3, v2.0 (macOS), v2.1 and v2.2
+- [Roadmap](docs/roadmap.md): what is planned for v1.3, v2.0 (cross-platform UI), v2.1 (macOS), v2.2 and v2.3
 
 ## Build from source
 
