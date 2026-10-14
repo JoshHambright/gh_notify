@@ -31,6 +31,12 @@ public sealed class AppController : IPopupHost, IDisposable
     int _refreshing;
     ThemeMode _themeMode;
     bool _claudeAvailable;
+    // Guards the four filter fields below (mutes, snoozes, section toggles).
+    readonly object _filterGate = new();
+    List<TimedMute> _mutes;
+    List<Snooze> _snoozes;
+    bool _waitingExpanded;
+    bool _snoozedExpanded;
 
     public event Action? Changed;
     /// <summary>Raised (on the caller's thread) after <see cref="CycleTheme"/> changes the persisted mode.</summary>
@@ -42,6 +48,10 @@ public sealed class AppController : IPopupHost, IDisposable
         _stateStore = stateStore;
         var state = stateStore.Load();
         _themeMode = state.ThemeMode;
+        _mutes = state.Mutes.ToList();
+        _snoozes = state.Snoozes.ToList();
+        _waitingExpanded = state.WaitingExpanded;
+        _snoozedExpanded = state.SnoozedExpanded;
         _reconciler = new Reconciler(state.Snapshot.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<InboxItem>)kv.Value));
 
         var runner = new ProcessRunner();
@@ -131,9 +141,19 @@ public sealed class AppController : IPopupHost, IDisposable
     void ProcessDiff(InboxDiff diff)
     {
         var cfg = _config.Current;
+        var now = DateTimeOffset.Now;
+        IReadOnlyList<InboxItem> woken; // Task 4 toasts these; until then only the snooze bookkeeping uses the evaluation.
+        lock (_filterGate)
+        {
+            var result = Snoozes.Evaluate(_snoozes, diff, _reconciler.Entries, now);
+            _snoozes = result.Kept.ToList();
+            woken = result.Woken;
+            _mutes = Snoozes.PruneMutes(_mutes, now).ToList();
+        }
+        var view = CurrentView();
         foreach (var t in NotificationPolicy.Plan(diff, WorkHours.IsWithin(cfg.WorkHours, DateTime.Now))) _toasts.Apply(t);
-        foreach (var i in diff.InitialLoad) { _agents.OnItemAdded(i); MaybeAutoRun(i, cfg); }
-        foreach (var i in diff.Added) { _agents.OnItemAdded(i); _ = _hooks.DispatchAsync(HookEvent.ItemAdded, i); MaybeAutoRun(i, cfg); }
+        foreach (var i in diff.InitialLoad) { _agents.OnItemAdded(i); MaybeAutoRun(i, cfg, view); }
+        foreach (var i in diff.Added) { _agents.OnItemAdded(i); _ = _hooks.DispatchAsync(HookEvent.ItemAdded, i); MaybeAutoRun(i, cfg, view); }
         foreach (var c in diff.Changed) { _agents.OnItemChanged(c); _ = _hooks.DispatchAsync(HookEvent.ItemChanged, c.New); }
         foreach (var r in diff.Removed) { _agents.OnItemRemoved(r); _ = _hooks.DispatchAsync(HookEvent.ItemRemoved, r); }
         PruneRowStates(diff);
@@ -142,8 +162,9 @@ public sealed class AppController : IPopupHost, IDisposable
         Changed?.Invoke();
     }
 
-    void MaybeAutoRun(InboxItem item, AppConfig cfg)
+    void MaybeAutoRun(InboxItem item, AppConfig cfg, InboxView view)
     {
+        if (view.AttentionFor(item.Key) != Attention.Normal) return;
         var d = RulesEngine.Decide(item, cfg);
         if (d.Mode == AgentMode.Auto) _agents.TryStart(item, d, manual: false);
     }
@@ -211,13 +232,27 @@ public sealed class AppController : IPopupHost, IDisposable
         }
     }
 
+    InboxView CurrentView()
+    {
+        var entries = _doneHidden.IsEmpty ? _reconciler.Entries : _reconciler.Entries.Where(e => !_doneHidden.ContainsKey(e.Item.Key)).ToList();
+        TimedMute[] mutes;
+        Snooze[] snoozes;
+        lock (_filterGate)
+        {
+            mutes = _mutes.ToArray();
+            snoozes = _snoozes.ToArray();
+        }
+        return InboxView.Compose(entries, _config.Current.Filters, mutes, snoozes, DateTimeOffset.Now);
+    }
+
     public IReadOnlyList<InboxSection> BuildSections()
     {
         var cfg = _config.Current;
-        var entries = _doneHidden.IsEmpty ? _reconciler.Entries : _reconciler.Entries.Where(e => !_doneHidden.ContainsKey(e.Item.Key)).ToList();
-        return InboxPresenter.Build(entries, _agents.Get, i => RulesEngine.Decide(i, cfg), _agents.WhyCannotRun,
+        bool waitingExpanded, snoozedExpanded;
+        lock (_filterGate) { waitingExpanded = _waitingExpanded; snoozedExpanded = _snoozedExpanded; }
+        return InboxPresenter.Build(CurrentView(), _agents.Get, i => RulesEngine.Decide(i, cfg), _agents.WhyCannotRun,
             DateTimeOffset.Now, _actions.ActionsFor, k => _rowStates.GetValueOrDefault(k),
-            r => RepoNames.Display(r, cfg.Display.RepoAliases, cfg.Display.MaxRepoChars));
+            r => RepoNames.Display(r, cfg.Display.RepoAliases, cfg.Display.MaxRepoChars), waitingExpanded, snoozedExpanded);
     }
 
     public IReadOnlyList<SourceStatus> Sources() => _reconciler.Statuses;
@@ -358,7 +393,94 @@ public sealed class AppController : IPopupHost, IDisposable
     }
 
     public (int Count, bool Unhealthy) TrayState() =>
-        (_reconciler.Entries.Count(e => e.Item.Kind != ItemKind.MyPrWaiting && !_doneHidden.ContainsKey(e.Item.Key)), _config.Error is not null || _reconciler.Statuses.Any(s => !s.Healthy));
+        (CurrentView().BadgeCount, _config.Error is not null || _reconciler.Statuses.Any(s => !s.Healthy));
+
+    public void SnoozeItem(string key, SnoozeChoice choice)
+    {
+        var (until, untilChange) = SnoozeTimes.For(choice, DateTimeOffset.Now, _config.Current.WorkHours);
+        lock (_filterGate)
+        {
+            _snoozes.RemoveAll(s => s.Key == key);
+            _snoozes.Add(new Snooze(key, until, untilChange));
+        }
+        _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.For(key)));
+        _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.ForAgent(key)));
+        _rowStates.TryRemove(key, out _);
+        Save();
+        Changed?.Invoke();
+    }
+
+    public void Unsnooze(string key)
+    {
+        lock (_filterGate) _snoozes.RemoveAll(s => s.Key == key);
+        Save();
+        Changed?.Invoke();
+    }
+
+    public void Mute(string key, MuteScope scope, MuteDuration duration)
+    {
+        if (Find(key) is not { } item || MutePatterns.For(item, scope) is not { } pattern) return;
+        if (duration == MuteDuration.Forever)
+        {
+            if (!EditMuteConfig(list => { if (!list.Contains(pattern, StringComparer.OrdinalIgnoreCase)) list.Add(pattern); })) return;
+        }
+        else
+        {
+            var until = MutePatterns.Until(duration, DateTimeOffset.Now, _config.Current.WorkHours);
+            lock (_filterGate) _mutes.Add(new TimedMute(pattern, until));
+        }
+        Save();
+        Changed?.Invoke();
+    }
+
+    public IReadOnlyList<ActiveMute> ActiveMutes()
+    {
+        var now = DateTimeOffset.Now;
+        List<TimedMute> timed;
+        lock (_filterGate) timed = _mutes.ToList();
+        return _config.Current.Filters.Mute.Select(p => new ActiveMute(p, "forever", true))
+            .Concat(timed.Where(m => m.Until is { } u && u > now).Select(m => new ActiveMute(m.Pattern, Snoozes.Left(m.Until!.Value - now, m.Until.Value), false)))
+            .ToList();
+    }
+
+    public void Unmute(string pattern)
+    {
+        lock (_filterGate) _mutes.RemoveAll(m => string.Equals(m.Pattern, pattern, StringComparison.OrdinalIgnoreCase));
+        if (_config.Current.Filters.Mute.Contains(pattern, StringComparer.OrdinalIgnoreCase)
+            && !EditMuteConfig(list => list.RemoveAll(p => string.Equals(p, pattern, StringComparison.OrdinalIgnoreCase)))) return;
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Applies an edit to filters.mute in config.json (overwriting, no conflict check); false when it could not be saved.</summary>
+    bool EditMuteConfig(Action<List<string>> edit)
+    {
+        try
+        {
+            var next = ConfigStore.Clone(_config.Current);
+            edit(next.Filters.Mute);
+            _config.Save(next, expectedHash: null);
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException)
+        {
+            Log.Error("could not save mute", ex);
+            _toasts.Apply(new ToastRequest(ToastAction.Show, ItemTag.For("mute-error"), "gh_notify", $"Couldn't save mute: {ex.Message}"));
+            return false;
+        }
+    }
+
+    public void ToggleSection(string id)
+    {
+        lock (_filterGate)
+        {
+            if (id == "waiting") _waitingExpanded = !_waitingExpanded;
+            else if (id == "snoozed") _snoozedExpanded = !_snoozedExpanded;
+            else return;
+        }
+        Save();
+        Changed?.Invoke();
+    }
 
     public void RunAgent(string key)
     {
@@ -406,7 +528,16 @@ public sealed class AppController : IPopupHost, IDisposable
         {
             try
             {
-                _stateStore.Save(new AppState { Snapshot = _reconciler.Snapshot(), AgentRuns = _agents.Runs.Values.ToList(), ThemeMode = _themeMode });
+                AppState state;
+                lock (_filterGate)
+                {
+                    state = new AppState
+                    {
+                        Snapshot = _reconciler.Snapshot(), AgentRuns = _agents.Runs.Values.ToList(), ThemeMode = _themeMode,
+                        Mutes = _mutes.ToList(), Snoozes = _snoozes.ToList(), WaitingExpanded = _waitingExpanded, SnoozedExpanded = _snoozedExpanded,
+                    };
+                }
+                _stateStore.Save(state);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

@@ -215,4 +215,39 @@ public class InboxPresenterTests
         Assert.Equal("x/acme/api", formatted.RepoDisplay);
         Assert.Equal("acme/api", formatted.Repo);
     }
+
+    static IReadOnlyList<InboxSection> BuildView(InboxView view, bool waitingExpanded, bool snoozedExpanded) =>
+        InboxPresenter.Build(view, _ => null, _ => Button(), (_, _) => null, Now, ActionText.DefaultActions, null, null, waitingExpanded, snoozedExpanded);
+
+    [Fact]
+    public void View_build_marks_muted_rows_and_builds_waiting_and_snoozed_sections()
+    {
+        var view = InboxView.Compose(
+            [E("m", ItemKind.ReviewRequested, TimeSpan.FromHours(1)), E("w", ItemKind.MyPrWaiting, TimeSpan.FromHours(2)), E("s", ItemKind.ReviewRequested, TimeSpan.FromHours(3))],
+            new FiltersConfig { Mute = ["acme"] }, [], [new Snooze("s", Now.AddMinutes(30), false)], Now);
+
+        var sections = BuildView(view, waitingExpanded: false, snoozedExpanded: true);
+
+        Assert.Equal("acme", sections[0].Rows.Single().MutedBy);
+        var waiting = sections.Single(s => s.Id == "waiting");
+        Assert.True(waiting.Collapsible);
+        Assert.False(waiting.Expanded);
+        Assert.Equal(1, waiting.Count);
+        Assert.Empty(waiting.Rows);
+        var snoozed = sections.Single(s => s.Id == "snoozed");
+        Assert.Equal("Snoozed", snoozed.Title);
+        Assert.True(snoozed.Expanded);
+        var row = Assert.Single(snoozed.Rows);
+        Assert.Equal("30m left", row.SnoozeText);
+        Assert.Empty(row.Actions);
+        Assert.Null(row.RunButton);
+        Assert.Same(snoozed, sections[^1]);
+    }
+
+    [Fact]
+    public void Empty_waiting_and_snoozed_sections_are_omitted()
+    {
+        var view = InboxView.Compose([E("a", ItemKind.ReviewRequested, TimeSpan.FromHours(1))], new FiltersConfig(), [], [], Now);
+        Assert.Equal(["Review requests"], BuildView(view, true, true).Select(s => s.Title));
+    }
 }

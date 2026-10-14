@@ -7,7 +7,11 @@ public sealed record InboxRow(
     string? BadgeText, string? BadgeTooltip, string? RunButton, bool CanRun, string? RunDisabledReason, bool CanOpenInClaude,
     bool Urgent, IReadOnlyList<ItemDetail> Details, string? RunInfo, string? ResultText,
     IReadOnlyList<RowActionButton> Actions, RowMode Mode, string? Statement, string? ConfirmLabel, bool ConfirmEnabled,
-    string? Warning, string? Message, string RepoDisplay);
+    string? Warning, string? Message, string RepoDisplay)
+{
+    public string? MutedBy { get; init; }
+    public string? SnoozeText { get; init; }
+}
 
 public enum RowMode { Collapsed, Expanded, Confirming, Sending, Done, Failed }
 
@@ -58,6 +62,52 @@ public static class InboxPresenter
                 Id = kind == ItemKind.MyPrWaiting ? "waiting" : kind.ToString(),
                 Collapsible = kind == ItemKind.MyPrWaiting,
             });
+        }
+        return sections;
+    }
+
+    public static IReadOnlyList<InboxSection> Build(
+        InboxView view,
+        Func<string, AgentRun?> runOf,
+        Func<InboxItem, AgentDecision> decide,
+        Func<InboxItem, AgentDecision, string?> whyCannotRun,
+        DateTimeOffset now,
+        Func<InboxItem, IReadOnlyList<ItemAction>>? actionsFor,
+        Func<string, RowUiState?>? uiState,
+        Func<string, string>? repoDisplay,
+        bool waitingExpanded,
+        bool snoozedExpanded)
+    {
+        InboxRow RowOf(InboxEntry e) =>
+            Row(e, runOf(e.Item.Key), decide(e.Item), whyCannotRun, now, actionsFor, uiState?.Invoke(e.Item.Key), repoDisplay);
+
+        var sections = new List<InboxSection>();
+        foreach (var (kind, title) in Order)
+        {
+            if (kind == ItemKind.MyPrWaiting) continue;
+            var rows = view.Active.Where(v => v.Entry.Item.Kind == kind)
+                .OrderByDescending(v => v.Entry.Item.UpdatedAt)
+                .Select(v => RowOf(v.Entry) with { MutedBy = v.MutedBy })
+                .ToList();
+            if (rows.Count > 0) sections.Add(new InboxSection(title, rows) { Id = kind.ToString() });
+        }
+        if (view.Waiting.Count > 0)
+        {
+            var rows = waitingExpanded
+                ? view.Waiting.OrderByDescending(v => v.Entry.Item.UpdatedAt).Select(v => RowOf(v.Entry) with { MutedBy = v.MutedBy }).ToList()
+                : [];
+            sections.Add(new InboxSection("Waiting on others", rows)
+            { Id = "waiting", Collapsible = true, Expanded = waitingExpanded, Count = view.Waiting.Count });
+        }
+        if (view.Snoozed.Count > 0)
+        {
+            var rows = snoozedExpanded
+                ? view.Snoozed.OrderByDescending(s => s.Entry.Item.UpdatedAt)
+                    .Select(s => RowOf(s.Entry) with { SnoozeText = Snoozes.Remaining(s.Snooze, now), Actions = [], RunButton = null, CanRun = false })
+                    .ToList()
+                : [];
+            sections.Add(new InboxSection("Snoozed", rows)
+            { Id = "snoozed", Collapsible = true, Expanded = snoozedExpanded, Count = view.Snoozed.Count });
         }
         return sections;
     }

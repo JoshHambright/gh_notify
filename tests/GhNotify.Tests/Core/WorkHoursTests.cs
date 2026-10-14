@@ -48,4 +48,21 @@ public class WorkHoursTests
         WorkHours.Validate(cfg);
         Assert.True(WorkHours.IsWithin(cfg, DateTime.Parse("2026-10-13 09:00")));
     }
+
+    [Fact]
+    public void NextStart_finds_the_next_listed_day_at_start_time()
+    {
+        var cfg = new WorkHoursConfig { Days = ["Mon", "Tue", "Wed", "Thu", "Fri"], Start = "08:00", End = "18:00" };
+        // Saturday 2026-10-17 00:00 → Monday 08:00
+        Assert.Equal(new DateTime(2026, 10, 19, 8, 0, 0), WorkHours.NextStart(cfg, new DateTime(2026, 10, 17, 0, 0, 0)));
+        // From Tuesday 00:00 → Tuesday 08:00
+        Assert.Equal(new DateTime(2026, 10, 13, 8, 0, 0), WorkHours.NextStart(cfg, new DateTime(2026, 10, 13, 0, 0, 0)));
+        // From Tuesday 09:00 → Wednesday 08:00 (today's start already passed)
+        Assert.Equal(new DateTime(2026, 10, 14, 8, 0, 0), WorkHours.NextStart(cfg, new DateTime(2026, 10, 13, 9, 0, 0)));
+    }
+
+    [Fact]
+    public void NextStart_with_no_days_uses_the_next_calendar_start() =>
+        Assert.Equal(new DateTime(2026, 10, 14, 8, 0, 0),
+            WorkHours.NextStart(new WorkHoursConfig { Days = [], Start = "08:00" }, new DateTime(2026, 10, 13, 9, 0, 0)));
 }

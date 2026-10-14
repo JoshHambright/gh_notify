@@ -31,4 +31,15 @@ public interface IPopupHost
     void OpenLogs();
     void Quit();
     void CopyText(string text);
+    // Named SnoozeItem, not Snooze: that would shadow the Snooze record inside AppController.
+    void SnoozeItem(string key, SnoozeChoice choice);
+    void Unsnooze(string key);
+    void Mute(string key, MuteScope scope, MuteDuration duration);
+    IReadOnlyList<ActiveMute> ActiveMutes();
+    void Unmute(string pattern);
+    /// <summary>Expands or collapses a collapsible section ("waiting", "snoozed").</summary>
+    void ToggleSection(string id);
 }
+
+/// <summary>A mute shown in the popup's active-mutes list. <paramref name="Remaining"/> is display text ("forever", "45m left").</summary>
+public sealed record ActiveMute(string Pattern, string Remaining, bool Permanent);

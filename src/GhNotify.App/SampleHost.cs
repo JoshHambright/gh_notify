@@ -102,9 +102,14 @@ public sealed class SampleHost : IPopupHost
         SUMMARY: one test fixture uses the old section name; update it and CI goes green.
         """;
 
-    public IReadOnlyList<InboxSection> BuildSections() =>
-        InboxPresenter.Build(Empty ? [] : _entries, k => _runs.GetValueOrDefault(k), Decide, (_, _) => null, _now,
-            ActionText.DefaultActions, k => States.GetValueOrDefault(k), r => RepoNames.Display(r, null, 34));
+    public IReadOnlyList<InboxSection> BuildSections()
+    {
+        // One muted row (acme/web) and one snoozed row (the web-portal review) for the previews.
+        var view = InboxView.Compose(Empty ? [] : _entries, new FiltersConfig { Mute = ["gh:acme/web"] }, [],
+            [new Snooze(Review2Key, _now.AddMinutes(95), false)], _now);
+        return InboxPresenter.Build(view, k => _runs.GetValueOrDefault(k), Decide, (_, _) => null, _now,
+            ActionText.DefaultActions, k => States.GetValueOrDefault(k), r => RepoNames.Display(r, null, 34), waitingExpanded: true, snoozedExpanded: true);
+    }
 
     static AgentDecision Decide(InboxItem i) => i.Kind switch
     {
@@ -139,4 +144,11 @@ public sealed class SampleHost : IPopupHost
     public void OpenLogs() { }
     public void Quit() { }
     public void CopyText(string text) { }
+    public void SnoozeItem(string key, SnoozeChoice choice) { }
+    public void Unsnooze(string key) { }
+    public void Mute(string key, MuteScope scope, MuteDuration duration) { }
+    public IReadOnlyList<ActiveMute> ActiveMutes() =>
+        [new ActiveMute("gh:acme/legacy-*", "forever", true), new ActiveMute("ado:contoso/platform", "45m left", false)];
+    public void Unmute(string pattern) { }
+    public void ToggleSection(string id) { }
 }
