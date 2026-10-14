@@ -28,7 +28,9 @@ public partial class GeneralPage : UserControl, ISettingsPage
         {
             var chip = new ToggleButton
             {
-                Content = day, Style = (Style)FindResource("Style.Chip"), MinWidth = 52,
+                Content = day,
+                Style = (Style)FindResource("Style.Chip"),
+                MinWidth = 52,
                 IsChecked = draft.Config.WorkHours.Days.Contains(day, StringComparer.OrdinalIgnoreCase),
             };
             chip.Checked += (_, _) => SetDay(day, true);

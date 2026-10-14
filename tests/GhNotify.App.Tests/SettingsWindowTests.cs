@@ -23,7 +23,8 @@ static class SettingsUi
             merged.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/GhNotify;component/Themes/Common.xaml") });
             merged.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/GhNotify;component/Themes/Dark.xaml") });
             foreach (var work in Work.GetConsumingEnumerable()) work();
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         t.SetApartmentState(ApartmentState.STA);
         t.Start();
     }

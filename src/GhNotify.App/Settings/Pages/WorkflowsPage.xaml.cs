@@ -127,7 +127,10 @@ public partial class WorkflowsPage : UserControl, ISettingsPage
             var chip = new ProfileChip(name, !Config.AgentProfiles.ContainsKey(name), skill);
             var button = new RadioButton
             {
-                Content = ChipContent(chip), ToolTip = chip.ToolTip, Style = (Style)FindResource("Style.Chip"), Tag = name,
+                Content = ChipContent(chip),
+                ToolTip = chip.ToolTip,
+                Style = (Style)FindResource("Style.Chip"),
+                Tag = name,
                 IsChecked = string.Equals(name, _selected, StringComparison.OrdinalIgnoreCase),
             };
             button.Checked += (_, _) => SelectProfile(name);
@@ -243,8 +246,12 @@ public partial class WorkflowsPage : UserControl, ISettingsPage
         if (_selected is null || !ProfileCatalog.All(Config).TryGetValue(_selected, out var p)) return;
         AddProfile(new AgentProfile
         {
-            Prompt = p.Prompt, NeedsWorktree = p.NeedsWorktree, RequiresSkill = p.RequiresSkill,
-            AllowedTools = [.. p.AllowedTools], DisallowedTools = [.. p.DisallowedTools], Command = p.Command is null ? null : [.. p.Command],
+            Prompt = p.Prompt,
+            NeedsWorktree = p.NeedsWorktree,
+            RequiresSkill = p.RequiresSkill,
+            AllowedTools = [.. p.AllowedTools],
+            DisallowedTools = [.. p.DisallowedTools],
+            Command = p.Command is null ? null : [.. p.Command],
         }, _selected + "-copy");
     }
 

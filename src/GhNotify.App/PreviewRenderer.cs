@@ -89,7 +89,11 @@ public static class PreviewRenderer
     {
         var w = new SettingsWindow(new SampleSettingsHost())
         {
-            ShowActivated = false, WindowStartupLocation = WindowStartupLocation.Manual, Left = -10000, Top = 0, SizeToContent = SizeToContent.WidthAndHeight,
+            ShowActivated = false,
+            WindowStartupLocation = WindowStartupLocation.Manual,
+            Left = -10000,
+            Top = 0,
+            SizeToContent = SizeToContent.WidthAndHeight,
         };
         var root = (FrameworkElement)w.Content;
         root.Width = 880; // the client area, as the window opens
