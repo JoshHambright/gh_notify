@@ -20,7 +20,7 @@ public sealed class GitHubSource(GitHubClient client, Func<GitHubConfig> config,
                 new { reviewQ = GitHubQueries.ReviewQuery(cfg.IncludeDrafts), mineQ = GitHubQueries.MineQuery }, ct);
             var items = new List<InboxItem>();
             items.AddRange(GitHubPrMapper.ReviewRequests(data));
-            items.AddRange(GitHubPrMapper.MyPrs(data));
+            items.AddRange(GitHubPrMapper.MyPrs(data, cfg.IncludeDrafts));
             var extra = cfg.WatchRepos.Concat(items.Select(i => i.Repo)).Distinct(StringComparer.OrdinalIgnoreCase);
             items.AddRange(await _approvals.FetchAsync(extra, ct));
             return SourceResult.Ok(items);

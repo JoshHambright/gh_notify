@@ -37,6 +37,24 @@ public class NotificationPolicyTests
             NotificationPolicy.Plan(new InboxDiff([], [], [], [I("c")]), true).Single().Title);
 
     [Fact]
+    public void Waiting_items_never_toast()
+    {
+        var plan = NotificationPolicy.Plan(new InboxDiff([I("w", ItemKind.MyPrWaiting)], [], [], [I("w2", ItemKind.MyPrWaiting)]), true);
+        Assert.Empty(plan);
+    }
+
+    [Fact]
+    public void Initial_load_summary_excludes_waiting_items()
+    {
+        var plan = NotificationPolicy.Plan(new InboxDiff([], [], [], [I("a"), I("w", ItemKind.MyPrWaiting), I("r", ItemKind.MyPrReadyToMerge)]), true);
+        Assert.Equal("2 items waiting on you", plan.Single(t => t.Tag == NotificationPolicy.SummaryTag).Title);
+    }
+
+    [Fact]
+    public void Ready_to_merge_title() =>
+        Assert.Equal("Ready to merge", NotificationPolicy.TitleFor(I("r", ItemKind.MyPrReadyToMerge)));
+
+    [Fact]
     public void Changes_never_toast() =>
         Assert.Empty(NotificationPolicy.Plan(new InboxDiff([], [], [new ItemChange(I("a"), I("a"))], []), true));
 }

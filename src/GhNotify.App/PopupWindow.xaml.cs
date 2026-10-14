@@ -53,7 +53,7 @@ public partial class PopupWindow : Window
         }
 
         EmptyState.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        CountText.Text = rows.Count.ToString();
+        CountText.Text = sections.Where(s => s.Id != "waiting").Sum(s => s.Rows.Count).ToString();
         ConfigErrorText.Text = _host.ConfigError;
         ConfigErrorText.Visibility = _host.ConfigError is null ? Visibility.Collapsed : Visibility.Visible;
         ThemeButton.ToolTip = $"Theme: {_host.ThemeMode}";

@@ -17,13 +17,14 @@ public static class NotificationPolicy
             plan.Add(new ToastRequest(ToastAction.Remove, ItemTag.ForAgent(r.Key)));
         }
         if (!inWorkHours) return plan;
-        foreach (var a in diff.Added)
+        foreach (var a in diff.Added.Where(i => i.Kind != ItemKind.MyPrWaiting))
             plan.Add(new ToastRequest(ToastAction.Show, ItemTag.For(a.Key), TitleFor(a), $"{a.Repo}: {a.Title}", a.Url));
-        if (diff.InitialLoad.Count > 0)
+        var initial = diff.InitialLoad.Where(i => i.Kind != ItemKind.MyPrWaiting).ToList();
+        if (initial.Count > 0)
         {
-            var n = diff.InitialLoad.Count;
+            var n = initial.Count;
             plan.Add(new ToastRequest(ToastAction.Show, SummaryTag, $"{n} item{(n == 1 ? "" : "s")} waiting on you",
-                string.Join("\n", diff.InitialLoad.Take(3).Select(i => $"{i.Repo}: {i.Title}"))));
+                string.Join("\n", initial.Take(3).Select(i => $"{i.Repo}: {i.Title}"))));
         }
         return plan;
     }
@@ -33,6 +34,9 @@ public static class NotificationPolicy
         ItemKind.ReviewRequested => "Review requested",
         ItemKind.ApprovalPending => "Approval needed",
         ItemKind.MyPrCiFailing => "Your PR is failing",
-        _ => "Your PR needs a response",
+        ItemKind.MyPrNeedsResponse => "Your PR needs a response",
+        ItemKind.MyPrReadyToMerge => "Ready to merge",
+        ItemKind.MyPrWaiting => "Waiting on others",
+        _ => throw new ArgumentOutOfRangeException(nameof(i), i.Kind, null),
     };
 }

@@ -19,6 +19,7 @@ public static class RulesEngine
     {
         ItemKind.ReviewRequested => "peer-review",
         ItemKind.MyPrCiFailing or ItemKind.MyPrNeedsResponse => "pr-shepherd",
+        ItemKind.ApprovalPending or ItemKind.MyPrReadyToMerge or ItemKind.MyPrWaiting => null,
         _ => null,
     };
 }

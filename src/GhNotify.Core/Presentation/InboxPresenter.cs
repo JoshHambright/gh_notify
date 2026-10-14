@@ -16,7 +16,13 @@ public sealed record RowUiState(RowMode Mode, ItemAction? Action = null, ActionP
 
 public sealed record RowActionButton(ItemAction Action, string Label, bool Enabled, string? DisabledReason);
 
-public sealed record InboxSection(string Title, IReadOnlyList<InboxRow> Rows);
+public sealed record InboxSection(string Title, IReadOnlyList<InboxRow> Rows)
+{
+    public string Id { get; init; } = Title;
+    public bool Collapsible { get; init; }
+    public bool Expanded { get; init; } = true;
+    public int Count { get; init; } = Rows.Count;
+}
 
 public static class InboxPresenter
 {
@@ -26,6 +32,8 @@ public static class InboxPresenter
         (ItemKind.ReviewRequested, "Review requests"),
         (ItemKind.MyPrCiFailing, "My PRs — failing"),
         (ItemKind.MyPrNeedsResponse, "My PRs — needs response"),
+        (ItemKind.MyPrReadyToMerge, "My PRs — ready to merge"),
+        (ItemKind.MyPrWaiting, "Waiting on others"),
     ];
 
     public static IReadOnlyList<InboxSection> Build(
@@ -45,7 +53,11 @@ public static class InboxPresenter
                 .OrderByDescending(e => e.Item.UpdatedAt)
                 .Select(e => Row(e, runOf(e.Item.Key), decide(e.Item), whyCannotRun, now, actionsFor, uiState?.Invoke(e.Item.Key), repoDisplay))
                 .ToList();
-            if (rows.Count > 0) sections.Add(new InboxSection(title, rows));
+            if (rows.Count > 0) sections.Add(new InboxSection(title, rows)
+            {
+                Id = kind == ItemKind.MyPrWaiting ? "waiting" : kind.ToString(),
+                Collapsible = kind == ItemKind.MyPrWaiting,
+            });
         }
         return sections;
     }

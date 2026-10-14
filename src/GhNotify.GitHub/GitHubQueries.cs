@@ -10,7 +10,7 @@ public static class GitHubQueries
             nodes {
               ...pr
               ... on PullRequest {
-                reviewDecision
+                reviewDecision mergeStateStatus
                 commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
                 reviewThreads(first: 50) { nodes { isResolved comments(last: 1) { nodes { author { login } } } } }
               }

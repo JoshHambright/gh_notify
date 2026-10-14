@@ -24,6 +24,37 @@ public class InboxPresenterTests
             (_, _) => null, now ?? Now, ActionText.DefaultActions, _ => ui)[0].Rows[0];
 
     [Fact]
+    public void Sections_come_in_order_with_ids_and_counts()
+    {
+        var sections = Build([
+            E("w1", ItemKind.MyPrWaiting, TimeSpan.FromHours(1)), E("w2", ItemKind.MyPrWaiting, TimeSpan.FromHours(2)),
+            E("r", ItemKind.MyPrReadyToMerge, TimeSpan.FromHours(1)), E("n", ItemKind.MyPrNeedsResponse, TimeSpan.FromHours(1)),
+            E("f", ItemKind.MyPrCiFailing, TimeSpan.FromHours(1)), E("q", ItemKind.ReviewRequested, TimeSpan.FromHours(1)),
+            E("a", ItemKind.ApprovalPending, TimeSpan.FromHours(1))]);
+        Assert.Equal(["Approvals", "Review requests", "My PRs — failing", "My PRs — needs response", "My PRs — ready to merge", "Waiting on others"],
+            sections.Select(s => s.Title));
+        var waiting = sections[^1];
+        Assert.Equal("waiting", waiting.Id);
+        Assert.True(waiting.Collapsible);
+        Assert.Equal(2, waiting.Count);
+        Assert.All(sections.Take(5), s => Assert.False(s.Collapsible));
+        Assert.All(sections.Take(5), s => Assert.Equal(s.Rows.Count, s.Count));
+        Assert.Equal("ApprovalPending", sections[0].Id);
+        Assert.Equal("MyPrReadyToMerge", sections[4].Id);
+    }
+
+    [Fact]
+    public void New_kinds_are_not_urgent_and_have_no_actions()
+    {
+        foreach (var kind in new[] { ItemKind.MyPrReadyToMerge, ItemKind.MyPrWaiting })
+        {
+            var r = Row(It(kind));
+            Assert.False(r.Urgent);
+            Assert.Empty(r.Actions);
+        }
+    }
+
+    [Fact]
     public void Urgent_details_and_actions()
     {
         var r = Row(It(ItemKind.ApprovalPending));

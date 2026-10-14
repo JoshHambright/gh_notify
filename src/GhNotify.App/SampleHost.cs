@@ -42,12 +42,22 @@ public sealed class SampleHost : IPopupHost
             Details = DetailList.Of(("Author", "you"), ("Branch", "settings-options → main"), ("Commit", "c0ffee1"),
                 ("Created", _now.AddDays(-1).ToString("yyyy-MM-dd HH:mm"))),
         };
+        var ready = new InboxItem("gh:ready:acme/web#31", Provider.GitHub, ItemKind.MyPrReadyToMerge, "acme/web", "Add health endpoint",
+            "https://github.com/acme/web/pull/31", "you", _now.AddHours(-5), "beef001", 22, "Approved · checks green") { Number = 31 };
+        var waiting1 = new InboxItem("gh:waiting:fabrikam/api#88", Provider.GitHub, ItemKind.MyPrWaiting, "fabrikam/api", "Cache token lookups",
+            "https://github.com/fabrikam/api/pull/88", "you", _now.AddHours(-9), "beef002", 64, "Waiting on review") { Number = 88 };
+        var waiting2 = new InboxItem("ado:waiting:contoso/platform/portal#214", Provider.Ado, ItemKind.MyPrWaiting, "contoso/platform/portal",
+            "Switch portal to the new auth client", "https://dev.azure.com/contoso/platform/_git/portal/pullrequest/214", "you", _now.AddHours(-20),
+            "beef003", null, "Checks running") { Number = 214 };
         _entries =
         [
             new(approval, "ADO:contoso", false),
             review,
             review2,
             new(ci, "GitHub", false),
+            new(ready, "GitHub", false),
+            new(waiting1, "GitHub", false),
+            new(waiting2, "ADO:contoso", false),
         ];
         _runs = new()
         {

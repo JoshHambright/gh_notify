@@ -351,7 +351,7 @@ public sealed class AppController : IPopupHost, IDisposable
     }
 
     public (int Count, bool Unhealthy) TrayState() =>
-        (_reconciler.Entries.Count(e => !_doneHidden.ContainsKey(e.Item.Key)), _config.Error is not null || _reconciler.Statuses.Any(s => !s.Healthy));
+        (_reconciler.Entries.Count(e => e.Item.Kind != ItemKind.MyPrWaiting && !_doneHidden.ContainsKey(e.Item.Key)), _config.Error is not null || _reconciler.Statuses.Any(s => !s.Healthy));
 
     public void RunAgent(string key)
     {
