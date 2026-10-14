@@ -36,7 +36,7 @@ public class UpdateUiTests
     {
         var checkedAt = new DateTimeOffset(2026, 10, 14, 9, 30, 0, TimeSpan.Zero);
         Assert.Equal($"Up to date · checked {checkedAt.ToLocalTime():HH:mm}", UpdateUi.SettingsStatus(S(UpdatePhase.Idle) with { LastChecked = checkedAt }));
-        Assert.Equal("Update ready (v1.2.1) — restart from the tray", UpdateUi.SettingsStatus(S(UpdatePhase.Ready, "1.2.1")));
+        Assert.Equal("Update ready (v1.2.1) — restart from the popup's ⋯ menu", UpdateUi.SettingsStatus(S(UpdatePhase.Ready, "1.2.1")));
         Assert.Equal("Last check failed: offline", UpdateUi.SettingsStatus(S(UpdatePhase.Failed) with { LastError = "offline" }));
         Assert.Equal("Updates are off in dev builds", UpdateUi.SettingsStatus(S(UpdatePhase.DevBuild)));
         Assert.Equal(("Version 1.2.0", "Version dev build"),

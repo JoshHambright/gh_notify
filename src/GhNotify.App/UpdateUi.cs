@@ -42,7 +42,7 @@ public static class UpdateUi
         UpdatePhase.Off => "Automatic updates are off",
         UpdatePhase.Checking => "Checking for updates…",
         UpdatePhase.Downloading => "Downloading update…",
-        UpdatePhase.Ready => $"Update ready (v{s.ReadyVersion}) — restart from the tray",
+        UpdatePhase.Ready => $"Update ready (v{s.ReadyVersion}) — restart from the popup's ⋯ menu",
         UpdatePhase.Failed => $"Last check failed: {s.LastError}",
         _ => s.LastChecked is { } t ? $"Up to date · checked {t.ToLocalTime():HH:mm}" : "Not checked yet",
     };
