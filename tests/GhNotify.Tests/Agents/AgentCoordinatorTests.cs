@@ -363,10 +363,10 @@ public class AgentCoordinatorTests
     [Fact]
     public async Task Command_profile_without_worktree_runs_in_located_clone()
     {
-        var (c, cmds, _, _) = MakeCmd(@"C:onespi");
+        var (c, cmds, _, _) = MakeCmd(@"C:\clones\api");
         Assert.True(c.TryStart(Item(), CmdDecision(), manual: true));
         await c.WhenIdle();
-        Assert.Equal(@"C:onespi", cmds.Calls.Single().Cwd);
+        Assert.Equal(@"C:\clones\api", cmds.Calls.Single().Cwd);
         Assert.False(c.Get(Item().Key)!.OwnsWorkingDir);
     }
 
