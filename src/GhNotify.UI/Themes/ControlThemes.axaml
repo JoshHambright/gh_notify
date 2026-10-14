@@ -1,0 +1,335 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Control themes ported from the WPF Themes/Common.xaml. A WPF keyed Style is an Avalonia keyed ControlTheme: apply with
+       Theme="{StaticResource Style.PillPrimary}". Every colour is a DynamicResource token from Tokens.axaml, so the themes follow
+       the light / dark variant. -->
+
+  <ControlTheme x:Key="Style.SectionLabel" TargetType="TextBlock">
+    <Setter Property="FontFamily" Value="{DynamicResource Font.Body}" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Section}" />
+  </ControlTheme>
+
+  <ControlTheme x:Key="Style.EBars" TargetType="Path">
+    <Setter Property="Data" Value="{DynamicResource Geometry.EBars}" />
+    <Setter Property="Stroke" Value="{DynamicResource Brush.Section}" />
+    <Setter Property="StrokeThickness" Value="2" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="10" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </ControlTheme>
+
+  <ControlTheme x:Key="Style.Card" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Brush.Raised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="10,8" />
+  </ControlTheme>
+
+  <ControlTheme x:Key="Style.PillPrimary" TargetType="Button">
+    <Setter Property="FontFamily" Value="{DynamicResource Font.Body}" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Red}" />
+    <Setter Property="Padding" Value="14,5" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="13" Padding="{TemplateBinding Padding}">
+          <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover /template/ Border#Bd"><Setter Property="Opacity" Value="0.88" /></Style>
+    <Style Selector="^:disabled /template/ Border#Bd"><Setter Property="Opacity" Value="0.4" /></Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="Style.PillGhost" TargetType="Button">
+    <Setter Property="FontFamily" Value="{DynamicResource Font.Body}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="14,5" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource Brush.Hairline}"
+                BorderThickness="1" CornerRadius="13" Padding="{TemplateBinding Padding}">
+          <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover /template/ Border#Bd"><Setter Property="Background" Value="{DynamicResource Brush.Raised}" /></Style>
+    <Style Selector="^:disabled /template/ Border#Bd"><Setter Property="Opacity" Value="0.4" /></Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="Style.IconButton" TargetType="Button">
+    <Setter Property="FontFamily" Value="{DynamicResource Font.Body}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Muted}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Width" Value="26" />
+    <Setter Property="Height" Value="26" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6">
+          <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover /template/ Border#Bd"><Setter Property="Background" Value="{DynamicResource Brush.Raised}" /></Style>
+    <Style Selector="^:disabled /template/ Border#Bd"><Setter Property="Opacity" Value="0.4" /></Style>
+  </ControlTheme>
+
+  <!-- Text-only red button ("+ Add rule", inline bar actions). -->
+  <ControlTheme x:Key="Style.LinkButton" TargetType="Button">
+    <Setter Property="FontFamily" Value="{DynamicResource Font.Body}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Red}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="Bd" Background="Transparent" Padding="{TemplateBinding Padding}">
+          <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" VerticalAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover /template/ Border#Bd"><Setter Property="Opacity" Value="0.75" /></Style>
+    <Style Selector="^:disabled /template/ Border#Bd"><Setter Property="Opacity" Value="0.4" /></Style>
+  </ControlTheme>
+
+  <!-- Menus (popup row and footer): a themed card; the menu colours come from the MenuFlyout* tokens in Tokens.axaml. -->
+  <ControlTheme x:Key="Style.MenuCard" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Brush.Raised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="4" />
+    <Setter Property="Margin" Value="8" />
+    <Setter Property="BoxShadow" Value="0 2 12 0 #4D000000" />
+  </ControlTheme>
+
+  <!-- ===== Settings window ===== -->
+
+  <!-- Left nav entry: red left border and a lifted background when it is the open page. -->
+  <ControlTheme x:Key="Style.NavItem" TargetType="RadioButton">
+    <Setter Property="FontFamily" Value="{DynamicResource Font.Body}" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Muted}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="Bd" Background="Transparent" BorderBrush="Transparent" BorderThickness="3,0,0,0" Padding="19,9,18,9">
+          <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" VerticalAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover"><Setter Property="Foreground" Value="{DynamicResource Brush.Text}" /></Style>
+    <Style Selector="^:focus-visible"><Setter Property="Foreground" Value="{DynamicResource Brush.Text}" /></Style>
+    <Style Selector="^:checked">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="^:checked /template/ Border#Bd">
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Red}" />
+      <Setter Property="Background" Value="{DynamicResource Brush.Hairline}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Segmented control: a Style.SegmentGroup border around a horizontal panel of Style.Segment radio buttons. -->
+  <ControlTheme x:Key="Style.SegmentGroup" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="13" />
+    <Setter Property="Padding" Value="2" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </ControlTheme>
+
+  <ControlTheme x:Key="Style.Segment" TargetType="RadioButton">
+    <Setter Property="FontFamily" Value="{DynamicResource Font.Body}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Muted}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="Bd" Background="Transparent" CornerRadius="11" Padding="10,3">
+          <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover"><Setter Property="Foreground" Value="{DynamicResource Brush.Text}" /></Style>
+    <Style Selector="^:checked">
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="^:checked /template/ Border#Bd"><Setter Property="Background" Value="{DynamicResource Brush.Red}" /></Style>
+  </ControlTheme>
+
+  <!-- Toggle chip (day of week, profile): red outline and tint when checked. -->
+  <ControlTheme x:Key="Style.Chip" TargetType="ToggleButton">
+    <Setter Property="FontFamily" Value="{DynamicResource Font.Body}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Margin" Value="0,0,8,8" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="Bd" Background="{DynamicResource Brush.Raised}" BorderBrush="{DynamicResource Brush.Hairline}"
+                BorderThickness="1" CornerRadius="13" Padding="12,4">
+          <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover /template/ Border#Bd"><Setter Property="BorderBrush" Value="{DynamicResource Brush.Muted}" /></Style>
+    <Style Selector="^:checked /template/ Border#Bd">
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Red}" />
+      <Setter Property="Background" Value="{DynamicResource Brush.RedTint}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#Bd"><Setter Property="Opacity" Value="0.4" /></Style>
+  </ControlTheme>
+
+  <!-- Static chip (a list entry with its own × button inside). -->
+  <ControlTheme x:Key="Style.ChipBorder" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Brush.Raised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="13" />
+    <Setter Property="Padding" Value="12,2,4,2" />
+    <Setter Property="Margin" Value="0,0,8,8" />
+  </ControlTheme>
+
+  <!-- Text box drawn as a pill. The WPF version showed its Tag as the hint; here use Watermark (the colour is a token). -->
+  <ControlTheme x:Key="Style.PillBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+    <Setter Property="FontFamily" Value="{DynamicResource Font.Body}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+    <Setter Property="CaretBrush" Value="{DynamicResource Brush.Text}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource Brush.Blue}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="8,4" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Style Selector="^ /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Muted}" />
+    </Style>
+    <Style Selector="^:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Red}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_BorderElement"><Setter Property="Opacity" Value="0.5" /></Style>
+  </ControlTheme>
+
+  <!-- The popup's search and comment boxes: a Raised field with a hairline border. -->
+  <ControlTheme x:Key="Style.FieldBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+    <Setter Property="CaretBrush" Value="{DynamicResource Brush.Text}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource Brush.Blue}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Raised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="MinHeight" Value="0" />
+    <Style Selector="^ /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource Brush.Raised}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource Brush.Raised}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    </Style>
+    <Style Selector="^:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource Brush.Raised}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="Style.Check" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+    <Setter Property="FontFamily" Value="{DynamicResource Font.Body}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Style Selector="^:checked /template/ Border#NormalRectangle">
+      <Setter Property="Background" Value="{DynamicResource Brush.Red}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Red}" />
+    </Style>
+    <Style Selector="^:checked:pointerover /template/ Border#NormalRectangle">
+      <Setter Property="Background" Value="{DynamicResource Brush.Red}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Red}" />
+    </Style>
+    <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.5" /></Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="Style.ComboItem" TargetType="ComboBoxItem" BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+    <Setter Property="FontFamily" Value="{DynamicResource Font.Body}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Style Selector="^:selected"><Setter Property="FontWeight" Value="Medium" /></Style>
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="{DynamicResource Brush.Hairline}" /></Style>
+  </ControlTheme>
+
+  <!-- Drop-down drawn as a pill; the list opens in a themed card. -->
+  <ControlTheme x:Key="Style.PillCombo" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+    <Setter Property="FontFamily" Value="{DynamicResource Font.Body}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="9,4,26,4" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="MaxDropDownHeight" Value="320" />
+    <Style Selector="^ /template/ Border#Background">
+      <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#Background">
+      <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Muted}" />
+    </Style>
+    <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.5" /></Style>
+  </ControlTheme>
+
+  <!-- Small muted capitals between the controls of a rule card ("WHEN", "IN", "RUN"). -->
+  <ControlTheme x:Key="Style.Keyword" TargetType="TextBlock">
+    <Setter Property="FontFamily" Value="{DynamicResource Font.Body}" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Muted}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="0,0,8,0" />
+  </ControlTheme>
+
+  <!-- The left column of a label / control row on a settings page. -->
+  <ControlTheme x:Key="Style.FieldLabel" TargetType="TextBlock">
+    <Setter Property="Width" Value="180" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </ControlTheme>
+</ResourceDictionary>

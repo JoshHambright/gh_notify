@@ -1,0 +1,83 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Design tokens ported from the WPF Themes/Common.xaml, Dark.xaml and Light.xaml. Keys are unchanged, so the popup and the
+       settings window refer to them by the same names: {DynamicResource Brush.Muted}, Brush.Red, Brush.ReadyText, ... -->
+
+  <FontFamily x:Key="Font.Body">avares://GhNotify.UI/Fonts#Roboto, Segoe UI</FontFamily>
+  <!-- Consumers of Font.Heavy set FontWeight="Black" (the bundled Roboto-Black face). -->
+  <FontFamily x:Key="Font.Heavy">avares://GhNotify.UI/Fonts#Roboto, Segoe UI</FontFamily>
+
+  <!-- Three slanted rounded bars: the "E" glyph used as a section bullet (popup sections, settings headings). -->
+  <StreamGeometry x:Key="Geometry.EBars">M4.5,1.5 L13,1.5 M3,5 L11.5,5 M1.5,8.5 L10,8.5</StreamGeometry>
+
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Dark">
+      <SolidColorBrush x:Key="Brush.Surface" Color="#000C1A" />
+      <SolidColorBrush x:Key="Brush.Raised" Color="#0B1A29" />
+      <SolidColorBrush x:Key="Brush.Text" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="Brush.Muted" Color="#8296AB" />
+      <SolidColorBrush x:Key="Brush.Section" Color="#9FB0C2" />
+      <SolidColorBrush x:Key="Brush.Hairline" Color="#0F2236" />
+      <SolidColorBrush x:Key="Brush.Red" Color="#ED352F" />
+      <SolidColorBrush x:Key="Brush.Amber" Color="#F9B700" />
+      <SolidColorBrush x:Key="Brush.Green" Color="#37B84D" />
+      <SolidColorBrush x:Key="Brush.ReadyText" Color="#5FD474" />
+      <SolidColorBrush x:Key="Brush.Blue" Color="#0072DA" />
+      <SolidColorBrush x:Key="Brush.RedTint" Color="#21ED352F" />
+      <SolidColorBrush x:Key="Brush.EdgeStrip" Color="Transparent" />
+      <SolidColorBrush x:Key="Brush.Header" Color="#0B1A29" />
+      <SolidColorBrush x:Key="Brush.Count" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="Brush.Eyebrow" Color="#8296AB" />
+      <!-- RedTint (#21ED352F) composited over Raised, fading to Raised -->
+      <LinearGradientBrush x:Key="Brush.UrgentCard" StartPoint="0%,0%" EndPoint="100%,0%">
+        <GradientStop Color="#281E29" Offset="0" />
+        <GradientStop Color="#0B1A29" Offset="0.65" />
+      </LinearGradientBrush>
+      <!-- Fluent control resources that would otherwise show Fluent's own greys on our surfaces. -->
+      <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#8296AB" />
+      <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver" Color="#8296AB" />
+      <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="#8296AB" />
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#0B1A29" />
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="#0F2236" />
+      <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="#0F2236" />
+      <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed" Color="#0F2236" />
+      <SolidColorBrush x:Key="MenuFlyoutItemForeground" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="MenuFlyoutItemForegroundPointerOver" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="MenuFlyoutItemForegroundPressed" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="MenuFlyoutItemForegroundDisabled" Color="#8296AB" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="Light">
+      <SolidColorBrush x:Key="Brush.Surface" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="Brush.Raised" Color="#EBF0F5" />
+      <SolidColorBrush x:Key="Brush.Text" Color="#000C1A" />
+      <SolidColorBrush x:Key="Brush.Muted" Color="#5D7186" />
+      <SolidColorBrush x:Key="Brush.Section" Color="#223648" />
+      <SolidColorBrush x:Key="Brush.Hairline" Color="#D8E1EB" />
+      <SolidColorBrush x:Key="Brush.Red" Color="#ED352F" />
+      <SolidColorBrush x:Key="Brush.Amber" Color="#F9B700" />
+      <SolidColorBrush x:Key="Brush.Green" Color="#37B84D" />
+      <SolidColorBrush x:Key="Brush.ReadyText" Color="#238A36" />
+      <SolidColorBrush x:Key="Brush.Blue" Color="#0072DA" />
+      <SolidColorBrush x:Key="Brush.RedTint" Color="#21ED352F" />
+      <SolidColorBrush x:Key="Brush.EdgeStrip" Color="#ED352F" />
+      <SolidColorBrush x:Key="Brush.Header" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="Brush.Count" Color="#ED352F" />
+      <SolidColorBrush x:Key="Brush.Eyebrow" Color="#ED352F" />
+      <LinearGradientBrush x:Key="Brush.UrgentCard" StartPoint="0%,0%" EndPoint="100%,0%">
+        <GradientStop Color="#EBD8DB" Offset="0" />
+        <GradientStop Color="#EBF0F5" Offset="0.65" />
+      </LinearGradientBrush>
+      <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#5D7186" />
+      <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver" Color="#5D7186" />
+      <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="#5D7186" />
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#EBF0F5" />
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="#D8E1EB" />
+      <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="#D8E1EB" />
+      <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed" Color="#D8E1EB" />
+      <SolidColorBrush x:Key="MenuFlyoutItemForeground" Color="#000C1A" />
+      <SolidColorBrush x:Key="MenuFlyoutItemForegroundPointerOver" Color="#000C1A" />
+      <SolidColorBrush x:Key="MenuFlyoutItemForegroundPressed" Color="#000C1A" />
+      <SolidColorBrush x:Key="MenuFlyoutItemForegroundDisabled" Color="#5D7186" />
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

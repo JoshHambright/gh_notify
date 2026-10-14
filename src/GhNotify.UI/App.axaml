@@ -4,6 +4,14 @@
              RequestedThemeVariant="Dark">
   <Application.Styles>
     <FluentTheme />
-    <!-- The popup and settings tasks add their token and control styles here (ported from Themes/Common.xaml). -->
   </Application.Styles>
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <!-- Tokens (brushes per Light / Dark, fonts, geometry) and the keyed control themes, ported from Themes/Common.xaml. -->
+        <ResourceInclude Source="avares://GhNotify.UI/Themes/Tokens.axaml" />
+        <ResourceInclude Source="avares://GhNotify.UI/Themes/ControlThemes.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
 </Application>
