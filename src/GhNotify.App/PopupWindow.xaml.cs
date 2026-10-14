@@ -19,6 +19,7 @@ public partial class PopupWindow : Window
     string? _restoreFocusKey;
     IReadOnlyList<InboxSection>? _rendered;
     bool _confirmingRestart;
+    string? _footerSignature;
 
     public PopupWindow(IPopupHost host)
     {
@@ -68,11 +69,18 @@ public partial class PopupWindow : Window
 
     void RenderFooter()
     {
+        var statusText = _host.IsRefreshing ? "Refreshing…"
+            : _host.LastPolledAt is { } t ? $"Updated {t.ToLocalTime():HH:mm}" : "Not refreshed yet";
+        var sources = _host.Sources();
+        var update = _host.Update;
+        var agents = _host.RunningAgents;
+        if (update.Phase != UpdatePhase.Ready || agents == 0) _confirmingRestart = false;
+        var signature = UpdateUi.FooterSignature(statusText, sources, update, _confirmingRestart, agents);
+        if (signature == _footerSignature) return;
+        _footerSignature = signature;
         var inlines = FooterText.Inlines;
         inlines.Clear();
-        inlines.Add(new Run(_host.IsRefreshing ? "Refreshing…"
-            : _host.LastPolledAt is { } t ? $"Updated {t.ToLocalTime():HH:mm}" : "Not refreshed yet"));
-        var sources = _host.Sources();
+        inlines.Add(new Run(statusText));
         AddSource(inlines, "GitHub", sources.Where(s => s.Name == "GitHub").ToList());
         AddSource(inlines, "ADO", sources.Where(s => s.Name == "ADO" || s.Name.StartsWith("ADO:", StringComparison.Ordinal)).ToList());
         AddUpdateLink(inlines);

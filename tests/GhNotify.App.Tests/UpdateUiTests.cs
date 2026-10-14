@@ -31,3 +31,25 @@ public class UpdateUiTests
         Assert.Equal(("Restart to update (v1.2.1)", null),
             (UpdateUi.RestartItem(S(UpdatePhase.Ready, "1.2.1")), UpdateUi.RestartItem(S(UpdatePhase.Failed))));
 }
+
+public class FooterSignatureTests
+{
+    static readonly SourceStatus[] Src = [new("GitHub", true, null, null), new("ADO:contoso", false, "401", null)];
+    static UpdateStatus U(UpdatePhase p, string? v = null) => new(p, "1.2.0", v, null, null);
+    static string Sig(UpdateStatus u, bool confirming = false, int agents = 0, SourceStatus[]? src = null) =>
+        UpdateUi.FooterSignature("Updated 10:00", src ?? Src, u, confirming, agents);
+
+    [Fact]
+    public void Identical_inputs_are_equal() =>
+        Assert.Equal(Sig(U(UpdatePhase.Ready, "1.2.1"), true, 2), Sig(U(UpdatePhase.Ready, "1.2.1"), true, 2));
+
+    [Fact]
+    public void Phase_confirm_count_or_source_change_differs()
+    {
+        var ready = Sig(U(UpdatePhase.Ready, "1.2.1"), true, 2);
+        Assert.NotEqual(ready, Sig(U(UpdatePhase.Idle), true, 2));
+        Assert.NotEqual(ready, Sig(U(UpdatePhase.Ready, "1.2.1"), false, 2));
+        Assert.NotEqual(ready, Sig(U(UpdatePhase.Ready, "1.2.1"), true, 3));
+        Assert.NotEqual(ready, Sig(U(UpdatePhase.Ready, "1.2.1"), true, 2, [new("GitHub", true, null, null)]));
+    }
+}
