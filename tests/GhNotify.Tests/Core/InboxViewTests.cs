@@ -47,7 +47,7 @@ public class InboxViewTests
         var entries = new[] { E("h", "fabrikam/sandbox") };
         var hidden = V(entries, new FiltersConfig { Hide = ["fabrikam"] });
         Assert.Empty(hidden.Active);
-        Assert.Single(entries);
+        Assert.Equal(Attention.Hidden, hidden.AttentionFor("h"));
         Assert.Equal(["h"], V(entries).Active.Select(e => e.Entry.Item.Key));
     }
 
