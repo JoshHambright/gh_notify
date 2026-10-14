@@ -2,10 +2,24 @@ using System.Net;
 
 namespace GhNotify.Core;
 
-public enum ItemAction { Approve, Reject, ApprovePr }
+public enum ItemAction { Approve, Reject, ApprovePr, Merge, RerunFailed }
+
+public enum MergeMethod { Merge, Squash, Rebase }
+
+/// <summary>Merge choices offered in the confirm panel (v1.3 spec §2). Null on every other action's preview.</summary>
+public sealed record MergeOptions(IReadOnlyList<MergeMethod> Allowed, MergeMethod Selected, bool CanDeleteBranch, bool DeleteBranch);
+
+/// <summary>What the user chose in the confirm panel. Converts implicitly from a comment string.</summary>
+public readonly record struct ActionInput(string? Comment, MergeMethod? Method = null, bool DeleteBranch = false)
+{
+    public static implicit operator ActionInput(string? comment) => new(comment);
+}
 
 /// <summary>Result of the fresh live check; Token carries provider data from preview to execute (e.g. environment ids, commit sha).</summary>
-public sealed record ActionPreview(bool Allowed, string Statement, string ConfirmLabel, string? Warning, string? RefusalReason, object? Token);
+public sealed record ActionPreview(bool Allowed, string Statement, string ConfirmLabel, string? Warning, string? RefusalReason, object? Token)
+{
+    public MergeOptions? Options { get; init; }
+}
 
 public sealed record ActionResult(bool Ok, string? Error, bool Stale = false);
 
@@ -13,7 +27,7 @@ public interface IItemActions
 {
     IReadOnlyList<ItemAction> ActionsFor(InboxItem item);
     Task<ActionPreview> PreviewAsync(InboxItem item, ItemAction action, AgentRun? run, CancellationToken ct);
-    Task<ActionResult> ExecuteAsync(InboxItem item, ItemAction action, ActionPreview preview, string? comment, CancellationToken ct);
+    Task<ActionResult> ExecuteAsync(InboxItem item, ItemAction action, ActionPreview preview, ActionInput input, CancellationToken ct);
 }
 
 public sealed class CompositeItemActions(IReadOnlyDictionary<Provider, IItemActions> byProvider) : IItemActions
@@ -26,9 +40,9 @@ public sealed class CompositeItemActions(IReadOnlyDictionary<Provider, IItemActi
             ? a.PreviewAsync(item, action, run, ct)
             : Task.FromResult(ActionText.Refuse("Not supported for this source"));
 
-    public Task<ActionResult> ExecuteAsync(InboxItem item, ItemAction action, ActionPreview preview, string? comment, CancellationToken ct) =>
+    public Task<ActionResult> ExecuteAsync(InboxItem item, ItemAction action, ActionPreview preview, ActionInput input, CancellationToken ct) =>
         byProvider.TryGetValue(item.Provider, out var a)
-            ? a.ExecuteAsync(item, action, preview, comment, ct)
+            ? a.ExecuteAsync(item, action, preview, input, ct)
             : Task.FromResult(new ActionResult(false, "Not supported for this source"));
 }
 
@@ -43,7 +57,9 @@ public static class ActionText
     {
         ItemKind.ApprovalPending => [ItemAction.Approve, ItemAction.Reject],
         ItemKind.ReviewRequested => [ItemAction.ApprovePr],
-        ItemKind.MyPrCiFailing or ItemKind.MyPrNeedsResponse or ItemKind.MyPrReadyToMerge or ItemKind.MyPrWaiting => [],
+        ItemKind.MyPrReadyToMerge => [ItemAction.Merge],
+        ItemKind.MyPrCiFailing => [ItemAction.RerunFailed],
+        ItemKind.MyPrNeedsResponse or ItemKind.MyPrWaiting => [],
         _ => [],
     };
 
@@ -51,6 +67,8 @@ public static class ActionText
     {
         ItemAction.Approve => "Approve…",
         ItemAction.Reject => "Reject…",
+        ItemAction.Merge => "Merge…",
+        ItemAction.RerunFailed => "Re-run failed…",
         _ => "Approve PR…",
     };
 
@@ -65,6 +83,13 @@ public static class ActionText
             new(false, "This changed since you looked — refreshing", Stale: true),
         _ => new(false, ex.Message),
     };
+
+    /// <summary>Re-throws a captured exception (keeping its stack) from an expression position; never returns.</summary>
+    public static ActionResult Rethrow(Exception ex)
+    {
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw();
+        return default!;
+    }
 
     public static ActionPreview Refuse(string reason) => new(false, "", "", null, reason, null);
 }

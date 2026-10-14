@@ -19,6 +19,7 @@ public partial class App : Application
     DispatcherTimer? _debounce;
     ThemeService? _theme;
     UpdateService? _updates;
+    GlobalHotkey? _hotkey;
     readonly CancellationTokenSource _cts = new();
 
     protected override void OnStartup(StartupEventArgs e)
@@ -96,6 +97,7 @@ public partial class App : Application
             else _popup.ShowNearTray();
         });
 
+        StartHotkey(controller);
         WatchConfig();
         _controller.Start();
         _ = _updates.RunAsync(_cts.Token);
@@ -113,6 +115,25 @@ public partial class App : Application
         }
         else if (_settings.WindowState == WindowState.Minimized) _settings.WindowState = WindowState.Normal;
         _settings.Activate();
+    }
+
+    /// <summary>A hotkey clash or any failure here only shows up in Settings → General; it never blocks startup.</summary>
+    void StartHotkey(AppController controller)
+    {
+        try
+        {
+            _hotkey = new GlobalHotkey(new Win32HotkeyRegistrar(), () =>
+            {
+                if (_popup!.IsVisible) _popup.Hide();
+                else _popup.ShowNearTray();
+            });
+            controller.AttachHotkey(_hotkey);
+            _hotkey.Apply(controller.Config.Hotkey);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("could not set up the global hotkey", ex);
+        }
     }
 
     void TogglePopup()
@@ -168,6 +189,7 @@ public partial class App : Application
         _cts.Cancel();
         _theme?.Dispose();
         _watcher?.Dispose();
+        _hotkey?.Apply("");
         _controller?.Dispose();
         _tray?.Dispose();
         _mutex?.Dispose();

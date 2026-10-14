@@ -12,6 +12,13 @@ public sealed record InboxRow(
     public string? MutedBy { get; init; }
     public string? SnoozeText { get; init; }
     public string? Number { get; init; }
+    public string? Author { get; init; }
+    /// <summary>The action this row's confirm panel is for (null when it has none).</summary>
+    public ItemAction? ActiveAction { get; init; }
+    /// <summary>The live check refused the action: the panel shows the reason and offers no confirm.</summary>
+    public bool Refused { get; init; }
+    /// <summary>Merge choices from the allowed preview; null for every other action.</summary>
+    public MergeOptions? Options { get; init; }
 }
 
 public enum RowMode { Collapsed, Expanded, Confirming, Sending, Done, Failed }
@@ -27,6 +34,8 @@ public sealed record InboxSection(string Title, IReadOnlyList<InboxRow> Rows)
     public bool Collapsible { get; init; }
     public bool Expanded { get; init; } = true;
     public int Count { get; init; } = Rows.Count;
+    /// <summary>Show Approve all / Reject all on this section's header (<see cref="BatchApproval.ShowsButtons(InboxSection)"/>).</summary>
+    public bool BatchButtons { get; init; }
 }
 
 public static class InboxPresenter
@@ -110,7 +119,7 @@ public static class InboxPresenter
             sections.Add(new InboxSection("Snoozed", rows)
             { Id = "snoozed", Collapsible = true, Expanded = snoozedExpanded, Count = view.Snoozed.Count });
         }
-        return sections;
+        return sections.Select(s => s.Id == BatchApproval.SectionId ? s with { BatchButtons = BatchApproval.ShowsButtons(s) } : s).ToList();
     }
 
     static InboxRow Row(InboxEntry e, AgentRun? run, AgentDecision decision, Func<InboxItem, AgentDecision, string?> why, DateTimeOffset now,
@@ -145,7 +154,13 @@ public static class InboxPresenter
             run is null ? null : RunInfo(run), run?.ResultText,
             actions, mode, preview?.Statement, preview?.ConfirmLabel, confirmEnabled, preview?.Warning, message,
             repoDisplay?.Invoke(i.Repo) ?? i.Repo)
-        { Number = i.Number is { } n ? $"#{n}" : null };
+        {
+            Number = i.Number is { } n ? $"#{n}" : null,
+            Author = i.Author,
+            ActiveAction = mode == RowMode.Collapsed || mode == RowMode.Expanded ? null : ui?.Action,
+            Refused = preview is { Allowed: false },
+            Options = mode is RowMode.Confirming or RowMode.Sending && preview is { Allowed: true } ? preview.Options : null,
+        };
     }
 
     static IReadOnlyList<ItemDetail> WithPr(InboxItem i)

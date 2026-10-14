@@ -42,6 +42,15 @@ spells out exactly what will happen. The second click, on a button that names th
 
 ![Confirm panel for a deployment approval](docs/images/approve.png)
 
+### Merge, re-run and batch approvals
+
+- **Merge** your own ready PRs: clean merges only, you pick the method, and it is pinned to the commit you saw.
+- **Re-run failed** jobs on CI-failing PRs (GitHub Actions), or re-queue failed build policies on Azure DevOps.
+- **Batch approvals**: approve or reject every waiting approval with one confirm.
+- **Keyboard first**: a global hotkey (default Win+Shift+G), arrow-key navigation, action keys and search.
+
+See [docs/actions.md](docs/actions.md).
+
 ### Pre-review and diagnose agents
 
 Claude Code agents can run unattended in a throwaway worktree: **Pre-review** reads a review request, **Diagnose** works out
@@ -100,6 +109,9 @@ by about a minute after a merge or review.
 Every action takes two steps, the state is re-checked live just before sending, and the confirm button is disabled for 600 ms
 after it appears. If anything changed, it refuses. Details in [docs/security.md](docs/security.md).
 
+**Can it merge for me?**
+Yes, for your own PRs that are ready to merge. **Merge…** is two-step like approvals, only goes ahead when the PR is clean, never bypasses branch protection, and is pinned to the commit you saw. See [docs/actions.md](docs/actions.md#merge).
+
 **What can the agents do?**
 They are read-only: they can't comment, review, merge, push, commit or run pipelines. See [docs/security.md](docs/security.md).
 
@@ -123,10 +135,12 @@ Check Windows Focus Assist / Do Not Disturb. Also, toasts are off outside your w
 
 - [Configuration](docs/configuration.md): every `config.json` key, type and default
 - [Workflows](docs/workflows.md): profiles, rules, command scripts, hooks
+- [Actions and keyboard](docs/actions.md): approvals, merge, re-run, batch approvals, shortcuts, search
 - [Notifications](docs/notifications.md): work hours, sounds, mute, hide, snooze
 - [Security](docs/security.md): tokens, agent limits, approvals, updates
 - [Troubleshooting](docs/troubleshooting.md)
 - [Development](docs/development.md): build, test, quality gates, releases
+- [Roadmap](docs/roadmap.md): what is planned for v1.3, v2.0 (macOS), v2.1 and v2.2
 
 ## Build from source
 

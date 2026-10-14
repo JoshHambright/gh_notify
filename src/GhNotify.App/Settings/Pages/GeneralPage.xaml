@@ -50,6 +50,33 @@
 
     <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
       <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="SHORTCUT" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <DockPanel Margin="0,0,0,4">
+      <TextBlock Text="Global hotkey" Style="{StaticResource Style.FieldLabel}" />
+      <TextBox x:Name="HotkeyBox" Width="190" IsReadOnly="True" IsReadOnlyCaretVisible="False" Cursor="Arrow"
+               PreviewKeyDown="OnHotkeyKeyDown" ToolTip="Click, then press the key combination" />
+      <Button x:Name="HotkeyClear" Content="Clear" Style="{StaticResource Style.PillGhost}" HorizontalAlignment="Left" Margin="8,0,0,0"
+              Click="OnClearHotkey" />
+    </DockPanel>
+    <TextBlock x:Name="HotkeyHint" Foreground="{DynamicResource Brush.Muted}" FontSize="12" Margin="180,0,0,0" TextWrapping="Wrap"
+               Text="Click the box and press the keys. Shows or hides the popup from anywhere; empty turns it off." />
+    <TextBlock x:Name="HotkeyErrorText" Foreground="{DynamicResource Brush.Red}" FontSize="12" Margin="180,2,0,0" TextWrapping="Wrap"
+               Visibility="Collapsed" />
+    <DockPanel Margin="0,10,0,22">
+      <TextBlock Text="Default merge method" Style="{StaticResource Style.FieldLabel}" />
+      <Border Style="{StaticResource Style.SegmentGroup}">
+        <StackPanel Orientation="Horizontal">
+          <RadioButton x:Name="MergeDefault" Content="Repo default" Style="{StaticResource Style.Segment}" Checked="OnMergeChoice" />
+          <RadioButton x:Name="MergeSquash" Content="Squash" Style="{StaticResource Style.Segment}" Checked="OnMergeChoice" />
+          <RadioButton x:Name="MergeMerge" Content="Merge" Style="{StaticResource Style.Segment}" Checked="OnMergeChoice" />
+          <RadioButton x:Name="MergeRebase" Content="Rebase" Style="{StaticResource Style.Segment}" Checked="OnMergeChoice" />
+        </StackPanel>
+      </Border>
+    </DockPanel>
+
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
       <TextBlock Text="UPDATES" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
     </StackPanel>
     <DockPanel Margin="0,0,0,10">

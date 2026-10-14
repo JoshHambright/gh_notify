@@ -242,3 +242,384 @@ public class AdoItemActionsSafetyTests
         Assert.Equal("Unexpected response — it may have been sent. Refresh to check.", r.Error);
     }
 }
+
+public class AdoMergeAndRerunTests
+{
+    static InboxItem Mine(ItemKind kind, string sha = "s42") => new("ado:mine:contoso/Core Platform/web#42", Provider.Ado, kind, "contoso/Core Platform/web",
+        "Add retry", "https://x", "Alice", DateTimeOffset.UnixEpoch, sha, null, null)
+    { Org = "contoso", Project = "Core Platform", RepoId = "repo-1", Number = 42 };
+    static InboxItem Ready(string sha = "s42") => Mine(ItemKind.MyPrReadyToMerge, sha);
+    static InboxItem Failing(string sha = "s42") => Mine(ItemKind.MyPrCiFailing, sha);
+
+    static FakeHttpHandler Dir() => new FakeHttpHandler()
+        .On("connectionData", Fixture.Read("ado-connection.json"))
+        .On("queryMembership=expanded", Fixture.Read("ado-identity-expanded.json"))
+        .On("identities?descriptors=", Fixture.Read("ado-identities-groups.json"));
+
+    static AdoItemActions Make(FakeHttpHandler http)
+    {
+        var c = new AdoClient(new HttpClient(http), new FakeTokenProvider());
+        return new AdoItemActions(c, new AdoDirectory(c));
+    }
+
+    static string PrJson(string status = "active", string sha = "s42", string mergeStatus = "succeeded", bool draft = false) => $$$"""
+        {"status":"{{{status}}}","isDraft":{{{(draft ? "true" : "false")}}},"mergeStatus":"{{{mergeStatus}}}",
+         "lastMergeSourceCommit":{"commitId":"{{{sha}}}"},"targetRefName":"refs/heads/main",
+         "repository":{"id":"repo-1","project":{"id":"proj-1"}}
+        }
+        """;
+
+    const string BuildType = "0609b952-1397-4640-95ec-e00a01b2c241";
+    const string StrategyType = "fa4e907d-c16b-4a4c-9dfa-4916e5d171ab";
+    const string NoPolicies = """{"value":[]}""";
+    const string NoEvals = """{"value":[]}""";
+
+    static string Strategy(bool noFf, bool squash, bool rebase, string refName = "refs/heads/main", string repo = "repo-1") => $$$"""
+        {"value":[{"isEnabled":true,"isDeleted":false,"type":{"id":"{{{StrategyType}}}"},
+          "settings":{"allowNoFastForward":{{{(noFf ? "true" : "false")}}},"allowSquash":{{{(squash ? "true" : "false")}}},"allowRebase":{{{(rebase ? "true" : "false")}}},
+                      "scope":[{"repositoryId":"{{{repo}}}","refName":"{{{refName}}}","matchKind":"Exact"}]}}]}
+        """;
+
+    static bool Is(HttpRequestMessage r, HttpMethod m, string contains) => r.Method == m && r.RequestUri!.AbsoluteUri.Contains(contains, StringComparison.Ordinal);
+
+    static FakeHttpHandler MergeHttp(string pr, string policies = NoPolicies, string evals = NoEvals) => Dir()
+        .On(r => Is(r, HttpMethod.Get, "/pullRequests/42?"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, pr))
+        .On(r => Is(r, HttpMethod.Get, "/policy/evaluations?"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, evals))
+        .On(r => Is(r, HttpMethod.Get, "/policy/configurations?"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, policies));
+
+    [Fact]
+    public void Actions_need_repo_number_and_head_sha()
+    {
+        var a = Make(new FakeHttpHandler());
+        Assert.Equal([ItemAction.Merge], a.ActionsFor(Ready()));
+        Assert.Equal([ItemAction.RerunFailed], a.ActionsFor(Failing()));
+        Assert.Empty(a.ActionsFor(Ready() with { RepoId = null }));
+        Assert.Empty(a.ActionsFor(Ready() with { Number = null }));
+        Assert.Empty(a.ActionsFor(Failing() with { HeadSha = null }));
+        Assert.Empty(a.ActionsFor(Ready() with { Org = null }));
+    }
+
+    [Fact]
+    public async Task Merge_preview_allowed_with_no_strategy_policy_offers_all_three()
+    {
+        var a = Make(MergeHttp(PrJson()));
+        var p = await a.PreviewAsync(Ready(), ItemAction.Merge, null, default);
+        Assert.True(p.Allowed);
+        Assert.Equal("Squash and merge PR #42 into main in contoso/Core Platform/web at s42", p.Statement);
+        Assert.Equal("Merge PR #42", p.ConfirmLabel);
+        Assert.Equal([MergeMethod.Merge, MergeMethod.Squash, MergeMethod.Rebase], p.Options!.Allowed);
+        Assert.Equal(MergeMethod.Squash, p.Options.Selected);
+        Assert.True(p.Options.CanDeleteBranch);
+        Assert.True(p.Options.DeleteBranch);
+    }
+
+    [Fact]
+    public async Task Merge_preview_honours_the_require_merge_strategy_policy()
+    {
+        var a = Make(MergeHttp(PrJson(), Strategy(noFf: true, squash: false, rebase: true)));
+        var p = await a.PreviewAsync(Ready(), ItemAction.Merge, null, default);
+        Assert.Equal([MergeMethod.Merge, MergeMethod.Rebase], p.Options!.Allowed);
+        Assert.Equal(MergeMethod.Merge, p.Options.Selected);
+        Assert.StartsWith("Merge PR #42 into main", p.Statement);
+    }
+
+    [Fact]
+    public async Task Merge_preview_ignores_strategy_policies_scoped_elsewhere()
+    {
+        var a = Make(MergeHttp(PrJson(), Strategy(false, true, false, refName: "refs/heads/release")));
+        var p = await a.PreviewAsync(Ready(), ItemAction.Merge, null, default);
+        Assert.Equal(3, p.Options!.Allowed.Count);
+    }
+
+    [Fact]
+    public async Task Merge_preview_refuses_when_policy_allows_nothing()
+    {
+        var a = Make(MergeHttp(PrJson(), Strategy(false, false, false)));
+        Assert.False((await a.PreviewAsync(Ready(), ItemAction.Merge, null, default)).Allowed);
+    }
+
+    [Theory]
+    [InlineData("completed", "s42", "succeeded", false, "This PR is no longer open")]
+    [InlineData("active", "other", "succeeded", false, "New commits since you looked — refresh.")]
+    [InlineData("active", "s42", "conflicts", false, "Merge conflicts")]
+    [InlineData("active", "s42", "queued", false, "Azure DevOps is still checking mergeability — try again in a moment")]
+    [InlineData("active", "s42", "succeeded", true, "Draft PR")]
+    public async Task Merge_preview_refusals(string status, string sha, string mergeStatus, bool draft, string reason)
+    {
+        var a = Make(MergeHttp(PrJson(status, sha, mergeStatus, draft)));
+        var p = await a.PreviewAsync(Ready(), ItemAction.Merge, null, default);
+        Assert.False(p.Allowed);
+        Assert.Equal(reason, p.RefusalReason);
+        Assert.Null(p.Options);
+    }
+
+    [Theory]
+    [InlineData("""{"value":[{"status":"rejected","configuration":{"isBlocking":false}}]}""", "Some policies are not passing")]
+    [InlineData("""{"value":[{"status":"running","configuration":{"isBlocking":true}}]}""", "Policies are still running")]
+    [InlineData("""{"value":[{"status":"queued","configuration":{"isBlocking":true}}]}""", "Policies are still running")]
+    public async Task Merge_preview_refuses_on_blocking_policy_state(string evals, string reason)
+    {
+        var a = Make(MergeHttp(PrJson(), evals: evals));
+        Assert.Equal(reason, (await a.PreviewAsync(Ready(), ItemAction.Merge, null, default)).RefusalReason);
+    }
+
+    [Fact]
+    public async Task Merge_preview_allows_non_blocking_running_policy()
+    {
+        var a = Make(MergeHttp(PrJson(), evals: """{"value":[{"status":"running","configuration":{"isBlocking":false}},{"status":"approved","configuration":{"isBlocking":true}}]}"""));
+        Assert.True((await a.PreviewAsync(Ready(), ItemAction.Merge, null, default)).Allowed);
+    }
+
+    [Fact]
+    public async Task Merge_preview_queries_evaluations_by_pr_artifact()
+    {
+        var http = MergeHttp(PrJson());
+        await Make(http).PreviewAsync(Ready(), ItemAction.Merge, null, default);
+        Assert.Contains(http.Requests, q => q.RequestUri!.AbsoluteUri.Contains(
+            "/policy/evaluations?artifactId=vstfs%3A%2F%2F%2FCodeReview%2FCodeReviewId%2Fproj-1%2F42", StringComparison.Ordinal));
+        Assert.Contains(http.Requests, q => q.RequestUri!.AbsoluteUri.Contains($"policyType={StrategyType}", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(MergeMethod.Merge, "noFastForward", true)]
+    [InlineData(MergeMethod.Squash, "squash", false)]
+    [InlineData(MergeMethod.Rebase, "rebase", true)]
+    public async Task Merge_execute_patches_exact_body(MergeMethod method, string strategy, bool delete)
+    {
+        var http = MergeHttp(PrJson()).On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, """{"status":"completed"}"""));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Ready(), ItemAction.Merge, null, default);
+        var r = await a.ExecuteAsync(Ready(), ItemAction.Merge, p, new ActionInput(null, method, delete), default);
+        Assert.True(r.Ok);
+        Assert.Null(r.Error);
+        var patch = http.Requests.Single(q => q.Method == HttpMethod.Patch);
+        Assert.Contains("/Core%20Platform/_apis/git/repositories/repo-1/pullRequests/42?api-version=7.1", patch.RequestUri!.AbsoluteUri);
+        Assert.Equal(
+            """{"status":"completed","lastMergeSourceCommit":{"commitId":"s42"},"completionOptions":{"mergeStrategy":"""
+            + $"\"{strategy}\",\"deleteSourceBranch\":{(delete ? "true" : "false")}" + "}}",
+            http.Bodies[http.Requests.IndexOf(patch)]);
+    }
+
+    [Fact]
+    public async Task Merge_execute_method_not_allowed_or_missing_is_mismatch()
+    {
+        var http = MergeHttp(PrJson(), Strategy(true, true, false)).On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, """{"status":"completed"}"""));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Ready(), ItemAction.Merge, null, default);
+        var rebase = await a.ExecuteAsync(Ready(), ItemAction.Merge, p, new ActionInput(null, MergeMethod.Rebase), default);
+        var none = await a.ExecuteAsync(Ready(), ItemAction.Merge, p, new ActionInput(null), default);
+        Assert.Equal("This action no longer matches what was shown — start again", rebase.Error);
+        Assert.False(none.Ok);
+        Assert.DoesNotContain(http.Requests, q => q.Method == HttpMethod.Patch);
+    }
+
+    [Fact]
+    public async Task Merge_execute_token_mismatch()
+    {
+        var http = MergeHttp(PrJson()).On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, """{"status":"completed"}"""));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Ready(), ItemAction.Merge, null, default);
+        var input = new ActionInput(null, MergeMethod.Squash);
+        Assert.False((await a.ExecuteAsync(Ready() with { Number = 43 }, ItemAction.Merge, p, input, default)).Ok);
+        Assert.False((await a.ExecuteAsync(Ready() with { HeadSha = "other" }, ItemAction.Merge, p, input, default)).Ok);
+        Assert.False((await a.ExecuteAsync(Ready(), ItemAction.RerunFailed, p, input, default)).Ok);
+        Assert.False((await a.ExecuteAsync(Ready(), ItemAction.Merge, ActionText.Refuse("x"), input, default)).Ok);
+        Assert.DoesNotContain(http.Requests, q => q.Method == HttpMethod.Patch);
+    }
+
+    [Theory]
+    [InlineData("other", "succeeded")]
+    [InlineData("s42", "conflicts")]
+    public async Task Merge_execute_rechecks_head_and_merge_status(string sha, string mergeStatus)
+    {
+        var pr = PrJson();
+        var http = MergeHttp(pr).On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "{}"));
+        // Preview sees the good PR; the re-read before writing sees the changed one.
+        var calls = 0;
+        var changed = PrJson(sha: sha, mergeStatus: mergeStatus);
+        var live = new FakeHttpHandler()
+            .On("connectionData", Fixture.Read("ado-connection.json"))
+            .On(r => Is(r, HttpMethod.Get, "/pullRequests/42?"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, calls++ == 0 ? pr : changed))
+            .On(r => Is(r, HttpMethod.Get, "/policy/evaluations?"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, NoEvals))
+            .On(r => Is(r, HttpMethod.Get, "/policy/configurations?"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, NoPolicies))
+            .On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "{}"));
+        var a = Make(live);
+        var p = await a.PreviewAsync(Ready(), ItemAction.Merge, null, default);
+        Assert.True(p.Allowed);
+        var r = await a.ExecuteAsync(Ready(), ItemAction.Merge, p, new ActionInput(null, MergeMethod.Squash), default);
+        Assert.False(r.Ok);
+        Assert.True(r.Stale);
+        Assert.DoesNotContain(live.Requests, q => q.Method == HttpMethod.Patch);
+        Assert.DoesNotContain(http.Requests, q => q.Method == HttpMethod.Patch);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Conflict)]
+    [InlineData(HttpStatusCode.UnprocessableEntity)]
+    public async Task Merge_execute_409_and_422_are_stale(HttpStatusCode code)
+    {
+        var http = MergeHttp(PrJson()).On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(code, """{"message":"moved"}"""));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Ready(), ItemAction.Merge, null, default);
+        var r = await a.ExecuteAsync(Ready(), ItemAction.Merge, p, new ActionInput(null, MergeMethod.Squash), default);
+        Assert.False(r.Ok);
+        Assert.True(r.Stale);
+        Assert.Equal("This changed since you looked — refreshing", r.Error);
+    }
+
+    [Fact]
+    public async Task Merge_execute_timeout_is_maybe_sent()
+    {
+        var http = MergeHttp(PrJson()).On(r => r.Method == HttpMethod.Patch, _ => throw new TaskCanceledException("timeout"));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Ready(), ItemAction.Merge, null, default);
+        var r = await a.ExecuteAsync(Ready(), ItemAction.Merge, p, new ActionInput(null, MergeMethod.Squash), default);
+        Assert.False(r.Ok);
+        Assert.True(r.Stale);
+        Assert.Contains("may have been sent", r.Error);
+    }
+
+    static string Eval(string id, string name, string status = "rejected", string type = BuildType) =>
+        $$$"""{"evaluationId":"{{{id}}}","status":"{{{status}}}","configuration":{"type":{"id":"{{{type}}}"},"settings":{"displayName":"{{{name}}}"} } }""";
+
+    static FakeHttpHandler RerunHttp(string evals, string pr = "") => Dir()
+        .On(r => Is(r, HttpMethod.Get, "/pullRequests/42?"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, pr.Length > 0 ? pr : PrJson()))
+        .On(r => Is(r, HttpMethod.Get, "/policy/evaluations?"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, evals));
+
+    [Fact]
+    public async Task Rerun_preview_lists_failed_build_policies_only()
+    {
+        var evals = $$"""{"value":[{{Eval("e-1", "CI")}},{{Eval("e-2", "Lint", "approved")}},{{Eval("e-3", "Reviewers", "rejected", "fd2167ab-b0be-447a-8ec8-39368250530e")}}]}""";
+        var a = Make(RerunHttp(evals));
+        var p = await a.PreviewAsync(Failing(), ItemAction.RerunFailed, null, default);
+        Assert.True(p.Allowed);
+        Assert.Equal("Re-queue 1 failed build policy on PR #42 (contoso/Core Platform/web): CI", p.Statement);
+        Assert.Equal("Re-queue 1 build", p.ConfirmLabel);
+        Assert.Null(p.Options);
+    }
+
+    [Fact]
+    public async Task Rerun_preview_names_several_policies()
+    {
+        var evals = $$"""{"value":[{{Eval("e-1", "CI")}},{{Eval("e-2", "E2E", "broken")}}]}""";
+        var a = Make(RerunHttp(evals));
+        var p = await a.PreviewAsync(Failing(), ItemAction.RerunFailed, null, default);
+        Assert.Equal("Re-queue 2 failed build policies on PR #42 (contoso/Core Platform/web): CI, E2E", p.Statement);
+        Assert.Equal("Re-queue 2 builds", p.ConfirmLabel);
+    }
+
+    [Fact]
+    public async Task Rerun_preview_refusals()
+    {
+        var none = await Make(RerunHttp($$"""{"value":[{{Eval("e-2", "Lint", "approved")}}]}""")).PreviewAsync(Failing(), ItemAction.RerunFailed, null, default);
+        Assert.False(none.Allowed);
+        Assert.Equal("No failed build policies to re-queue", none.RefusalReason);
+        var moved = await Make(RerunHttp(NoEvals, PrJson(sha: "other"))).PreviewAsync(Failing(), ItemAction.RerunFailed, null, default);
+        Assert.Equal("New commits since you looked — refresh.", moved.RefusalReason);
+        var closed = await Make(RerunHttp(NoEvals, PrJson(status: "abandoned"))).PreviewAsync(Failing(), ItemAction.RerunFailed, null, default);
+        Assert.Equal("This PR is no longer open", closed.RefusalReason);
+    }
+
+    [Fact]
+    public async Task Rerun_execute_patches_each_evaluation_without_body()
+    {
+        var evals = $$"""{"value":[{{Eval("e-1", "CI")}},{{Eval("e-2", "E2E")}}]}""";
+        var http = RerunHttp(evals).On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "{}"));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Failing(), ItemAction.RerunFailed, null, default);
+        var r = await a.ExecuteAsync(Failing(), ItemAction.RerunFailed, p, default(ActionInput), default);
+        Assert.True(r.Ok);
+        Assert.Null(r.Error);
+        var patches = http.Requests.Where(q => q.Method == HttpMethod.Patch).ToList();
+        Assert.Equal(
+            ["https://dev.azure.com/contoso/Core%20Platform/_apis/policy/evaluations/e-1?api-version=7.1-preview.1",
+             "https://dev.azure.com/contoso/Core%20Platform/_apis/policy/evaluations/e-2?api-version=7.1-preview.1"],
+            patches.Select(q => q.RequestUri!.AbsoluteUri));
+        Assert.All(patches, q => Assert.Null(http.Bodies[http.Requests.IndexOf(q)]));
+    }
+
+    [Fact]
+    public async Task Rerun_execute_partial_failure_is_ok_with_warning()
+    {
+        var evals = $$"""{"value":[{{Eval("e-1", "CI")}},{{Eval("e-2", "E2E")}}]}""";
+        var http = RerunHttp(evals)
+            .On(r => Is(r, HttpMethod.Patch, "/evaluations/e-2"), _ => FakeHttpHandler.Respond(HttpStatusCode.InternalServerError, "{}"))
+            .On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "{}"));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Failing(), ItemAction.RerunFailed, null, default);
+        var r = await a.ExecuteAsync(Failing(), ItemAction.RerunFailed, p, default(ActionInput), default);
+        Assert.True(r.Ok);
+        Assert.Equal("Re-queue started, but couldn't re-queue: E2E", r.Error);
+    }
+
+    [Fact]
+    public async Task Rerun_execute_rate_limit_after_a_success_is_ok_with_warning()
+    {
+        var evals = $$"""{"value":[{{Eval("e-1", "CI")}},{{Eval("e-2", "E2E")}}]}""";
+        var http = RerunHttp(evals)
+            .On(r => Is(r, HttpMethod.Patch, "/evaluations/e-2"), _ => FakeHttpHandler.Respond(HttpStatusCode.TooManyRequests, "{}"))
+            .On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "{}"));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Failing(), ItemAction.RerunFailed, null, default);
+        var r = await a.ExecuteAsync(Failing(), ItemAction.RerunFailed, p, default(ActionInput), default);
+        Assert.True(r.Ok);
+        Assert.Equal("Re-queue started, but couldn't re-queue: E2E", r.Error);
+    }
+
+    [Theory]
+    [InlineData("""{"status":"completed","mergeStatus":"succeeded"}""", true, null)]
+    [InlineData("""{"status":"active","mergeStatus":"succeeded"}""", true, "Merge queued — check the PR")]
+    [InlineData("""{"status":"active","mergeStatus":"conflicts","mergeFailureMessage":"policy"}""", false, "Merge failed: policy")]
+    [InlineData("""{"status":"active","mergeStatus":"rejectedByPolicy"}""", false, "Merge failed — check the PR")]
+    public async Task Merge_execute_inspects_the_patch_response(string response, bool ok, string? error)
+    {
+        var http = MergeHttp(PrJson()).On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, response));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Ready(), ItemAction.Merge, null, default);
+        var r = await a.ExecuteAsync(Ready(), ItemAction.Merge, p, new ActionInput(null, MergeMethod.Squash), default);
+        Assert.Equal(ok, r.Ok);
+        Assert.Equal(error, r.Error);
+    }
+
+    [Fact]
+    public async Task Rerun_execute_all_failed_is_not_ok()
+    {
+        var http = RerunHttp($$"""{"value":[{{Eval("e-1", "CI")}}]}""").On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.Forbidden, "{}"));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Failing(), ItemAction.RerunFailed, null, default);
+        var r = await a.ExecuteAsync(Failing(), ItemAction.RerunFailed, p, default(ActionInput), default);
+        Assert.False(r.Ok);
+        Assert.Contains("permission", r.Error);
+    }
+
+    [Fact]
+    public async Task Rerun_execute_stale_head_patches_nothing()
+    {
+        var pr = PrJson();
+        var http = Dir()
+            .On(r => Is(r, HttpMethod.Get, "/pullRequests/42?"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, pr))
+            .On(r => Is(r, HttpMethod.Get, "/policy/evaluations?"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, $$"""{"value":[{{Eval("e-1", "CI")}}]}"""))
+            .On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "{}"));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Failing(), ItemAction.RerunFailed, null, default);
+        pr = PrJson(sha: "newer");
+        var r = await a.ExecuteAsync(Failing(), ItemAction.RerunFailed, p, default(ActionInput), default);
+        Assert.True(r.Stale);
+        Assert.DoesNotContain(http.Requests, q => q.Method == HttpMethod.Patch);
+    }
+
+    [Fact]
+    public async Task Rerun_execute_token_mismatch_and_timeout()
+    {
+        var http = RerunHttp($$"""{"value":[{{Eval("e-1", "CI")}}]}""").On(r => r.Method == HttpMethod.Patch, _ => throw new TaskCanceledException("timeout"));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Failing(), ItemAction.RerunFailed, null, default);
+        Assert.False((await a.ExecuteAsync(Failing() with { Number = 43 }, ItemAction.RerunFailed, p, default(ActionInput), default)).Ok);
+        Assert.False((await a.ExecuteAsync(Failing(), ItemAction.Merge, p, new ActionInput(null, MergeMethod.Squash), default)).Ok);
+        Assert.DoesNotContain(http.Requests, q => q.Method == HttpMethod.Patch);
+        var r = await a.ExecuteAsync(Failing(), ItemAction.RerunFailed, p, default(ActionInput), default);
+        Assert.False(r.Ok);
+        Assert.True(r.Stale);
+        Assert.Contains("may have been sent", r.Error);
+    }
+}

@@ -26,10 +26,19 @@ public sealed class AppConfig
     public UpdatesConfig Updates { get; set; } = new();
     public NotificationsConfig Notifications { get; set; } = new();
     public FiltersConfig Filters { get; set; } = new();
+    /// <summary>Global hotkey that toggles the popup, e.g. "Win+Shift+G"; "" turns it off.</summary>
+    public string Hotkey { get; set; } = "Win+Shift+G";
+    public ActionsConfig Actions { get; set; } = new();
     /// <summary>Item kind name (e.g. "ReviewRequested") → profile name; overrides the built-in default per kind.</summary>
     public Dictionary<string, string> DefaultProfiles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Unknown keys round-trip through Settings saves.</summary>
     [JsonExtensionData] public Dictionary<string, System.Text.Json.JsonElement>? Extra { get; set; }
+}
+
+public sealed class ActionsConfig
+{
+    /// <summary>Preferred merge method (used when the repo allows it); null = repo default.</summary>
+    public MergeMethod? MergeMethod { get; set; }
 }
 
 public sealed class WorkHoursConfig

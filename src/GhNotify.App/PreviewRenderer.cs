@@ -19,6 +19,11 @@ public static class PreviewRenderer
     static readonly ActionPreview PrPreview = new(true, "Approve PR #482 in fabrikam/customer-platform/checkout-service-api at 9f3c2ab",
         "Approve PR #482", ActionText.NoPreReview, null, null);
 
+    static readonly ActionPreview MergePreview = new(true, "Squash and merge PR #31 into main in acme/web at beef001", "Merge PR #31", null, null, null)
+    {
+        Options = new MergeOptions([MergeMethod.Squash, MergeMethod.Merge, MergeMethod.Rebase], MergeMethod.Squash, CanDeleteBranch: true, DeleteBranch: true),
+    };
+
     public static int Run(string dir)
     {
         try
@@ -72,6 +77,15 @@ public static class PreviewRenderer
         var pr = new SampleHost();
         pr.States[SampleHost.ReviewKey] = new RowUiState(RowMode.Confirming, ItemAction.ApprovePr, PrPreview, null, opened);
         yield return ("confirm-pr-warning", pr);
+
+        var merge = new SampleHost();
+        merge.States[SampleHost.ReadyKey] = new RowUiState(RowMode.Confirming, ItemAction.Merge, MergePreview, null, opened);
+        yield return ("confirm-merge", merge);
+
+        var refused = new SampleHost();
+        var blocked = ActionText.Refuse("Blocked by branch protection");
+        refused.States[SampleHost.ReadyKey] = new RowUiState(RowMode.Confirming, ItemAction.Merge, blocked, blocked.RefusalReason, opened);
+        yield return ("merge-refused", refused);
 
         var failed = new SampleHost();
         failed.States[SampleHost.ApprovalKey] = new RowUiState(RowMode.Failed, ItemAction.Approve, ApprovalPreview,
@@ -151,7 +165,7 @@ public static class PreviewRenderer
     /// </summary>
     static void DrawRowMenu(PopupWindow w, SampleHost host, RenderTargetBitmap bmp)
     {
-        var row = host.BuildSections().SelectMany(s => s.Rows).First();
+        var row = host.BuildSections(null).SelectMany(s => s.Rows).First();
         var button = Descendants(w.Frame).OfType<Button>().First(b => b.Tag as string == row.Key && "Snooze or mute".Equals(b.ToolTip));
         var menu = w.RowMenuFor(button, row.Key) ?? throw new InvalidOperationException("no row menu for " + row.Key);
         // Top-right of the menu under the button's bottom-right, like a right-aligned dropdown.
