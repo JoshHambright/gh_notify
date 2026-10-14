@@ -1,32 +1,13 @@
 using GhNotify.Core;
 
-namespace GhNotify.App.Tests;
+namespace GhNotify.UI.Tests;
 
 public class GlobalHotkeyTests
 {
-    sealed class FakeRegistrar : IHotkeyRegistrar
-    {
-        public bool Succeeds = true;
-        public Exception? Throws;
-        public readonly List<string> Calls = [];
-        public Action? Pressed;
-
-        public bool Register(Hotkey hotkey, Action pressed)
-        {
-            Calls.Add("register " + hotkey);
-            if (Throws is not null) throw Throws;
-            Pressed = pressed;
-            return Succeeds;
-        }
-
-        public void Unregister() => Calls.Add("unregister");
-        public void Dispose() { }
-    }
-
     [Fact]
     public void Registered_hotkey_toggles_the_popup()
     {
-        var reg = new FakeRegistrar();
+        var reg = new FakeHotkeyService();
         var toggles = 0;
         var hk = new GlobalHotkey(reg, () => toggles++, _ => { });
         hk.Apply("win+shift+g");
@@ -39,7 +20,7 @@ public class GlobalHotkeyTests
     [Fact]
     public void Clash_is_exposed_and_logged_once_and_never_throws()
     {
-        var reg = new FakeRegistrar { Succeeds = false };
+        var reg = new FakeHotkeyService { Succeeds = false };
         var log = new List<string>();
         var hk = new GlobalHotkey(reg, () => { }, log.Add);
         hk.Apply("Win+Shift+G");
@@ -53,7 +34,7 @@ public class GlobalHotkeyTests
     [Fact]
     public void Re_registering_a_free_combination_clears_the_error()
     {
-        var reg = new FakeRegistrar { Succeeds = false };
+        var reg = new FakeHotkeyService { Succeeds = false };
         var hk = new GlobalHotkey(reg, () => { }, _ => { });
         hk.Apply("Win+Shift+G");
         Assert.NotNull(hk.Error);
@@ -67,7 +48,7 @@ public class GlobalHotkeyTests
     [Fact]
     public void Empty_turns_it_off()
     {
-        var reg = new FakeRegistrar();
+        var reg = new FakeHotkeyService();
         var hk = new GlobalHotkey(reg, () => { }, _ => { });
         hk.Apply("Ctrl+Alt+H");
         hk.Apply("");
@@ -79,7 +60,7 @@ public class GlobalHotkeyTests
     [Fact]
     public void A_registrar_that_throws_is_a_failure_not_a_crash()
     {
-        var reg = new FakeRegistrar { Throws = new InvalidOperationException("no window") };
+        var reg = new FakeHotkeyService { Throws = new InvalidOperationException("no window") };
         var log = new List<string>();
         var hk = new GlobalHotkey(reg, () => { }, log.Add);
         hk.Apply("Ctrl+Alt+H");
@@ -90,7 +71,7 @@ public class GlobalHotkeyTests
     [Fact]
     public void A_toggle_that_throws_is_logged_not_propagated()
     {
-        var reg = new FakeRegistrar();
+        var reg = new FakeHotkeyService();
         var log = new List<string>();
         var hk = new GlobalHotkey(reg, () => throw new InvalidOperationException("popup gone"), log.Add);
         hk.Apply("Ctrl+Alt+H");
@@ -101,20 +82,9 @@ public class GlobalHotkeyTests
     [Fact]
     public void An_invalid_config_value_is_an_error_line_not_a_crash()
     {
-        var hk = new GlobalHotkey(new FakeRegistrar(), () => { }, _ => { });
+        var hk = new GlobalHotkey(new FakeHotkeyService(), () => { }, _ => { });
         hk.Apply("G");
         Assert.NotNull(hk.Error);
         Assert.Null(hk.Registered);
-    }
-
-    [Theory]
-    [InlineData("Win+Shift+G", 0x8u | 0x4u, (uint)'G')]
-    [InlineData("Ctrl+Alt+5", 0x2u | 0x1u, (uint)'5')]
-    [InlineData("F9", 0u, 0x78u)]
-    [InlineData("Ctrl+F12", 0x2u, 0x7Bu)]
-    public void Translates_to_win32_flags_and_virtual_keys(string text, uint mods, uint vk)
-    {
-        Assert.True(HotkeyParser.TryParse(text, out var hotkey));
-        Assert.Equal((mods, vk), Win32HotkeyRegistrar.Translate(hotkey));
     }
 }

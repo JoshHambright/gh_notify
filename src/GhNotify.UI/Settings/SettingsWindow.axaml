@@ -1,0 +1,9 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="GhNotify.UI.SettingsWindow"
+        Title="gh_notify settings"
+        Width="760" Height="560"
+        WindowStartupLocation="CenterScreen">
+  <!-- ported in the settings task -->
+  <Border />
+</Window>

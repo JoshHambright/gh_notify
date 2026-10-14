@@ -1,7 +1,7 @@
 using GhNotify.Core;
 using ThemeMode = GhNotify.Core.ThemeMode;
 
-namespace GhNotify.App;
+namespace GhNotify.UI;
 
 /// <summary>
 /// Neutral sample settings (contoso / fabrikam / acme, alice / bob) for previews and tests. Nothing touches the network,
@@ -88,4 +88,5 @@ public sealed class SampleSettingsHost : ISettingsHost
     public void SetThemeMode(ThemeMode mode) => ThemeMode = mode;
     public bool CommentsWarningShown { get; set; }
     public void OpenPath(string path) { }
+    public void PlaySound(string sound) { }
 }

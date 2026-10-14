@@ -1,6 +1,6 @@
 using GhNotify.Core;
 
-namespace GhNotify.App;
+namespace GhNotify.UI;
 
 /// <summary>Everything the popup needs; implemented by AppController (live) and SampleHost (previews).</summary>
 public interface IPopupHost

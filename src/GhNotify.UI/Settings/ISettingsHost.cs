@@ -1,7 +1,7 @@
 using GhNotify.Core;
 using ThemeMode = GhNotify.Core.ThemeMode;
 
-namespace GhNotify.App;
+namespace GhNotify.UI;
 
 /// <summary>Everything the settings window needs; implemented by AppController (live) and SampleSettingsHost (previews, tests).</summary>
 public interface ISettingsHost
@@ -32,6 +32,8 @@ public interface ISettingsHost
     void SetThemeMode(ThemeMode mode);
     bool CommentsWarningShown { get; set; }
     void OpenPath(string path);
+    /// <summary>Plays a sound setting ("builtin:chime" or a .wav path) for the Notifications page test button.</summary>
+    void PlaySound(string sound);
 }
 
 /// <summary>A settings page: lists the validation errors that belong to it at its top.</summary>

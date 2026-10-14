@@ -1,6 +1,6 @@
 using GhNotify.Core;
 
-namespace GhNotify.App;
+namespace GhNotify.UI;
 
 /// <summary>
 /// Fixed, neutral sample data (contoso / fabrikam / acme, alice / bob) for --render-preview. Every command is a no-op:

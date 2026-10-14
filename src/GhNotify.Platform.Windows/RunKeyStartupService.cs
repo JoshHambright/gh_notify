@@ -1,19 +1,24 @@
+using GhNotify.UI;
 using Microsoft.Win32;
 
-namespace GhNotify.App;
+namespace GhNotify.Platform.Windows;
 
-public static class StartupRegistration
+/// <summary>Start with Windows: the HKCU Run key, pointing at the stable Velopack exe path.</summary>
+public sealed class RunKeyStartupService : IStartupService
 {
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     const string Name = "GhNotify";
 
-    public static bool IsEnabled()
+    public bool IsEnabled
     {
-        using var key = Registry.CurrentUser.OpenSubKey(RunKey);
-        return key?.GetValue(Name) is string;
+        get
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RunKey);
+            return key?.GetValue(Name) is string;
+        }
     }
 
-    public static void Set(bool enabled)
+    public void SetEnabled(bool enabled)
     {
         using var key = Registry.CurrentUser.CreateSubKey(RunKey);
         if (enabled) key.SetValue(Name, $"\"{InstallInfo.StableExePath ?? Environment.ProcessPath}\"");

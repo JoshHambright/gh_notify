@@ -1,4 +1,4 @@
-namespace GhNotify.App;
+namespace GhNotify.Platform.Windows;
 
 public static class InstallInfo
 {

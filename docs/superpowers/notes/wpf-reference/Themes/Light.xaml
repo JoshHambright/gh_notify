@@ -1,0 +1,24 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <SolidColorBrush x:Key="Brush.Surface" Color="#FFFFFF" />
+  <SolidColorBrush x:Key="Brush.Raised" Color="#EBF0F5" />
+  <SolidColorBrush x:Key="Brush.Text" Color="#000C1A" />
+  <SolidColorBrush x:Key="Brush.Muted" Color="#5D7186" />
+  <SolidColorBrush x:Key="Brush.Section" Color="#223648" />
+  <SolidColorBrush x:Key="Brush.Hairline" Color="#D8E1EB" />
+  <SolidColorBrush x:Key="Brush.Red" Color="#ED352F" />
+  <SolidColorBrush x:Key="Brush.Amber" Color="#F9B700" />
+  <SolidColorBrush x:Key="Brush.Green" Color="#37B84D" />
+  <SolidColorBrush x:Key="Brush.ReadyText" Color="#238A36" />
+  <SolidColorBrush x:Key="Brush.Blue" Color="#0072DA" />
+  <SolidColorBrush x:Key="Brush.RedTint" Color="#21ED352F" />
+  <SolidColorBrush x:Key="Brush.EdgeStrip" Color="#ED352F" />
+  <SolidColorBrush x:Key="Brush.Header" Color="#FFFFFF" />
+  <SolidColorBrush x:Key="Brush.Count" Color="#ED352F" />
+  <SolidColorBrush x:Key="Brush.Eyebrow" Color="#ED352F" />
+  <!-- RedTint (#21ED352F) composited over Raised, fading to Raised -->
+  <LinearGradientBrush x:Key="Brush.UrgentCard" StartPoint="0,0" EndPoint="1,0">
+    <GradientStop Color="#EBD8DB" Offset="0" />
+    <GradientStop Color="#EBF0F5" Offset="0.65" />
+  </LinearGradientBrush>
+</ResourceDictionary>

@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>GhNotify.UI</RootNamespace>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GhNotify.Core\GhNotify.Core.csproj" />
+    <ProjectReference Include="..\GhNotify.GitHub\GhNotify.GitHub.csproj" />
+    <ProjectReference Include="..\GhNotify.Ado\GhNotify.Ado.csproj" />
+    <ProjectReference Include="..\GhNotify.Agents\GhNotify.Agents.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Skia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Fonts\*.ttf" />
+    <!-- The tray renderer draws with SkiaSharp before (or without) an Avalonia app, so it reads its font from the plain manifest. -->
+    <EmbeddedResource Include="Fonts\Roboto-Black.ttf" LogicalName="Fonts.Roboto-Black.ttf" />
+    <InternalsVisibleTo Include="GhNotify.UI.Tests" />
+  </ItemGroup>
+
+</Project>

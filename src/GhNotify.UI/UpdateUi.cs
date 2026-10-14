@@ -1,6 +1,6 @@
 using GhNotify.Core;
 
-namespace GhNotify.App;
+namespace GhNotify.UI;
 
 /// <summary>Pure text/state rules for the popup's update footer link and ⋯ menu items.</summary>
 public static class UpdateUi

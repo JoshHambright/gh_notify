@@ -1,34 +1,20 @@
-using System.Windows;
-using System.Windows.Media;
+using Avalonia.Headless.XUnit;
+using Avalonia.Platform;
 
-namespace GhNotify.App.Tests;
+namespace GhNotify.UI.Tests;
 
 public class BundledFontTests
 {
-    [Fact]
-    public void Roboto_Regular_Bold_and_Black_resolve_from_the_embedded_resources()
+    [AvaloniaTheory]
+    [InlineData("Regular")]
+    [InlineData("Medium")]
+    [InlineData("Bold")]
+    [InlineData("Black")]
+    public void Roboto_weights_are_embedded_as_avalonia_resources(string weight)
     {
-        var uris = new Dictionary<string, string>(); Exception? err = null;
-        var t = new Thread(() =>
-        {
-            try
-            {
-                _ = System.IO.Packaging.PackUriHelper.UriSchemePack;
-                var family = new FontFamily(new Uri("pack://application:,,,/GhNotify;component/Fonts/"), "./#Roboto");
-                foreach (var (name, weight) in new[] { ("Regular", FontWeights.Normal), ("Bold", FontWeights.Bold), ("Black", FontWeights.Black) })
-                {
-                    var ok = new Typeface(family, FontStyles.Normal, weight, FontStretches.Normal).TryGetGlyphTypeface(out var g);
-                    uris[name] = ok ? g.FontUri.ToString() : "unresolved";
-                }
-            }
-            catch (Exception e) { err = e; }
-        });
-        t.SetApartmentState(ApartmentState.STA); t.Start(); t.Join();
-        if (err is not null) throw err;
-        foreach (var name in new[] { "Regular", "Bold", "Black" })
-        {
-            Assert.Contains($"Roboto-{name}", uris[name], StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("GhNotify", uris[name], StringComparison.OrdinalIgnoreCase);
-        }
+        var uri = new Uri($"avares://GhNotify.UI/Fonts/Roboto-{weight}.ttf");
+        Assert.True(AssetLoader.Exists(uri));
+        using var stream = AssetLoader.Open(uri);
+        Assert.True(stream.Length > 10_000);
     }
 }

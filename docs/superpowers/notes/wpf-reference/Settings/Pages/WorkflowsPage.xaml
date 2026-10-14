@@ -1,0 +1,201 @@
+<UserControl x:Class="GhNotify.App.WorkflowsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:GhNotify.App">
+  <UserControl.Resources>
+    <local:EmptyToNullConverter x:Key="EmptyToNull" />
+    <Style x:Key="Tool" TargetType="Button" BasedOn="{StaticResource Style.IconButton}">
+      <Setter Property="Tag" Value="{Binding}" />
+    </Style>
+    <Style x:Key="Small" TargetType="Button" BasedOn="{StaticResource Style.PillGhost}">
+      <Setter Property="Padding" Value="9,2" />
+      <Setter Property="Margin" Value="0,0,6,6" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <FontFamily x:Key="Mono">Cascadia Mono, Consolas</FontFamily>
+  </UserControl.Resources>
+  <StackPanel>
+    <ItemsControl x:Name="ErrorList" Foreground="{DynamicResource Brush.Red}" FontSize="12" Margin="0,0,0,8" />
+
+    <!-- Defaults -->
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="DEFAULTS" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <StackPanel x:Name="DefaultsPanel" Margin="0,0,0,18" />
+
+    <!-- Rules -->
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="RULES · FIRST MATCH WINS" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <ItemsControl x:Name="Rules">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="{x:Type local:RuleRow}">
+          <Border Style="{StaticResource Style.Card}" CornerRadius="10" Padding="14,10" Margin="0,0,0,10">
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                <Button Style="{StaticResource Tool}" Content="↑" ToolTip="Move up" Click="OnRuleUp" />
+                <Button Style="{StaticResource Tool}" Content="↓" ToolTip="Move down" Click="OnRuleDown" />
+                <Button Style="{StaticResource Tool}" Content="✕" ToolTip="Remove" Click="OnRuleRemove" />
+              </StackPanel>
+              <StackPanel>
+                <WrapPanel>
+                  <TextBlock Text="WHEN" Style="{StaticResource Style.Keyword}" Margin="0,4,8,4" />
+                  <ComboBox ItemsSource="{Binding KindLabels}" SelectedIndex="{Binding KindIndex}" MinWidth="150" Margin="0,2,10,2" />
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="IN" Style="{StaticResource Style.Keyword}" />
+                    <TextBox Text="{Binding Repo, UpdateSourceTrigger=PropertyChanged}" Tag="any repo" Width="120" Margin="0,2,10,2" />
+                  </StackPanel>
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="BY" Style="{StaticResource Style.Keyword}" />
+                    <TextBox Text="{Binding Author, UpdateSourceTrigger=PropertyChanged}" Tag="anyone" Width="80" Margin="0,2,10,2" />
+                  </StackPanel>
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="≤" Style="{StaticResource Style.Keyword}" FontSize="13" />
+                    <TextBox Text="{Binding MaxLines, UpdateSourceTrigger=PropertyChanged}" Tag="lines" Width="54" Margin="0,2,10,2" />
+                  </StackPanel>
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="RUN" Style="{StaticResource Style.Keyword}" />
+                    <ComboBox ItemsSource="{Binding ProfileOptions}" SelectedIndex="{Binding ProfileIndex}" MinWidth="120" Margin="0,2,10,2" />
+                  </StackPanel>
+                  <Border Style="{StaticResource Style.SegmentGroup}" Margin="0,2,0,2">
+                    <StackPanel Orientation="Horizontal">
+                      <RadioButton Content="Auto" Style="{StaticResource Style.Segment}" IsChecked="{Binding IsAuto}" />
+                      <RadioButton Content="Button" Style="{StaticResource Style.Segment}" IsChecked="{Binding IsButton}" />
+                      <RadioButton Content="Off" Style="{StaticResource Style.Segment}" IsChecked="{Binding IsOff}" />
+                    </StackPanel>
+                  </Border>
+                </WrapPanel>
+                <TextBlock Text="{Binding Summary, Mode=OneWay}" Foreground="{DynamicResource Brush.Muted}" FontSize="12" Margin="0,6,0,0"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </DockPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <Button Content="+ Add rule" Style="{StaticResource Style.LinkButton}" Click="OnAddRule" Margin="0,2,0,22" />
+
+    <!-- Profiles -->
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="PROFILES" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <WrapPanel x:Name="ProfileChips" Margin="0,0,0,4" />
+
+    <!-- Built-in profile (read-only) -->
+    <Border x:Name="BuiltInCard" Style="{StaticResource Style.Card}" CornerRadius="10" Padding="14,12" Margin="0,0,0,22" Visibility="Collapsed">
+      <StackPanel>
+        <DockPanel Margin="0,0,0,8">
+          <Button DockPanel.Dock="Right" Content="Duplicate to edit" Style="{StaticResource Style.PillGhost}" Click="OnDuplicate" />
+          <TextBlock x:Name="BuiltInName" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" />
+          <TextBlock Text="  built-in · read-only" Foreground="{DynamicResource Brush.Muted}" FontSize="12" VerticalAlignment="Center" />
+        </DockPanel>
+        <TextBlock x:Name="BuiltInPrompt" Foreground="{DynamicResource Brush.Muted}" FontSize="12" TextWrapping="Wrap" />
+        <TextBlock Text="ALLOWED TOOLS" Style="{StaticResource Style.Keyword}" Margin="0,10,0,4" />
+        <TextBlock x:Name="BuiltInAllowed" Foreground="{DynamicResource Brush.Muted}" FontSize="12" TextWrapping="Wrap" />
+        <TextBlock Text="ALWAYS DENIED" Style="{StaticResource Style.Keyword}" Margin="0,10,0,4" />
+        <TextBlock x:Name="BuiltInDenied" Foreground="{DynamicResource Brush.Muted}" FontSize="12" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <!-- User profile editor -->
+    <Border x:Name="EditorCard" Style="{StaticResource Style.Card}" CornerRadius="10" Padding="14,12" Margin="0,0,0,22" Visibility="Collapsed">
+      <StackPanel>
+        <WrapPanel Margin="0,0,0,10">
+          <TextBlock Text="NAME" Style="{StaticResource Style.Keyword}" Margin="0,4,8,4" />
+          <TextBox x:Name="NameBox" Width="160" FontWeight="Bold" KeyDown="OnNameKeyDown" LostFocus="OnNameLostFocus" Margin="0,2,14,2" />
+          <Border Style="{StaticResource Style.SegmentGroup}" Margin="0,2,14,2">
+            <StackPanel Orientation="Horizontal">
+              <RadioButton x:Name="PromptType" Content="Claude prompt" Style="{StaticResource Style.Segment}" Checked="OnTypeChanged" />
+              <RadioButton x:Name="CommandType" Content="Command" Style="{StaticResource Style.Segment}" Checked="OnTypeChanged" />
+            </StackPanel>
+          </Border>
+          <CheckBox Content="needs worktree" IsChecked="{Binding NeedsWorktree}" Checked="OnEdited" Unchecked="OnEdited" Margin="0,2,0,2" />
+        </WrapPanel>
+        <TextBlock x:Name="NameError" Foreground="{DynamicResource Brush.Red}" FontSize="12" Margin="0,0,0,8" Visibility="Collapsed" />
+
+        <StackPanel x:Name="PromptPanel">
+          <TextBox x:Name="PromptBox" Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" AcceptsReturn="True"
+                   TextWrapping="Wrap" MinHeight="90" VerticalContentAlignment="Top" Tag="What should Claude do with {url}?" Margin="0,0,0,8" />
+          <WrapPanel x:Name="PlaceholderChips" />
+        </StackPanel>
+
+        <StackPanel x:Name="CommandPanel">
+          <ItemsControl x:Name="CommandArgs">
+            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="{x:Type local:StringListRow}">
+                <StackPanel Orientation="Horizontal" Margin="0,0,10,6">
+                  <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource Mono}" FontSize="12"
+                           MinWidth="60" Tag="arg" />
+                  <Button Style="{StaticResource Style.IconButton}" Content="✕" FontSize="10" Width="20" Height="20" ToolTip="Remove argument"
+                          Tag="{Binding Index}" Click="OnRemoveArg" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Button Content="+ Add argument" Style="{StaticResource Style.LinkButton}" FontSize="12" Click="OnAddArg" Margin="0,0,0,8" />
+          <TextBlock Text="Tool limits don't apply to commands. Item data is also in GHN_* environment variables."
+                     Foreground="{DynamicResource Brush.Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8" />
+        </StackPanel>
+
+        <DockPanel Margin="0,4,0,0">
+          <Button x:Name="DeleteProfileButton" DockPanel.Dock="Right" Content="Delete profile" Style="{StaticResource Style.PillGhost}"
+                  Click="OnDeleteProfile" ToolTipService.ShowOnDisabled="True" />
+          <TextBlock Text="REQUIRES SKILL" Style="{StaticResource Style.Keyword}" />
+          <TextBox Width="160" HorizontalAlignment="Left" Tag="none"
+                   Text="{Binding RequiresSkill, Converter={StaticResource EmptyToNull}, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
+        </DockPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- Hooks -->
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="HOOKS" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <ItemsControl x:Name="Hooks">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="{x:Type local:HookRow}">
+          <Border Style="{StaticResource Style.Card}" CornerRadius="10" Padding="14,10" Margin="0,0,0,10">
+            <DockPanel>
+              <Button DockPanel.Dock="Right" VerticalAlignment="Top" Style="{StaticResource Tool}" Content="✕" ToolTip="Remove" Click="OnHookRemove" />
+              <StackPanel>
+                <WrapPanel>
+                  <TextBlock Text="ON" Style="{StaticResource Style.Keyword}" Margin="0,4,8,4" />
+                  <ComboBox ItemsSource="{Binding EventLabels}" SelectedIndex="{Binding EventIndex}" MinWidth="120" Margin="0,2,10,2" />
+                  <TextBlock Text="FOR" Style="{StaticResource Style.Keyword}" />
+                  <ComboBox ItemsSource="{Binding KindLabels}" SelectedIndex="{Binding KindIndex}" MinWidth="150" Margin="0,2,10,2" />
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="IN" Style="{StaticResource Style.Keyword}" />
+                    <TextBox Text="{Binding Repo, UpdateSourceTrigger=PropertyChanged}" Tag="any repo" Width="120" Margin="0,2,10,2" />
+                  </StackPanel>
+                </WrapPanel>
+                <WrapPanel Margin="0,6,0,0">
+                  <TextBlock Text="RUN" Style="{StaticResource Style.Keyword}" Margin="0,4,8,4" />
+                  <ItemsControl ItemsSource="{Binding Args}">
+                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type local:StringListRow}">
+                        <StackPanel Orientation="Horizontal" Margin="0,2,8,2">
+                          <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource Mono}" FontSize="12"
+                                   MinWidth="60" Tag="arg" />
+                          <Button Style="{StaticResource Style.IconButton}" Content="✕" FontSize="10" Width="20" Height="20"
+                                  ToolTip="Remove argument" Tag="{Binding}" Click="OnHookArgRemove" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <Button Content="+ arg" Style="{StaticResource Style.LinkButton}" FontSize="12" Tag="{Binding}" Click="OnHookArgAdd" Margin="0,2,0,2" />
+                </WrapPanel>
+              </StackPanel>
+            </DockPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <Button Content="+ Add hook" Style="{StaticResource Style.LinkButton}" Click="OnAddHook" Margin="0,2,0,0" />
+  </StackPanel>
+</UserControl>

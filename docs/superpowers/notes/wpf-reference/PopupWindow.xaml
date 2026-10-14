@@ -1,0 +1,516 @@
+<Window x:Class="GhNotify.App.PopupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:GhNotify.App"
+        xmlns:core="clr-namespace:GhNotify.Core;assembly=GhNotify.Core"
+        Title="gh_notify" Width="376" MinHeight="236" SizeToContent="Height"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True" UseLayoutRounding="True"
+        FontFamily="{StaticResource Font.Body}" FontSize="12" Foreground="{DynamicResource Brush.Text}"
+        Deactivated="OnDeactivated" Activated="OnActivated" SizeChanged="OnWindowSizeChanged"
+        PreviewKeyDown="OnPreviewKeyDown" PreviewMouseLeftButtonDown="OnWindowMouseDown">
+  <Window.Resources>
+    <local:HasValueToVisibilityConverter x:Key="HasValue" />
+    <local:RowDetailsConverter x:Key="RowDetails" />
+    <local:UpperCaseConverter x:Key="Upper" />
+    <local:NotNullConverter x:Key="NotNull" />
+
+    <Style x:Key="Small" TargetType="Button" BasedOn="{StaticResource Style.PillGhost}">
+      <Setter Property="Padding" Value="11,3" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Margin" Value="6,0,0,0" />
+      <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+    </Style>
+    <Style x:Key="SmallPrimary" TargetType="Button" BasedOn="{StaticResource Style.PillPrimary}">
+      <Setter Property="Padding" Value="11,3" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Margin" Value="6,0,0,0" />
+      <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+    </Style>
+
+    <Style x:Key="Chevron" TargetType="Button">
+      <Setter Property="Width" Value="22" />
+      <Setter Property="Height" Value="20" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="5">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Hairline}" /></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- Thin themed scrollbars (the default chrome looks out of place on the dark surface). -->
+    <Style TargetType="ScrollBar">
+      <Setter Property="Width" Value="8" />
+      <Setter Property="MinWidth" Value="8" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ScrollBar">
+            <Track x:Name="PART_Track" IsDirectionReversed="True">
+              <Track.Thumb>
+                <Thumb>
+                  <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb">
+                      <Border Background="{DynamicResource Brush.Muted}" Opacity="0.45" CornerRadius="3" Margin="2,2" />
+                    </ControlTemplate>
+                  </Thumb.Template>
+                </Thumb>
+              </Track.Thumb>
+            </Track>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <DataTemplate x:Key="DetailTemplate" DataType="{x:Type core:ItemDetail}">
+      <Grid Margin="0,1">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <TextBlock Text="{Binding Label}" Foreground="{DynamicResource Brush.Muted}" FontSize="10.5" Margin="0,1,12,0" />
+        <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="11.5" TextWrapping="Wrap" />
+      </Grid>
+    </DataTemplate>
+
+    <DataTemplate x:Key="RowTemplate" DataType="{x:Type core:InboxRow}">
+      <Grid>
+      <!-- Keyboard selection: a ring just outside the card, toggled from code (the card border carries the urgent stripe). -->
+      <Border x:Name="SelectionRing" Tag="{Binding Key}" Margin="8,2" CornerRadius="10" BorderThickness="2" IsHitTestVisible="False"
+              BorderBrush="{DynamicResource Brush.Blue}" Visibility="Collapsed" />
+      <Border x:Name="RowCard" Tag="{Binding Key}" Margin="10,4" CornerRadius="8">
+        <Border.Style>
+          <Style TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Brush.Raised}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12,9,10,10" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding Urgent}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Brush.UrgentCard}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Brush.Red}" />
+                <Setter Property="BorderThickness" Value="3,0,0,0" />
+                <Setter Property="Padding" Value="10,10,11,11" />
+              </DataTrigger>
+              <DataTrigger Binding="{Binding Stale}" Value="True">
+                <Setter Property="Opacity" Value="0.55" />
+              </DataTrigger>
+              <DataTrigger Binding="{Binding MutedBy, Converter={StaticResource NotNull}}" Value="True">
+                <Setter Property="Opacity" Value="0.55" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Border.Style>
+        <StackPanel>
+          <!-- Line 1: meta, badge, chevron -->
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Style="{StaticResource Chevron}" Tag="{Binding Key}" Click="OnToggle" ToolTip="Details">
+              <Path Data="M0.8,0.8 L4.5,4.5 L8.2,0.8" Stroke="{DynamicResource Brush.Muted}" StrokeThickness="1.6"
+                    StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Width="9" Height="5.5"
+                    RenderTransformOrigin="0.5,0.5">
+                <Path.Style>
+                  <Style TargetType="Path">
+                    <Setter Property="RenderTransform"><Setter.Value><RotateTransform Angle="180" /></Setter.Value></Setter>
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding Mode}" Value="Collapsed">
+                        <Setter Property="RenderTransform"><Setter.Value><RotateTransform Angle="0" /></Setter.Value></Setter>
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </Path.Style>
+              </Path>
+            </Button>
+            <Button DockPanel.Dock="Right" Style="{StaticResource Chevron}" Tag="{Binding Key}" Click="OnRowMenu" ToolTip="Snooze or mute">
+              <TextBlock Text="⋯" FontFamily="Segoe UI Symbol" FontSize="12" Foreground="{DynamicResource Brush.Muted}" />
+            </Button>
+            <Border DockPanel.Dock="Right" CornerRadius="8" BorderThickness="1" Padding="7,0,7,1" Margin="6,0,4,0"
+                    VerticalAlignment="Center" ToolTip="{Binding BadgeTooltip}"
+                    Visibility="{Binding BadgeText, Converter={StaticResource HasValue}}">
+              <Border.Style>
+                <Style TargetType="Border">
+                  <Setter Property="BorderBrush" Value="{DynamicResource Brush.Muted}" />
+                  <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.Muted}" />
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding BadgeText}" Value="✓ Ready">
+                      <Setter Property="BorderBrush" Value="{DynamicResource Brush.ReadyText}" />
+                      <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.ReadyText}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding BadgeText}" Value="✗ Failed">
+                      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Red}" />
+                      <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.Red}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding BadgeText}" Value="Running…">
+                      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Blue}" />
+                      <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.Blue}" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </Border.Style>
+              <TextBlock Text="{Binding BadgeText}" FontSize="10" FontWeight="Bold" />
+            </Border>
+            <TextBlock Foreground="{DynamicResource Brush.Muted}" FontSize="10.5" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" ToolTip="{Binding Repo}">
+              <Run Text="{Binding ProviderGlyph, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding RepoDisplay, Mode=OneWay}" /><Run Text="{Binding Number, Mode=OneWay, StringFormat=' {0}', TargetNullValue=''}" /><Run Text=" · " /><Run Text="{Binding Age, Mode=OneWay}" /><InlineUIContainer BaselineAlignment="Center"><TextBlock Text="🔇" Margin="6,0,0,0"
+                  Visibility="{Binding MutedBy, Converter={StaticResource HasValue}}"><TextBlock.ToolTip><ToolTip Content="{Binding MutedBy}" ContentStringFormat="Muted by {0}" /></TextBlock.ToolTip></TextBlock></InlineUIContainer><InlineUIContainer BaselineAlignment="Center"><TextBlock Margin="6,0,0,0" Visibility="{Binding SnoozeText, Converter={StaticResource HasValue}}"><Run Text="💤 " /><Run Text="{Binding SnoozeText, Mode=OneWay}" /></TextBlock></InlineUIContainer>
+            </TextBlock>
+          </DockPanel>
+
+          <!-- Line 2: title (opens the item) -->
+          <TextBlock Text="{Binding Title}" Tag="{Binding Url}" FontSize="12.5" FontWeight="Medium" Margin="0,3,0,0"
+                     TextTrimming="CharacterEllipsis" Cursor="Hand" ToolTip="{Binding Title}" MouseLeftButtonUp="OnTitleClick">
+            <TextBlock.Style>
+              <Style TargetType="TextBlock">
+                <Style.Triggers>
+                  <Trigger Property="IsMouseOver" Value="True"><Setter Property="TextDecorations" Value="Underline" /></Trigger>
+                </Style.Triggers>
+              </Style>
+            </TextBlock.Style>
+          </TextBlock>
+          <TextBlock Text="{Binding Detail}" Foreground="{DynamicResource Brush.Muted}" FontSize="11" Margin="0,2,0,0"
+                     TextTrimming="CharacterEllipsis" Visibility="{Binding Detail, Converter={StaticResource HasValue}}" />
+
+          <!-- Buttons -->
+          <WrapPanel HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Style="{StaticResource SmallPrimary}" Content="{Binding RunButton}" Tag="{Binding Key}" Click="OnRunAgent"
+                    IsEnabled="{Binding CanRun}" ToolTip="{Binding RunDisabledReason}"
+                    Visibility="{Binding RunButton, Converter={StaticResource HasValue}}" />
+            <Button Style="{StaticResource Small}" Content="Open in Claude" Tag="{Binding Key}" Click="OnOpenInClaude"
+                    Visibility="{Binding CanOpenInClaude, Converter={StaticResource HasValue}}" />
+            <Button Style="{StaticResource Small}" Content="Unsnooze" Tag="{Binding Key}" Click="OnUnsnooze"
+                    Visibility="{Binding SnoozeText, Converter={StaticResource HasValue}}" />
+            <ItemsControl ItemsSource="{Binding Actions}" Tag="{Binding Key}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type core:RowActionButton}">
+                  <Grid>
+                    <Button Content="{Binding Label}" CommandParameter="{Binding Action}" Click="OnAction"
+                            IsEnabled="{Binding Enabled}" ToolTip="{Binding DisabledReason}"
+                            Tag="{Binding Tag, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                      <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource SmallPrimary}">
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding Action}" Value="Reject"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                            <DataTrigger Binding="{Binding Action}" Value="RerunFailed"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </Button.Style>
+                    </Button>
+                    <Button Content="{Binding Label}" CommandParameter="{Binding Action}" Click="OnAction"
+                            IsEnabled="{Binding Enabled}" ToolTip="{Binding DisabledReason}"
+                            Tag="{Binding Tag, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                      <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource Small}">
+                          <Setter Property="Visibility" Value="Collapsed" />
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding Action}" Value="Reject"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                            <DataTrigger Binding="{Binding Action}" Value="RerunFailed"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </Button.Style>
+                    </Button>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </WrapPanel>
+
+          <!-- Expanded: details, agent run, result text -->
+          <StackPanel Margin="0,10,0,0">
+            <StackPanel.Style>
+              <Style TargetType="StackPanel">
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding Mode}" Value="Collapsed"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </StackPanel.Style>
+            <Border Height="1" Background="{DynamicResource Brush.Hairline}" Margin="0,0,0,8" />
+            <ItemsControl ItemsSource="{Binding Converter={StaticResource RowDetails}}" ItemTemplate="{StaticResource DetailTemplate}"
+                          Grid.IsSharedSizeScope="True" />
+            <TextBlock Text="{Binding RunInfo}" Foreground="{DynamicResource Brush.Muted}" FontSize="10.5" Margin="0,8,0,0"
+                       Visibility="{Binding RunInfo, Converter={StaticResource HasValue}}" />
+            <StackPanel Margin="0,6,0,0" Visibility="{Binding ResultText, Converter={StaticResource HasValue}}">
+              <TextBox Text="{Binding ResultText, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="240"
+                       VerticalScrollBarVisibility="Auto" FontFamily="Cascadia Mono, Consolas" FontSize="10.5" Padding="6,5"
+                       Background="{DynamicResource Brush.Surface}" Foreground="{DynamicResource Brush.Text}"
+                       BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="1" />
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
+                <Button Style="{StaticResource Small}" Content="Copy" Tag="{Binding ResultText}" Click="OnCopy" />
+                <Button Style="{StaticResource Small}" Content="Open in Claude" Tag="{Binding Key}" Click="OnOpenInClaude"
+                        Visibility="{Binding CanOpenInClaude, Converter={StaticResource HasValue}}" />
+              </StackPanel>
+            </StackPanel>
+
+            <!-- Confirm / sending / done / failed -->
+            <Border Margin="0,10,0,0" Padding="10" CornerRadius="6" BorderThickness="1"
+                    Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Hairline}">
+              <Border.Style>
+                <Style TargetType="Border">
+                  <Setter Property="Visibility" Value="Visible" />
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding Mode}" Value="Expanded"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </Border.Style>
+              <StackPanel>
+                <TextBlock x:Name="StatementText" Text="{Binding Statement}" FontWeight="Bold" FontSize="12" TextWrapping="Wrap"
+                           Visibility="{Binding Statement, Converter={StaticResource HasValue}}" />
+                <Border Background="{DynamicResource Brush.Amber}" CornerRadius="10" Padding="9,2,9,3" Margin="0,6,0,0"
+                        HorizontalAlignment="Left" Visibility="{Binding Warning, Converter={StaticResource HasValue}}">
+                  <TextBlock Text="{Binding Warning}" Foreground="#000C1A" FontSize="11" FontWeight="Medium" />
+                </Border>
+                <!-- Merge method picker and Delete branch (built in code from the preview options). -->
+                <StackPanel x:Name="MergePanel" Tag="{Binding Key}" Margin="0,8,0,0" Loaded="OnMergePanelLoaded"
+                            Visibility="{Binding Options, Converter={StaticResource HasValue}}" />
+                <Grid Margin="0,8,0,0">
+                  <Grid.Style>
+                    <Style TargetType="Grid">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding Mode}" Value="Confirming"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                        <DataTrigger Binding="{Binding Mode}" Value="Sending"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                        <DataTrigger Binding="{Binding ConfirmLabel}" Value=""><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                        <DataTrigger Binding="{Binding ConfirmLabel}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                        <!-- Merge and re-run take no comment. -->
+                        <DataTrigger Binding="{Binding ActiveAction}" Value="Merge"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                        <DataTrigger Binding="{Binding ActiveAction}" Value="RerunFailed"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Grid.Style>
+                  <TextBox x:Name="CommentBox" Tag="{Binding Key}" FontSize="11.5" Padding="6,4" MaxLength="2000"
+                           Background="{DynamicResource Brush.Raised}" Foreground="{DynamicResource Brush.Text}"
+                           CaretBrush="{DynamicResource Brush.Text}" BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="1"
+                           Loaded="OnCommentLoaded" TextChanged="OnCommentChanged">
+                    <TextBox.Style>
+                      <Style TargetType="TextBox">
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding Mode}" Value="Sending"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </TextBox.Style>
+                  </TextBox>
+                  <TextBlock Text="Comment (optional)" Margin="9,0,0,0" VerticalAlignment="Center" FontSize="11.5" IsHitTestVisible="False"
+                             Foreground="{DynamicResource Brush.Muted}">
+                    <TextBlock.Style>
+                      <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding Text.Length, ElementName=CommentBox}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </TextBlock.Style>
+                  </TextBlock>
+                </Grid>
+                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="11.5" Margin="0,6,0,0"
+                           Visibility="{Binding Message, Converter={StaticResource HasValue}}">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Setter Property="Foreground" Value="{DynamicResource Brush.Muted}" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding Mode}" Value="Failed"><Setter Property="Foreground" Value="{DynamicResource Brush.Red}" /></DataTrigger>
+                        <DataTrigger Binding="{Binding Mode}" Value="Done">
+                          <Setter Property="Foreground" Value="{DynamicResource Brush.ReadyText}" />
+                          <Setter Property="FontWeight" Value="Bold" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                  <Button Style="{StaticResource Small}" Content="Open in browser" Tag="{Binding Url}" Click="OnOpenInBrowser"
+                          Visibility="{Binding Refused, Converter={StaticResource HasValue}}" />
+                  <Button Tag="{Binding Key}" Click="OnCancel">
+                    <Button.Style>
+                      <Style TargetType="Button" BasedOn="{StaticResource Small}">
+                        <Setter Property="Content" Value="Cancel" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding Mode}" Value="Sending"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                          <DataTrigger Binding="{Binding Mode}" Value="Done"><Setter Property="Content" Value="Close" /></DataTrigger>
+                          <DataTrigger Binding="{Binding Mode}" Value="Failed"><Setter Property="Content" Value="Close" /></DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Button.Style>
+                  </Button>
+                  <Button Content="{Binding ConfirmLabel}" Tag="{Binding Key}" Click="OnConfirm" IsEnabled="{Binding ConfirmEnabled}"
+                          MouseEnter="OnConfirmMouseEnter" MouseMove="OnConfirmMouseMove" MouseLeave="OnConfirmMouseLeave"
+                          IsEnabledChanged="OnConfirmEnabledChanged" PreviewMouseLeftButtonDown="OnConfirmPreviewMouseDown">
+                    <Button.Style>
+                      <Style TargetType="Button" BasedOn="{StaticResource SmallPrimary}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding Mode}" Value="Confirming"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                          <DataTrigger Binding="{Binding Mode}" Value="Sending"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                          <DataTrigger Binding="{Binding ConfirmLabel}" Value=""><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                          <DataTrigger Binding="{Binding ConfirmLabel}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Button.Style>
+                  </Button>
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      </Grid>
+    </DataTemplate>
+  </Window.Resources>
+
+  <!-- Frame: what the preview renderer captures (includes the shadow margin). -->
+  <Grid x:Name="Frame">
+    <Border Margin="8" CornerRadius="12" Background="{DynamicResource Brush.Surface}">
+      <Border.Effect><DropShadowEffect BlurRadius="18" Opacity="0.35" ShadowDepth="3" Direction="270" /></Border.Effect>
+    </Border>
+    <Border x:Name="Outer" Margin="8" CornerRadius="12" Background="{DynamicResource Brush.Surface}">
+      <Grid x:Name="Body" SizeChanged="OnBodySizeChanged">
+        <DockPanel>
+          <!-- Header -->
+          <Grid x:Name="Header" DockPanel.Dock="Top" Background="{DynamicResource Brush.Header}" ClipToBounds="True">
+            <Canvas Width="0" Height="0" HorizontalAlignment="Right" VerticalAlignment="Top">
+              <Ellipse Canvas.Left="-160" Canvas.Top="-110" Width="230" Height="230" Fill="{DynamicResource Brush.Red}" />
+            </Canvas>
+            <Button x:Name="SearchButton" Style="{StaticResource Style.IconButton}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,10,14,0" Foreground="White" FontFamily="Segoe UI Emoji" FontSize="13" Content="🔍" ToolTip="Search (/ or Ctrl+F)"
+                    Click="OnSearchButton" />
+            <StackPanel Margin="18,14,18,14">
+              <TextBlock Text="G H _ N O T I F Y" FontSize="10.5" FontWeight="Medium" Foreground="{DynamicResource Brush.Eyebrow}" />
+              <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                <TextBlock x:Name="CountText" FontFamily="{StaticResource Font.Heavy}" FontWeight="Black" FontSize="26"
+                           Foreground="{DynamicResource Brush.Count}" VerticalAlignment="Bottom" Margin="0,0,9,0" />
+                <TextBlock Text="Waiting on you" FontFamily="{StaticResource Font.Heavy}" FontWeight="Black" FontSize="17"
+                           VerticalAlignment="Bottom" Margin="0,0,0,5" />
+              </StackPanel>
+            </StackPanel>
+          </Grid>
+
+          <!-- Search: hidden until / , Ctrl+F or the header button. -->
+          <Border x:Name="SearchBar" DockPanel.Dock="Top" Visibility="Collapsed" Padding="14,8,14,2" Background="{DynamicResource Brush.Surface}">
+            <Grid>
+              <TextBox x:Name="SearchBox" FontSize="12" Padding="8,5" MaxLength="200" TextChanged="OnSearchChanged"
+                       Background="{DynamicResource Brush.Raised}" Foreground="{DynamicResource Brush.Text}"
+                       CaretBrush="{DynamicResource Brush.Text}" BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="1" />
+              <TextBlock Text="Search repo, title, author or #number" Margin="11,0,0,0" VerticalAlignment="Center" FontSize="12" IsHitTestVisible="False"
+                         Foreground="{DynamicResource Brush.Muted}">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding Text.Length, ElementName=SearchBox}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+            </Grid>
+          </Border>
+
+          <!-- Footer -->
+          <StackPanel DockPanel.Dock="Bottom">
+            <TextBlock x:Name="NoticeText" Foreground="{DynamicResource Brush.Muted}" FontSize="11" TextWrapping="Wrap"
+                       Margin="18,6,18,0" Visibility="Collapsed" />
+            <TextBlock x:Name="ConfigErrorText" Foreground="{DynamicResource Brush.Red}" FontSize="11" TextWrapping="Wrap"
+                       Margin="18,6,18,4" Visibility="Collapsed" />
+            <Border BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="0,1,0,0" Padding="18,6,10,8">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                  <Button Style="{StaticResource Style.IconButton}" FontFamily="Segoe UI Symbol" FontSize="14" Content="↻"
+                          ToolTip="Refresh" Click="OnRefresh" />
+                  <Button x:Name="ThemeButton" Style="{StaticResource Style.IconButton}" FontFamily="Segoe UI Symbol" FontSize="13"
+                          Content="☾" Click="OnCycleTheme" />
+                  <Button Style="{StaticResource Style.IconButton}" FontFamily="Segoe UI Symbol" FontSize="14" Content="⋯"
+                          ToolTip="Menu" Click="OnMenu" />
+                </StackPanel>
+                <TextBlock x:Name="FooterText" Foreground="{DynamicResource Brush.Muted}" FontSize="11" VerticalAlignment="Center"
+                           TextWrapping="Wrap" />
+              </DockPanel>
+            </Border>
+          </StackPanel>
+
+          <!-- Inbox -->
+          <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,6,0,8">
+              <TextBlock x:Name="NoMatchesText" Text="No matches" Foreground="{DynamicResource Brush.Muted}" FontSize="12.5"
+                         HorizontalAlignment="Center" Margin="16,36" Visibility="Collapsed" />
+              <!-- Where the batch panel sits when the Approvals section is not on screen (e.g. every item was approved). -->
+              <Border x:Name="BatchFallbackSlot" />
+              <StackPanel x:Name="EmptyState" Margin="16,36" HorizontalAlignment="Center" Visibility="Collapsed">
+                <Path Style="{StaticResource Style.EBars}" HorizontalAlignment="Center" Width="28" Height="20" Stretch="Uniform" StrokeThickness="3" />
+                <TextBlock Text="Nothing waiting on you." Foreground="{DynamicResource Brush.Muted}" FontSize="12.5" Margin="0,10,0,0" />
+              </StackPanel>
+              <ItemsControl x:Name="Sections">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type core:InboxSection}">
+                    <StackPanel Margin="0,0,0,4">
+                      <DockPanel Margin="0,10,18,4" LastChildFill="False"><DockPanel.Style><Style TargetType="DockPanel"><Style.Triggers><DataTrigger Binding="{Binding Collapsible}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></DockPanel.Style>
+                      <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Margin="18,0,0,0">
+                        <StackPanel.Style>
+                          <Style TargetType="StackPanel">
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding Collapsible}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </StackPanel.Style>
+                        <Path Style="{StaticResource Style.EBars}" />
+                        <TextBlock Text="{Binding Title, Converter={StaticResource Upper}}" Style="{StaticResource Style.SectionLabel}"
+                                   FontSize="10.5" Margin="7,0,0,0" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Visibility="{Binding BatchButtons, Converter={StaticResource HasValue}}">
+                        <Button Style="{StaticResource Small}" Content="Approve all…" Click="OnBatchApprove" />
+                        <Button Style="{StaticResource Small}" Content="Reject all…" Click="OnBatchReject" />
+                      </StackPanel>
+                      </DockPanel>
+                      <!-- The batch panel is moved in here from code when this is the Approvals section. -->
+                      <Border Tag="{Binding Id}" Loaded="OnBatchSlotLoaded" />
+                      <!-- Collapsible sections ("waiting", "snoozed"): the header toggles the section. -->
+                      <Button Tag="{Binding Id}" Click="OnToggleSection" Margin="18,10,18,4" HorizontalAlignment="Left" Cursor="Hand"
+                              Visibility="{Binding Collapsible, Converter={StaticResource HasValue}}">
+                        <Button.Template>
+                          <ControlTemplate TargetType="Button">
+                            <Border Background="Transparent"><ContentPresenter /></Border>
+                          </ControlTemplate>
+                        </Button.Template>
+                        <StackPanel Orientation="Horizontal">
+                          <Path Style="{StaticResource Style.EBars}" />
+                          <TextBlock Style="{StaticResource Style.SectionLabel}" FontSize="10.5" Margin="7,0,0,0" VerticalAlignment="Center">
+                            <Run Text="{Binding Title, Converter={StaticResource Upper}, Mode=OneWay}" /><Run Text=" (" /><Run Text="{Binding Count, Mode=OneWay}" /><Run Text=")" />
+                          </TextBlock>
+                          <TextBlock FontFamily="Segoe UI Symbol" FontSize="12" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                              <Style TargetType="TextBlock" BasedOn="{StaticResource Style.SectionLabel}">
+                                <Setter Property="Text" Value="›" />
+                                <Setter Property="Margin" Value="6,0,0,0" />
+                                <Style.Triggers>
+                                  <!-- ⌄ sits low in its em box; lift it level with the label. -->
+                                  <DataTrigger Binding="{Binding Expanded}" Value="True">
+                                    <Setter Property="Text" Value="⌄" />
+                                    <Setter Property="Margin" Value="6,-7,0,0" />
+                                  </DataTrigger>
+                                </Style.Triggers>
+                              </Style>
+                            </TextBlock.Style>
+                          </TextBlock>
+                        </StackPanel>
+                      </Button>
+                      <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource RowTemplate}" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </ScrollViewer>
+        </DockPanel>
+        <!-- Light theme: red strip down the left edge (transparent in dark). -->
+        <Rectangle Width="5" HorizontalAlignment="Left" Fill="{DynamicResource Brush.EdgeStrip}" IsHitTestVisible="False" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

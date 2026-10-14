@@ -1,7 +1,7 @@
-using GhNotify.App;
+using GhNotify.UI;
 using GhNotify.Core;
 
-namespace GhNotify.App.Tests;
+namespace GhNotify.UI.Tests;
 
 public class ActionFlowTests
 {
@@ -103,14 +103,14 @@ public class ActionFlowTests
 
 public class ConfirmPointerGuardTests
 {
-    static readonly System.Windows.Point A = new(100, 200), B = new(103, 201);
+    static readonly ScreenPoint A = new(100, 200), B = new(103, 201);
 
     [Fact]
     public void Entered_while_enabled_then_moved_arms()
     {
         var g = new ConfirmPointerGuard();
         g.Entered(A, enabled: true);
-        Assert.False(g.IsArmed); // an enter with no movement may be WPF re-syncing under a still cursor
+        Assert.False(g.IsArmed); // an enter with no movement may be the UI re-syncing under a still cursor
         g.Moved(B, enabled: true);
         Assert.True(g.IsArmed);
     }
@@ -131,9 +131,9 @@ public class ConfirmPointerGuardTests
     {
         var g = new ConfirmPointerGuard();
         g.Entered(A, enabled: true);
-        g.Moved(new System.Windows.Point(101, 201), enabled: true); // 1 px each way (hand jitter during a double-click)
+        g.Moved(new ScreenPoint(101, 201), enabled: true); // 1 px each way (hand jitter during a double-click)
         Assert.False(g.IsArmed);
-        g.Moved(new System.Windows.Point(102, 200), enabled: true); // 2 px from the entry point
+        g.Moved(new ScreenPoint(102, 200), enabled: true); // 2 px from the entry point
         Assert.True(g.IsArmed);
     }
 

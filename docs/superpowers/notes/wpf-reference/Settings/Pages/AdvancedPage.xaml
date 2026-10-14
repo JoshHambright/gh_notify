@@ -1,0 +1,29 @@
+<UserControl x:Class="GhNotify.App.AdvancedPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <StackPanel>
+    <ItemsControl x:Name="ErrorList" Foreground="{DynamicResource Brush.Red}" FontSize="12" Margin="0,0,0,8" />
+
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="FILES" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <WrapPanel Margin="0,0,0,12">
+      <Button Content="Open config.json" Style="{StaticResource Style.PillGhost}" Click="OnOpenConfig" Margin="0,0,8,8" />
+      <Button Content="Open logs folder" Style="{StaticResource Style.PillGhost}" Click="OnOpenLogs" Margin="0,0,8,8" />
+      <Button Content="Open data folder" Style="{StaticResource Style.PillGhost}" Click="OnOpenData" Margin="0,0,8,8" />
+    </WrapPanel>
+    <DockPanel Margin="0,0,0,22">
+      <TextBlock Text="Config file" Style="{StaticResource Style.FieldLabel}" />
+      <TextBox x:Name="ConfigPathBox" IsReadOnly="True" BorderThickness="0" Padding="0,4" />
+    </DockPanel>
+
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="RESET" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <TextBlock Text="Puts every setting back to its default. Nothing changes on disk until you Save; Cancel undoes it."
+               Foreground="{DynamicResource Brush.Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,10" />
+    <Button x:Name="ResetButton" Content="Reset to defaults…" Style="{StaticResource Style.PillGhost}" HorizontalAlignment="Left" Click="OnReset" />
+  </StackPanel>
+</UserControl>

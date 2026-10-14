@@ -1,23 +1,21 @@
-using System.Windows.Media.Imaging;
+using GhNotify.UI;
+using SkiaSharp;
 
-namespace GhNotify.App;
+namespace GhNotify.Platform.Windows;
 
 public static class IcoWriter
 {
-    public static void Write(string path, params int[] sizes) =>
-        File.WriteAllBytes(path, Build(sizes.Select(s => TrayIconRenderer.RenderAccent(s)).ToArray()));
+    public static void Write(string path, params int[] sizes)
+    {
+        var frames = sizes.Select(TrayIconRenderer.RenderAccent).ToArray();
+        try { File.WriteAllBytes(path, Build(frames)); }
+        finally { foreach (var f in frames) f.Dispose(); }
+    }
 
     /// <summary>Packs PNG-encoded frames into an .ico (Vista+ PNG entries).</summary>
-    public static byte[] Build(params BitmapSource[] frames)
+    public static byte[] Build(params SKBitmap[] frames)
     {
-        var blobs = frames.Select(f =>
-        {
-            var enc = new PngBitmapEncoder();
-            enc.Frames.Add(BitmapFrame.Create(f));
-            using var ms = new MemoryStream();
-            enc.Save(ms);
-            return ms.ToArray();
-        }).ToArray();
+        var blobs = frames.Select(TrayIconRenderer.ToPng).ToArray();
 
         using var output = new MemoryStream();
         using var w = new BinaryWriter(output);
@@ -27,7 +25,7 @@ public static class IcoWriter
         var offset = 6 + 16 * frames.Length;
         for (var i = 0; i < frames.Length; i++)
         {
-            var size = frames[i].PixelWidth;
+            var size = frames[i].Width;
             w.Write((byte)(size >= 256 ? 0 : size));
             w.Write((byte)(size >= 256 ? 0 : size));
             w.Write((byte)0);   // palette

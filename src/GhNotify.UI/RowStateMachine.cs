@@ -1,6 +1,6 @@
 using GhNotify.Core;
 
-namespace GhNotify.App;
+namespace GhNotify.UI;
 
 /// <summary>Pure row-state transitions for expand / two-step confirm, used by AppController.</summary>
 public static class RowStateMachine

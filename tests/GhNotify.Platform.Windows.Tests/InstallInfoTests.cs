@@ -1,6 +1,6 @@
-using GhNotify.App;
+using GhNotify.Platform.Windows;
 
-namespace GhNotify.App.Tests;
+namespace GhNotify.Platform.Windows.Tests;
 
 public class InstallInfoTests
 {

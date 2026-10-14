@@ -1,13 +1,11 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
-using System.Windows;
 using GhNotify.Ado;
 using GhNotify.Agents;
 using GhNotify.Core;
 using GhNotify.GitHub;
 using ThemeMode = GhNotify.Core.ThemeMode;
 
-namespace GhNotify.App;
+namespace GhNotify.UI;
 
 public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
 {
@@ -18,7 +16,9 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     readonly RepoLocator _repos;
     readonly AgentCoordinator _agents;
     readonly HookDispatcher _hooks;
-    readonly ToastPresenter _toasts = new();
+    readonly INotifier _toasts;
+    readonly PlatformServices _platform;
+    readonly AppRuntime _runtime;
     readonly IClaudeLauncher _launcher;
     readonly CancellationTokenSource _cts = new();
     readonly object _saveGate = new();
@@ -62,12 +62,15 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     public RestartDecision RestartToUpdate(bool confirmed)
     {
         var d = _updates?.RequestRestart(RunningAgents, confirmed) ?? RestartDecision.NothingToApply;
-        if (d == RestartDecision.Restarting) Application.Current.Shutdown();
+        if (d == RestartDecision.Restarting) _runtime.Quit();
         return d;
     }
 
-    public AppController(ConfigStore config, StateStore stateStore)
+    public AppController(ConfigStore config, StateStore stateStore, PlatformServices platform, AppRuntime runtime)
     {
+        _platform = platform;
+        _runtime = runtime;
+        _toasts = platform.Notifier;
         _config = config;
         _stateStore = stateStore;
         var state = stateStore.Load();
@@ -104,15 +107,15 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
 
         _repos = new RepoLocator(() => _config.Current.RepoRoots);
         _claudeAvailable = CommandResolver.Find("claude") is not null;
-        var deps = new AgentDeps(_repos, new WorktreeManager(runner, AppPaths.Worktrees), new ClaudeRunner(runner),
+        var deps = new AgentDeps(_repos, new WorktreeManager(runner, runtime.Dirs.Worktrees), new ClaudeRunner(runner),
             new SkillLocator(SkillLocator.DefaultClaudeHome), () => _claudeAvailable, new CommandRunner(runner));
-        _agents = new AgentCoordinator(deps, () => _config.Current, AppPaths.Scratch, restored: state.AgentRuns);
+        _agents = new AgentCoordinator(deps, () => _config.Current, runtime.Dirs.Scratch, restored: state.AgentRuns);
         foreach (var r in state.AgentRuns)
             if (r.FinishedAt is { } f) _announced[r.Key] = f; // don't re-announce runs finished before a restart
         _agents.RunChanged += OnRunChanged;
         _agents.RunRemoved += _ => { Save(); Changed?.Invoke(); };
         _hooks = new HookDispatcher(runner, () => _config.Current);
-        _launcher = new ClaudeLauncher(runner);
+        _launcher = new ClaudeLauncher(platform.Shell.OpenTerminal);
     }
 
     public DateTimeOffset? LastPolledAt => _poller.LastPolledAt;
@@ -188,7 +191,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         var view = CurrentView();
         var plan = NotificationPlanner.Plan(diff, woken, view, cfg, WorkHours.IsWithin(cfg.WorkHours, DateTime.Now));
         foreach (var t in plan.Toasts) _toasts.Apply(t);
-        if (plan.Sound is { } sound) Application.Current?.Dispatcher.InvokeAsync(() => SoundPlayerService.PlayOrDefault(sound));
+        if (plan.Sound is { } sound) _runtime.Dispatcher.Post(() => _platform.Sound.Play(sound));
         foreach (var i in diff.InitialLoad) { _agents.OnItemAdded(i); MaybeAutoRun(i, cfg, view); }
         foreach (var i in diff.Added) { _agents.OnItemAdded(i); _ = _hooks.DispatchAsync(HookEvent.ItemAdded, i); MaybeAutoRun(i, cfg, view); }
         foreach (var c in diff.Changed) { _agents.OnItemChanged(c); _ = _hooks.DispatchAsync(HookEvent.ItemChanged, c.New); }
@@ -470,13 +473,13 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
 
     public void OpenConfig() => OpenPath(ConfigPath);
 
-    public void OpenLogs() => OpenPath(AppPaths.Logs);
+    public void OpenLogs() => OpenPath(_runtime.Dirs.Logs);
 
-    public void Quit() => Application.Current?.Shutdown();
+    public void Quit() => _runtime.Quit();
 
     public void CopyText(string text)
     {
-        try { Clipboard.SetText(text); }
+        try { _runtime.CopyText(text); }
         catch (Exception ex) { Log.Error("could not copy to clipboard", ex); }
     }
 
@@ -599,19 +602,19 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
             Log.Error($"refusing to open non-https item URL: {url}");
             return;
         }
-        ShellOpen(url);
+        ShellOpen(() => _platform.Shell.OpenUrl(url), url);
     }
 
     /// <summary>Opens one of our own local paths (config file, logs folder).</summary>
-    public void OpenPath(string path) => ShellOpen(path);
+    public void OpenPath(string path) => ShellOpen(() => _platform.Shell.OpenFolder(path), path);
 
     public void OpenSettings() => SettingsRequested?.Invoke();
 
     // ----- ISettingsHost -----
 
     public AppConfig CurrentConfig => _config.Current;
-    public string LogsPath => AppPaths.Logs;
-    public string DataPath => AppPaths.DataDir;
+    public string LogsPath => _runtime.Dirs.Logs;
+    public string DataPath => _runtime.Dirs.DataDir;
     public string? ConfigFileHash() => _config.LoadedHash;
 
     /// <summary>Settings only lifts timed mutes; permanent ones are edited in the draft's filters.mute and saved with it.</summary>
@@ -654,8 +657,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
 
     public bool StartWithWindows
     {
-        get => StartupRegistration.IsEnabled();
-        set => StartupRegistration.Set(value);
+        get => _platform.Startup.IsEnabled;
+        set => _platform.Startup.SetEnabled(value);
     }
 
     public void SetThemeMode(ThemeMode mode)
@@ -667,6 +670,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         Changed?.Invoke();
     }
 
+    public void PlaySound(string sound) => _platform.Sound.Play(sound);
+
     public bool CommentsWarningShown
     {
         get => _commentsWarningShown;
@@ -677,9 +682,9 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         }
     }
 
-    static void ShellOpen(string target)
+    static void ShellOpen(Action open, string target)
     {
-        try { Process.Start(new ProcessStartInfo(target) { UseShellExecute = true })?.Dispose(); }
+        try { open(); }
         catch (Exception ex) { Log.Error($"could not open {target}", ex); }
     }
 

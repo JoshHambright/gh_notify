@@ -1,0 +1,9 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="GhNotify.UI.App"
+             RequestedThemeVariant="Dark">
+  <Application.Styles>
+    <FluentTheme />
+    <!-- The popup and settings tasks add their token and control styles here (ported from Themes/Common.xaml). -->
+  </Application.Styles>
+</Application>

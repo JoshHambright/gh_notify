@@ -1,6 +1,6 @@
 using GhNotify.Core;
 
-namespace GhNotify.App;
+namespace GhNotify.UI;
 
 public enum BatchPhase { Idle, Previewing, Ready, Running, Done }
 

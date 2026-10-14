@@ -1,6 +1,6 @@
 using GhNotify.Core;
 
-namespace GhNotify.App.Tests;
+namespace GhNotify.UI.Tests;
 
 public class BatchCoordinatorTests
 {

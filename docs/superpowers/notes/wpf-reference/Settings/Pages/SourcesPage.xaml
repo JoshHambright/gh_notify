@@ -1,0 +1,135 @@
+<UserControl x:Class="GhNotify.App.SourcesPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:GhNotify.App">
+  <UserControl.Resources>
+    <local:EmptyToNullConverter x:Key="EmptyToNull" />
+    <local:HasValueToVisibilityConverter x:Key="HasValue" />
+    <Style x:Key="Remove" TargetType="Button" BasedOn="{StaticResource Style.IconButton}">
+      <Setter Property="Content" Value="✕" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Width" Value="22" />
+      <Setter Property="Height" Value="22" />
+      <Setter Property="ToolTip" Value="Remove" />
+    </Style>
+  </UserControl.Resources>
+  <StackPanel>
+    <ItemsControl x:Name="ErrorList" Foreground="{DynamicResource Brush.Red}" FontSize="12" Margin="0,0,0,8" />
+
+    <!-- GitHub -->
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="GITHUB" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+      <CheckBox Content="Enabled" IsChecked="{Binding GitHub.Enabled}" Checked="OnEdited" Unchecked="OnEdited" Margin="0,0,24,0" />
+      <CheckBox Content="Include draft PRs" IsChecked="{Binding GitHub.IncludeDrafts}" Checked="OnEdited" Unchecked="OnEdited" />
+    </StackPanel>
+    <DockPanel Margin="0,0,0,22">
+      <TextBlock Text="Watch repos" Style="{StaticResource Style.FieldLabel}" VerticalAlignment="Top" Margin="0,4,0,0" />
+      <StackPanel>
+        <ItemsControl x:Name="WatchRepos">
+          <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border Style="{StaticResource Style.ChipBorder}">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+                  <Button Style="{StaticResource Remove}" Tag="{Binding}" Click="OnRemoveWatchRepo" Margin="4,0,0,0" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBox x:Name="WatchRepoBox" Width="260" HorizontalAlignment="Left" Tag="owner/repo — Enter to add" KeyDown="OnWatchRepoKey" />
+      </StackPanel>
+    </DockPanel>
+
+    <!-- Azure DevOps -->
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="AZURE DEVOPS" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+      <CheckBox Content="Enabled" IsChecked="{Binding Ado.Enabled}" Checked="OnEdited" Unchecked="OnEdited" Margin="0,0,24,0" />
+      <CheckBox Content="Include draft PRs" IsChecked="{Binding Ado.IncludeDrafts}" Checked="OnEdited" Unchecked="OnEdited" Margin="0,0,24,0" />
+      <CheckBox Content="Discover orgs" IsChecked="{Binding Ado.DiscoverOrgs}" Checked="OnEdited" Unchecked="OnEdited" />
+    </StackPanel>
+    <DockPanel Margin="0,0,0,10">
+      <TextBlock Text="Organizations" Style="{StaticResource Style.FieldLabel}" VerticalAlignment="Top" Margin="0,2,0,0" />
+      <StackPanel>
+        <ItemsControl x:Name="Orgs">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type local:OrgRow}">
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                <CheckBox Content="{Binding Name}" IsChecked="{Binding Included}" />
+                <Button Style="{StaticResource Remove}" Tag="{Binding Name}" Click="OnRemoveOrg" Margin="6,0,0,0"
+                        Visibility="{Binding IsManual, Converter={StaticResource HasValue}}" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock x:Name="NoOrgs" Text="No orgs discovered yet." Foreground="{DynamicResource Brush.Muted}" FontSize="12" Margin="0,0,0,6" />
+        <TextBox x:Name="OrgBox" Width="260" HorizontalAlignment="Left" Tag="Add org — Enter to add" KeyDown="OnOrgKey" />
+      </StackPanel>
+    </DockPanel>
+    <DockPanel Margin="0,0,0,10">
+      <TextBlock Text="az subscription" Style="{StaticResource Style.FieldLabel}" />
+      <TextBox Width="300" HorizontalAlignment="Left" Tag="default"
+               Text="{Binding Ado.AzSubscription, Converter={StaticResource EmptyToNull}, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
+    </DockPanel>
+    <DockPanel Margin="0,0,0,10">
+      <TextBlock Text="az tenant" Style="{StaticResource Style.FieldLabel}" />
+      <TextBox Width="300" HorizontalAlignment="Left" Tag="default"
+               Text="{Binding Ado.AzTenant, Converter={StaticResource EmptyToNull}, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
+    </DockPanel>
+    <StackPanel Orientation="Horizontal" Margin="180,0,0,22">
+      <Button x:Name="TestSignInButton" Content="Test ADO sign-in" Style="{StaticResource Style.PillGhost}" Click="OnTestSignIn" />
+      <TextBlock x:Name="SignInResult" VerticalAlignment="Center" Margin="12,0,0,0" FontSize="12" TextWrapping="Wrap" MaxWidth="320" />
+    </StackPanel>
+
+    <!-- Repo roots -->
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="REPO ROOTS" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <ItemsControl x:Name="RepoRoots">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="{x:Type local:StringListRow}">
+          <DockPanel Margin="0,0,0,8">
+            <Button DockPanel.Dock="Right" Style="{StaticResource Remove}" Tag="{Binding Index}" Click="OnRemoveRoot" Margin="6,0,0,0" />
+            <Button DockPanel.Dock="Right" Content="Browse…" Style="{StaticResource Style.PillGhost}" Tag="{Binding Index}" Click="OnBrowseRoot" Margin="8,0,0,0" />
+            <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Tag="C:\path\to\repos" />
+          </DockPanel>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <Button Content="+ Add repo root" Style="{StaticResource Style.LinkButton}" Click="OnAddRoot" Margin="0,2,0,22" />
+
+    <!-- Display -->
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="DISPLAY" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <TextBlock Text="Repo aliases — a prefix (org or org/project) and the short name shown instead." Foreground="{DynamicResource Brush.Muted}"
+               FontSize="12" Margin="0,0,0,8" TextWrapping="Wrap" />
+    <ItemsControl x:Name="Aliases">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="{x:Type local:AliasRow}">
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBox Width="260" Text="{Binding Prefix, UpdateSourceTrigger=PropertyChanged}" Tag="org/project" />
+            <TextBlock Text="→" Foreground="{DynamicResource Brush.Muted}" VerticalAlignment="Center" Margin="10,0" />
+            <TextBox Width="160" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Tag="short name" />
+            <Button Style="{StaticResource Remove}" Tag="{Binding}" Click="OnRemoveAlias" Margin="6,0,0,0" />
+          </StackPanel>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <Button Content="+ Add alias" Style="{StaticResource Style.LinkButton}" Click="OnAddAlias" Margin="0,2,0,14" />
+    <DockPanel>
+      <TextBlock Text="Max repo name length" Style="{StaticResource Style.FieldLabel}" />
+      <TextBox x:Name="MaxRepoCharsBox" Width="56" Text="{Binding Display.MaxRepoChars, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
+      <TextBlock Text="characters" Foreground="{DynamicResource Brush.Muted}" VerticalAlignment="Center" Margin="8,0,0,0" />
+    </DockPanel>
+  </StackPanel>
+</UserControl>

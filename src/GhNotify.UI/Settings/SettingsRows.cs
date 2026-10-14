@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using GhNotify.Core;
 
-namespace GhNotify.App;
+namespace GhNotify.UI;
 
 // Binding glue for the settings pages: thin row objects that read and write straight through to the draft's config POCOs.
 // They exist where a POCO can't be bound directly — list entries that are plain strings, dictionary entries, a nullable
@@ -244,14 +244,4 @@ public sealed record ProfileChip(string Name, bool BuiltIn, bool? SkillInstalled
         false => "Skill not installed — runs are disabled",
         _ => BuiltIn ? "Built-in (read-only)" : null,
     };
-}
-
-/// <summary>Number boxes bound straight to int properties: text that isn't a whole number never reaches the config, so it is reported here.</summary>
-public static class NumberInput
-{
-    public static IEnumerable<SettingsError> Errors(SettingsPage page, params (System.Windows.Controls.TextBox Box, string Field, string Label)[] boxes) =>
-        // Only live bindings: a box whose binding isn't attached yet (window not shown) has no text to judge.
-        boxes.Where(b => b.Box.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty) is { Status: System.Windows.Data.BindingStatus.Active or System.Windows.Data.BindingStatus.UpdateSourceError }
-                         && !int.TryParse(b.Box.Text.Trim(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.CurrentCulture, out _))
-            .Select(b => new SettingsError(page, b.Field, $"{b.Label}: enter a whole number"));
 }
