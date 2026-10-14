@@ -42,6 +42,22 @@ public sealed class AppController : IPopupHost, IDisposable
     /// <summary>Raised (on the caller's thread) after <see cref="CycleTheme"/> changes the persisted mode.</summary>
     public event Action? ThemeModeChanged;
 
+    UpdateService? _updates;
+    public AppConfig Config => _config.Current;
+    /// <summary>Attaches the background update service (created after the controller because it reads <see cref="Config"/>).</summary>
+    public void AttachUpdates(UpdateService updates) => _updates = updates;
+    public void RaiseChanged() => Changed?.Invoke();
+    public UpdateStatus Update => _updates?.Status ?? new UpdateStatus(UpdatePhase.Off, null, null, null, null);
+    public int RunningAgents => _agents.Runs.Values.Count(r => r.State is AgentState.Running or AgentState.Queued);
+    public Task CheckForUpdatesAsync() => _updates?.CheckNowAsync(_cts.Token) ?? Task.CompletedTask;
+
+    public RestartDecision RestartToUpdate(bool confirmed)
+    {
+        var d = _updates?.RequestRestart(RunningAgents, confirmed) ?? RestartDecision.NothingToApply;
+        if (d == RestartDecision.Restarting) Application.Current.Shutdown();
+        return d;
+    }
+
     public AppController(ConfigStore config, StateStore stateStore)
     {
         _config = config;

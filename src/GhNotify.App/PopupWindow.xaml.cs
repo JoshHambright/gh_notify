@@ -18,6 +18,7 @@ public partial class PopupWindow : Window
     readonly Dictionary<string, ConfirmPointerGuard> _pointerGuards = new();
     string? _restoreFocusKey;
     IReadOnlyList<InboxSection>? _rendered;
+    bool _confirmingRestart;
 
     public PopupWindow(IPopupHost host)
     {
@@ -74,6 +75,39 @@ public partial class PopupWindow : Window
         var sources = _host.Sources();
         AddSource(inlines, "GitHub", sources.Where(s => s.Name == "GitHub").ToList());
         AddSource(inlines, "ADO", sources.Where(s => s.Name == "ADO" || s.Name.StartsWith("ADO:", StringComparison.Ordinal)).ToList());
+        AddUpdateLink(inlines);
+    }
+
+    void AddUpdateLink(InlineCollection inlines)
+    {
+        var status = _host.Update;
+        var agents = _host.RunningAgents;
+        if (status.Phase != UpdatePhase.Ready || agents == 0) _confirmingRestart = false;
+        if (UpdateUi.FooterLink(status) is not { } text) return;
+        inlines.Add(new Run(" · "));
+        if (!_confirmingRestart)
+        {
+            inlines.Add(UpdateLink(text, OnRestartClick));
+            return;
+        }
+        inlines.Add(new Run(UpdateUi.ConfirmPrompt(agents)));
+        inlines.Add(UpdateLink(UpdateUi.RestartAnyway, (_, _) => _host.RestartToUpdate(true)));
+        inlines.Add(new Run(" · "));
+        inlines.Add(UpdateLink(UpdateUi.Cancel, (_, _) => { _confirmingRestart = false; RenderFooter(); }));
+    }
+
+    static Hyperlink UpdateLink(string text, RoutedEventHandler click)
+    {
+        var link = new Hyperlink(new Run(text)) { TextDecorations = null, Cursor = Cursors.Hand };
+        link.SetResourceReference(TextElement.ForegroundProperty, "Brush.Red");
+        link.Click += click;
+        return link;
+    }
+
+    void OnRestartClick(object sender, RoutedEventArgs e)
+    {
+        if (_host.RestartToUpdate(false) == RestartDecision.NeedsConfirm) _confirmingRestart = true;
+        RenderFooter();
     }
 
     void AddSource(InlineCollection inlines, string label, IReadOnlyList<SourceStatus> group)
@@ -271,6 +305,19 @@ public partial class PopupWindow : Window
         logs.Click += (_, _) => _host.OpenLogs();
         var quit = new MenuItem { Header = "Quit" };
         quit.Click += (_, _) => _host.Quit();
+        menu.Items.Add(new MenuItem { Header = UpdateUi.VersionHeader(AppVersion.Current).Replace("_", "__"), IsEnabled = false });
+        var (checkHeader, checkEnabled, checkTip) = UpdateUi.CheckItem(_host.Update);
+        var check = new MenuItem { Header = checkHeader, IsEnabled = checkEnabled, ToolTip = checkTip };
+        ToolTipService.SetShowOnDisabled(check, true);
+        check.Click += (_, _) => _ = _host.CheckForUpdatesAsync();
+        menu.Items.Add(check);
+        if (UpdateUi.RestartItem(_host.Update) is { } restartHeader)
+        {
+            var restart = new MenuItem { Header = restartHeader };
+            restart.Click += OnRestartClick;
+            menu.Items.Add(restart);
+        }
+        menu.Items.Add(new Separator());
         menu.Items.Add(openConfig);
         menu.Items.Add(startup);
         menu.Items.Add(logs);
