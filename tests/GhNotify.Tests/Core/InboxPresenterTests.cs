@@ -258,4 +258,35 @@ public class InboxPresenterTests
     [InlineData("pr-shepherd", "Diagnose")]
     [InlineData("triage", "Run triage")]
     public void LabelFor_names_profiles(string profile, string label) => Assert.Equal(label, InboxPresenter.LabelFor(profile));
+
+    [Fact]
+    public void Number_is_hash_prefixed_when_set_and_null_otherwise()
+    {
+        Assert.Equal("#57", Row(It(ItemKind.ReviewRequested) with { Number = 57 }).Number);
+        Assert.Null(Row(It(ItemKind.ApprovalPending)).Number);
+    }
+
+    [Fact]
+    public void Details_get_one_PR_row_right_after_Repo()
+    {
+        var item = It(ItemKind.ReviewRequested) with
+        {
+            Number = 57,
+            Details = [new ItemDetail("Repo", "acme/api"), new ItemDetail("Author", "alice")],
+        };
+        Assert.Equal(["Repo", "PR", "Author"], Row(item).Details.Select(d => d.Label));
+        Assert.Equal("#57", Row(item).Details[1].Value);
+    }
+
+    [Fact]
+    public void Provider_supplied_PR_row_is_not_duplicated_and_no_number_adds_nothing()
+    {
+        var withPr = It(ItemKind.ReviewRequested) with
+        {
+            Number = 57,
+            Details = [new ItemDetail("Repo", "acme/api"), new ItemDetail("PR", "#57 (draft)")],
+        };
+        Assert.Single(Row(withPr).Details, d => d.Label == "PR");
+        Assert.DoesNotContain(Row(It(ItemKind.ApprovalPending)).Details, d => d.Label == "PR");
+    }
 }

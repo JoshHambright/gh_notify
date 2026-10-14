@@ -168,7 +168,7 @@
             </Border>
             <TextBlock Foreground="{DynamicResource Brush.Muted}" FontSize="10.5" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis" ToolTip="{Binding Repo}">
-              <Run Text="{Binding ProviderGlyph, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding RepoDisplay, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Age, Mode=OneWay}" /><InlineUIContainer BaselineAlignment="Center"><TextBlock Text="🔇" Margin="6,0,0,0"
+              <Run Text="{Binding ProviderGlyph, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding RepoDisplay, Mode=OneWay}" /><Run Text="{Binding Number, Mode=OneWay, StringFormat=' {0}', TargetNullValue=''}" /><Run Text=" · " /><Run Text="{Binding Age, Mode=OneWay}" /><InlineUIContainer BaselineAlignment="Center"><TextBlock Text="🔇" Margin="6,0,0,0"
                   Visibility="{Binding MutedBy, Converter={StaticResource HasValue}}"><TextBlock.ToolTip><ToolTip Content="{Binding MutedBy}" ContentStringFormat="Muted by {0}" /></TextBlock.ToolTip></TextBlock></InlineUIContainer><InlineUIContainer BaselineAlignment="Center"><TextBlock Margin="6,0,0,0" Visibility="{Binding SnoozeText, Converter={StaticResource HasValue}}"><Run Text="💤 " /><Run Text="{Binding SnoozeText, Mode=OneWay}" /></TextBlock></InlineUIContainer>
             </TextBlock>
           </DockPanel>
