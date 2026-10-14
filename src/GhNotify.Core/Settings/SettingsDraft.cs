@@ -63,7 +63,7 @@ public sealed class SettingsDraft
         var head = field.Split('.', '[')[0];
         return head switch
         {
-            "pollSeconds" or "workHours" or "updates" or "maxConcurrentAgents" or "agentTimeoutMinutes" => SettingsPage.General,
+            "pollSeconds" or "hotkey" or "actions" or "workHours" or "updates" or "maxConcurrentAgents" or "agentTimeoutMinutes" => SettingsPage.General,
             "github" or "ado" or "repoRoots" or "display" => SettingsPage.Sources,
             "notifications" => SettingsPage.Notifications,
             "filters" => SettingsPage.Filters,

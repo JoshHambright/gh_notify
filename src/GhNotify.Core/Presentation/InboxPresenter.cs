@@ -12,6 +12,7 @@ public sealed record InboxRow(
     public string? MutedBy { get; init; }
     public string? SnoozeText { get; init; }
     public string? Number { get; init; }
+    public string? Author { get; init; }
 }
 
 public enum RowMode { Collapsed, Expanded, Confirming, Sending, Done, Failed }
@@ -145,7 +146,7 @@ public static class InboxPresenter
             run is null ? null : RunInfo(run), run?.ResultText,
             actions, mode, preview?.Statement, preview?.ConfirmLabel, confirmEnabled, preview?.Warning, message,
             repoDisplay?.Invoke(i.Repo) ?? i.Repo)
-        { Number = i.Number is { } n ? $"#{n}" : null };
+        { Number = i.Number is { } n ? $"#{n}" : null, Author = i.Author };
     }
 
     static IReadOnlyList<ItemDetail> WithPr(InboxItem i)

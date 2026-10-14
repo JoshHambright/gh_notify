@@ -81,6 +81,10 @@ public static class ConfigValidator
             for (var i = 0; i < c.Notifications.Sounds.Count; i++)
                 if (SoundError(c.Notifications.Sounds[i].Sound) is { } msg) Add($"notifications.sounds[{i}].sound", msg);
 
+        if (NotNull(c.Hotkey, "hotkey") && c.Hotkey.Length > 0 && !HotkeyParser.TryParse(c.Hotkey, out _, out var hotkeyError))
+            Add("hotkey", $"hotkey '{c.Hotkey}': {hotkeyError}");
+        NotNull(c.Actions, "actions");
+
         if (NotNull(c.Filters, "filters"))
             foreach (var (list, name) in new[] { (c.Filters.Mute, "filters.mute"), (c.Filters.Hide, "filters.hide") })
                 if (Entries(list, name))
