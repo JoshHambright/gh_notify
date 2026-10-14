@@ -285,7 +285,8 @@ public partial class PopupWindow : Window
 
     void OnDeactivated(object? sender, EventArgs e)
     {
-        if (!IsVisible) return;
+        // A deactivation that arrives after the popup was hidden and shown again is stale (IsActive is already true again).
+        if (!IsVisible || IsActive) return;
         LastHiddenByDeactivateUtc = DateTime.UtcNow;
         _confirmTick.Stop();
         Hide();

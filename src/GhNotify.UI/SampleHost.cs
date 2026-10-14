@@ -27,11 +27,15 @@ public sealed class SampleHost : IPopupHost
     public HashSet<string> HiddenKeys { get; } = [];
     /// <summary>No active mutes (the footer menu shows "Nothing muted").</summary>
     public bool NoMutes { get; set; }
+    /// <summary>The GitHub source reports a problem (the footer shows a red ✗).</summary>
+    public bool GitHubFailing { get; set; }
+    /// <summary>What executing an item returns in a batch (succeeds when unset); tests use it to produce stale and failed lines.</summary>
+    public Func<InboxItem, ActionResult>? Outcome { get; set; }
     public ThemeMode ThemeMode { get; set; } = ThemeMode.System;
 
     public SampleHost()
     {
-        Batch = new BatchCoordinator(new SampleActions(), TimeSpan.FromSeconds(1), () => Clock());
+        Batch = new BatchCoordinator(new SampleActions(this), TimeSpan.FromSeconds(1), () => Clock());
         Batch.Changed += () => Changed?.Invoke();
         var approval = new InboxItem(ApprovalKey, Provider.Ado, ItemKind.ApprovalPending, "contoso/platform",
             "platform-release 20261013.4", "https://dev.azure.com/contoso/platform/_build/results?buildId=1042", "",
@@ -182,7 +186,7 @@ public sealed class SampleHost : IPopupHost
 
     public IReadOnlyList<SourceStatus> Sources() =>
     [
-        new("GitHub", true, null, _now),
+        new("GitHub", !GitHubFailing, GitHubFailing ? "token expired" : null, _now),
         new("ADO:contoso", true, null, _now),
         new("ADO:fabrikam", true, null, _now),
     ];
@@ -248,6 +252,7 @@ public sealed class SampleHost : IPopupHost
     public async Task<string?> BeginBatchAsync(ItemAction action)
     {
         Calls.Add("batch " + action);
+        if (Batch.Active) return "Finish the batch first";
         var section = BuildSections(null).FirstOrDefault(s => s.Id == BatchApproval.SectionId);
         if (section is null) return null;
         var rows = BatchApproval.Eligible(section);
@@ -270,13 +275,13 @@ public sealed class SampleHost : IPopupHost
     }
 
     /// <summary>Sample data: every preview is allowed and every execute succeeds, so batches and rows can be driven end to end.</summary>
-    sealed class SampleActions : IItemActions
+    sealed class SampleActions(SampleHost host) : IItemActions
     {
         public IReadOnlyList<ItemAction> ActionsFor(InboxItem item) => ActionText.DefaultActions(item);
         public Task<ActionPreview> PreviewAsync(InboxItem item, ItemAction action, AgentRun? run, CancellationToken ct) =>
             Task.FromResult(new ActionPreview(true, $"{ActionText.ButtonLabel(action)} {item.Title}", "Go", null, null, null));
         public Task<ActionResult> ExecuteAsync(InboxItem item, ItemAction action, ActionPreview preview, ActionInput input, CancellationToken ct) =>
-            Task.FromResult(new ActionResult(true, null));
+            Task.FromResult(host.Outcome?.Invoke(item) ?? new ActionResult(true, null));
     }
 
     public void OnPopupShown()
