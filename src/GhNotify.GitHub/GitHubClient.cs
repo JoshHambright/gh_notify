@@ -44,7 +44,7 @@ public sealed class GitHubClient
 
     public Task<JsonElement> PostAsync(string relativePath, object body, CancellationToken ct) =>
         SendAsync(() => new HttpRequestMessage(HttpMethod.Post, new Uri(Api, relativePath))
-            { Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json") }, ct);
+        { Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json") }, ct);
 
     async Task<JsonElement> SendAsync(Func<HttpRequestMessage> make, CancellationToken ct)
     {

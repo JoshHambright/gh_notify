@@ -11,7 +11,8 @@ public class CommandRunnerTests : IDisposable
 
     static InboxItem It(string title = "Fix it") =>
         new("gh:review:acme/api#7", Provider.GitHub, ItemKind.ReviewRequested, "acme/api", title, "https://github.com/acme/api/pull/7", "alice",
-            DateTimeOffset.UnixEpoch, "abc", 3, null) { Number = 7 };
+            DateTimeOffset.UnixEpoch, "abc", 3, null)
+        { Number = 7 };
 
     sealed class Capture(ProcessResult result) : IProcessRunner
     {

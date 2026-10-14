@@ -46,7 +46,8 @@ public static class NotificationPlanner
             {
                 var n = initial.Count;
                 toasts.Add(new ToastRequest(ToastAction.Show, NotificationPolicy.SummaryTag, $"{n} item{(n == 1 ? "" : "s")} waiting on you",
-                    string.Join("\n", initial.Take(3).Select(i => $"{i.Repo}: {i.Title}"))) { Silent = winner.Key is not null });
+                    string.Join("\n", initial.Take(3).Select(i => $"{i.Repo}: {i.Title}")))
+                { Silent = winner.Key is not null });
             }
         }
 

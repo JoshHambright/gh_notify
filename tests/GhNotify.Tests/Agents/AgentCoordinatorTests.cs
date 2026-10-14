@@ -68,7 +68,8 @@ public class AgentCoordinatorTests
 
     static InboxItem Item(string key = "gh:review:acme/api#12", string sha = "s1") =>
         new(key, Provider.GitHub, ItemKind.ReviewRequested, "acme/api", "T", "https://github.com/acme/api/pull/12", "alice",
-            DateTimeOffset.UnixEpoch, sha, 10, null) { Number = 12, SourceRef = "pull/12/head", CloneUrl = "https://github.com/acme/api" };
+            DateTimeOffset.UnixEpoch, sha, 10, null)
+        { Number = 12, SourceRef = "pull/12/head", CloneUrl = "https://github.com/acme/api" };
 
     static AgentDecision Decision(bool needsWorktree = true) =>
         new(AgentMode.Button, "peer-review", new AgentProfile { Prompt = "/peer-review {url}", RequiresSkill = "peer-review", NeedsWorktree = needsWorktree });

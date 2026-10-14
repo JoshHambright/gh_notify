@@ -31,7 +31,9 @@ public sealed class SampleHost : IPopupHost
             "platform-release 20261013.4", "https://dev.azure.com/contoso/platform/_build/results?buildId=1042", "",
             _now.AddMinutes(-12), null, null, "Instructions: check the release notes before approving")
         {
-            Org = "contoso", Project = "platform", ApprovalId = "7f1c",
+            Org = "contoso",
+            Project = "platform",
+            ApprovalId = "7f1c",
             Details = DetailList.Of(("Pipeline", "platform-release"), ("Run", "20261013.4"), ("Project", "platform"),
                 ("Created", _now.AddMinutes(-12).ToString("yyyy-MM-dd HH:mm"))),
         };
@@ -47,16 +49,21 @@ public sealed class SampleHost : IPopupHost
                 ("Created", _now.AddDays(-1).ToString("yyyy-MM-dd HH:mm"))),
         };
         var ready = new InboxItem("gh:ready:acme/web#31", Provider.GitHub, ItemKind.MyPrReadyToMerge, "acme/web", "Add health endpoint",
-            "https://github.com/acme/web/pull/31", "you", _now.AddHours(-5), "beef001", 22, "Approved · checks green") { Number = 31 };
+            "https://github.com/acme/web/pull/31", "you", _now.AddHours(-5), "beef001", 22, "Approved · checks green")
+        { Number = 31 };
         var waiting1 = new InboxItem("gh:waiting:fabrikam/api#88", Provider.GitHub, ItemKind.MyPrWaiting, "fabrikam/api", "Cache token lookups",
-            "https://github.com/fabrikam/api/pull/88", "you", _now.AddHours(-9), "beef002", 64, "Waiting on review") { Number = 88 };
+            "https://github.com/fabrikam/api/pull/88", "you", _now.AddHours(-9), "beef002", 64, "Waiting on review")
+        { Number = 88 };
         var waiting2 = new InboxItem("ado:waiting:contoso/platform/portal#214", Provider.Ado, ItemKind.MyPrWaiting, "contoso/platform/portal",
             "Switch portal to the new auth client", "https://dev.azure.com/contoso/platform/_git/portal/pullrequest/214", "you", _now.AddHours(-20),
-            "beef003", null, "Checks running") { Number = 214 };
+            "beef003", null, "Checks running")
+        { Number = 214 };
         var snoozed = new InboxItem(SnoozedKey, Provider.GitHub, ItemKind.ReviewRequested, "fabrikam/web", "Bump analyzer versions",
-            "https://github.com/fabrikam/web/pull/203", "bob", _now.AddHours(-2), "beef004", 12, null) { Number = 203 };
+            "https://github.com/fabrikam/web/pull/203", "bob", _now.AddHours(-2), "beef004", 12, null)
+        { Number = 203 };
         var muted = new InboxItem(MutedKey, Provider.GitHub, ItemKind.ReviewRequested, "acme/legacy-billing", "Fix rounding in invoice totals",
-            "https://github.com/acme/legacy-billing/pull/12", "alice", _now.AddHours(-6), "beef005", 18, null) { Number = 12 };
+            "https://github.com/acme/legacy-billing/pull/12", "alice", _now.AddHours(-6), "beef005", 18, null)
+        { Number = 12 };
         _entries =
         [
             new(approval, "ADO:contoso", false),
@@ -73,9 +80,17 @@ public sealed class SampleHost : IPopupHost
         {
             [CiKey] = new AgentRun
             {
-                Key = CiKey, Profile = "pr-shepherd", State = AgentState.Ready, SessionId = "sample", WorktreePath = @"C:\sample",
-                HeadSha = "c0ffee1", Summary = "Fixed: options binding test expects the old section name", CostUsd = 0.31m,
-                DurationSeconds = 184, FinishedAt = _now.AddMinutes(-40), ResultText = ShepherdResult,
+                Key = CiKey,
+                Profile = "pr-shepherd",
+                State = AgentState.Ready,
+                SessionId = "sample",
+                WorktreePath = @"C:\sample",
+                HeadSha = "c0ffee1",
+                Summary = "Fixed: options binding test expects the old section name",
+                CostUsd = 0.31m,
+                DurationSeconds = 184,
+                FinishedAt = _now.AddMinutes(-40),
+                ResultText = ShepherdResult,
             },
         };
     }

@@ -552,8 +552,13 @@ public sealed class AppController : IPopupHost, IDisposable
                 {
                     state = new AppState
                     {
-                        Snapshot = _reconciler.Snapshot(), AgentRuns = _agents.Runs.Values.ToList(), ThemeMode = _themeMode,
-                        Mutes = _mutes.ToList(), Snoozes = _snoozes.ToList(), WaitingExpanded = _waitingExpanded, SnoozedExpanded = _snoozedExpanded,
+                        Snapshot = _reconciler.Snapshot(),
+                        AgentRuns = _agents.Runs.Values.ToList(),
+                        ThemeMode = _themeMode,
+                        Mutes = _mutes.ToList(),
+                        Snoozes = _snoozes.ToList(),
+                        WaitingExpanded = _waitingExpanded,
+                        SnoozedExpanded = _snoozedExpanded,
                     };
                 }
                 _stateStore.Save(state);
