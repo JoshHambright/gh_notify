@@ -54,6 +54,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     /// <summary>Attaches the global hotkey so config changes re-register it and Settings can show why it failed.</summary>
     public void AttachHotkey(GlobalHotkey hotkey) => _hotkey = hotkey;
     public string? HotkeyError => _hotkey?.Error;
+    /// <summary>The app version shown in the popup's ⋯ menu; set by App from the host options.</summary>
+    public string Version { get; set; } = "dev";
     public void RaiseChanged() => Changed?.Invoke();
     public UpdateStatus Update => _updates?.Status ?? new UpdateStatus(UpdatePhase.Off, null, null, null, null);
     public int RunningAgents => _agents.Runs.Values.Count(r => r.State is AgentState.Running or AgentState.Queued);

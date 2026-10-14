@@ -1,13 +1,340 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:core="using:GhNotify.Core"
+        xmlns:local="using:GhNotify.UI"
         x:Class="GhNotify.UI.PopupWindow"
-        Title="gh_notify"
-        Width="400" Height="560"
-        SystemDecorations="None"
-        ShowInTaskbar="False"
-        Topmost="True"
-        CanResize="False"
-        WindowStartupLocation="Manual">
-  <!-- ported in the popup task -->
-  <Border />
+        Title="gh_notify" Width="376" MinHeight="236" SizeToContent="Height"
+        SystemDecorations="None" Background="Transparent" TransparencyLevelHint="Transparent"
+        CanResize="False" ShowInTaskbar="False" Topmost="True" UseLayoutRounding="True"
+        WindowStartupLocation="Manual"
+        FontFamily="{DynamicResource Font.Body}" FontSize="12" Foreground="{DynamicResource Brush.Text}">
+  <Window.Resources>
+    <ControlTheme x:Key="Small" TargetType="Button" BasedOn="{StaticResource Style.PillGhost}">
+      <Setter Property="Padding" Value="11,3" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Margin" Value="6,0,0,0" />
+      <Setter Property="ToolTip.ShowOnDisabled" Value="True" />
+    </ControlTheme>
+    <ControlTheme x:Key="SmallPrimary" TargetType="Button" BasedOn="{StaticResource Style.PillPrimary}">
+      <Setter Property="Padding" Value="11,3" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Margin" Value="6,0,0,0" />
+      <Setter Property="ToolTip.ShowOnDisabled" Value="True" />
+    </ControlTheme>
+
+    <ControlTheme x:Key="Chevron" TargetType="Button">
+      <Setter Property="Width" Value="22" />
+      <Setter Property="Height" Value="20" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="5">
+            <ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+      <Style Selector="^:pointerover /template/ Border#Bd"><Setter Property="Background" Value="{DynamicResource Brush.Hairline}" /></Style>
+    </ControlTheme>
+
+    <DataTemplate x:Key="DetailTemplate" x:DataType="core:ItemDetail">
+      <Grid Margin="0,1" ColumnDefinitions="Auto,*">
+        <TextBlock Text="{Binding Label}" Foreground="{DynamicResource Brush.Muted}" FontSize="10.5" Margin="0,1,12,0" />
+        <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="11.5" TextWrapping="Wrap" />
+      </Grid>
+    </DataTemplate>
+
+    <DataTemplate x:Key="RowTemplate" x:DataType="core:InboxRow">
+      <Grid>
+        <!-- Keyboard selection: a ring just outside the card, toggled from code (the card border carries the urgent stripe). -->
+        <Border x:Name="SelectionRing" Tag="{Binding Key}" Margin="8,2" CornerRadius="10" BorderThickness="2" IsHitTestVisible="False"
+                BorderBrush="{DynamicResource Brush.Blue}" IsVisible="False" Loaded="OnRingLoaded" />
+        <Border x:Name="RowCard" Classes="card" Tag="{Binding Key}" Margin="10,4" CornerRadius="8"
+                Classes.urgent="{Binding Urgent}" Classes.stale="{Binding Stale}"
+                Classes.muted="{Binding MutedBy, Converter={x:Static local:PopupConverters.NotNull}}">
+          <StackPanel>
+            <!-- Line 1: meta, badge, chevron -->
+            <DockPanel>
+              <Button DockPanel.Dock="Right" Theme="{StaticResource Chevron}" Tag="{Binding Key}" Click="OnToggle" ToolTip.Tip="Details">
+                <Path Classes="chevron" Data="M0.8,0.8 L4.5,4.5 L8.2,0.8" Stroke="{DynamicResource Brush.Muted}" StrokeThickness="1.6"
+                      StrokeLineCap="Round" StrokeJoin="Round" Width="9" Height="5.5"
+                      Classes.collapsed="{Binding Mode, Converter={x:Static local:PopupConverters.Eq}, ConverterParameter=Collapsed}" />
+              </Button>
+              <Button DockPanel.Dock="Right" Theme="{StaticResource Chevron}" Tag="{Binding Key}" Click="OnRowMenu" ToolTip.Tip="Snooze or mute">
+                <TextBlock Text="⋯" FontFamily="Segoe UI Symbol" FontSize="12" Foreground="{DynamicResource Brush.Muted}" />
+              </Button>
+              <Border DockPanel.Dock="Right" Classes="badge" CornerRadius="8" BorderThickness="1" Padding="7,0,7,1" Margin="6,0,4,0"
+                      VerticalAlignment="Center" ToolTip.Tip="{Binding BadgeTooltip}"
+                      IsVisible="{Binding BadgeText, Converter={x:Static local:PopupConverters.HasValue}}"
+                      Classes.ready="{Binding BadgeText, Converter={x:Static local:PopupConverters.Eq}, ConverterParameter='✓ Ready'}"
+                      Classes.failed="{Binding BadgeText, Converter={x:Static local:PopupConverters.Eq}, ConverterParameter='✗ Failed'}"
+                      Classes.running="{Binding BadgeText, Converter={x:Static local:PopupConverters.Eq}, ConverterParameter='Running…'}">
+                <TextBlock Text="{Binding BadgeText}" FontSize="10" FontWeight="Bold" />
+              </Border>
+              <TextBlock Foreground="{DynamicResource Brush.Muted}" FontSize="10.5" VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Repo}">
+                <Run Text="{Binding ProviderGlyph, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding RepoDisplay, Mode=OneWay}" /><Run Text="{Binding Number, Mode=OneWay, StringFormat=' {0}', TargetNullValue=''}" /><Run Text=" · " /><Run Text="{Binding Age, Mode=OneWay}" /><InlineUIContainer BaselineAlignment="Center"><TextBlock Text="🔇" Margin="6,0,0,0" ToolTip.Tip="{Binding MutedBy, StringFormat='Muted by {0}'}" IsVisible="{Binding MutedBy, Converter={x:Static local:PopupConverters.HasValue}}" /></InlineUIContainer><InlineUIContainer BaselineAlignment="Center"><TextBlock Margin="6,0,0,0" IsVisible="{Binding SnoozeText, Converter={x:Static local:PopupConverters.HasValue}}"><Run Text="💤 " /><Run Text="{Binding SnoozeText, Mode=OneWay}" /></TextBlock></InlineUIContainer>
+              </TextBlock>
+            </DockPanel>
+
+            <!-- Line 2: title (opens the item) -->
+            <TextBlock Classes="title" Text="{Binding Title}" Tag="{Binding Url}" FontSize="12.5" FontWeight="Medium" Margin="0,3,0,0"
+                       TextTrimming="CharacterEllipsis" Cursor="Hand" ToolTip.Tip="{Binding Title}" PointerReleased="OnTitleClick" />
+            <TextBlock Text="{Binding Detail}" Foreground="{DynamicResource Brush.Muted}" FontSize="11" Margin="0,2,0,0"
+                       TextTrimming="CharacterEllipsis" IsVisible="{Binding Detail, Converter={x:Static local:PopupConverters.HasValue}}" />
+
+            <!-- Buttons -->
+            <WrapPanel HorizontalAlignment="Right" Margin="0,8,0,0">
+              <Button Theme="{StaticResource SmallPrimary}" Content="{Binding RunButton}" Tag="{Binding Key}" Click="OnRunAgent"
+                      IsEnabled="{Binding CanRun}" ToolTip.Tip="{Binding RunDisabledReason}"
+                      IsVisible="{Binding RunButton, Converter={x:Static local:PopupConverters.HasValue}}" />
+              <Button Theme="{StaticResource Small}" Content="Open in Claude" Tag="{Binding Key}" Click="OnOpenInClaude"
+                      IsVisible="{Binding CanOpenInClaude}" />
+              <Button Theme="{StaticResource Small}" Content="Unsnooze" Tag="{Binding Key}" Click="OnUnsnooze"
+                      IsVisible="{Binding SnoozeText, Converter={x:Static local:PopupConverters.HasValue}}" />
+              <ItemsControl ItemsSource="{Binding Actions}" Tag="{Binding Key}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="core:RowActionButton">
+                    <Grid>
+                      <!-- Reject and re-run are ghost pills; every other action is a primary pill. -->
+                      <Button Theme="{StaticResource SmallPrimary}" Content="{Binding Label}" CommandParameter="{Binding Action}" Click="OnAction"
+                              IsEnabled="{Binding Enabled}" ToolTip.Tip="{Binding DisabledReason}"
+                              Tag="{Binding $parent[ItemsControl].Tag}"
+                              IsVisible="{Binding Action, Converter={x:Static local:PopupConverters.IsPrimaryAction}}" />
+                      <Button Theme="{StaticResource Small}" Content="{Binding Label}" CommandParameter="{Binding Action}" Click="OnAction"
+                              IsEnabled="{Binding Enabled}" ToolTip.Tip="{Binding DisabledReason}"
+                              Tag="{Binding $parent[ItemsControl].Tag}"
+                              IsVisible="{Binding Action, Converter={x:Static local:PopupConverters.IsGhostAction}}" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </WrapPanel>
+
+            <!-- Expanded: details, agent run, result text -->
+            <StackPanel Margin="0,10,0,0"
+                        IsVisible="{Binding Mode, Converter={x:Static local:PopupConverters.NotEq}, ConverterParameter=Collapsed}">
+              <Border Height="1" Background="{DynamicResource Brush.Hairline}" Margin="0,0,0,8" />
+              <ItemsControl ItemsSource="{Binding ., Converter={x:Static local:PopupConverters.RowDetails}}"
+                            ItemTemplate="{StaticResource DetailTemplate}" Grid.IsSharedSizeScope="True" />
+              <TextBlock Text="{Binding RunInfo}" Foreground="{DynamicResource Brush.Muted}" FontSize="10.5" Margin="0,8,0,0"
+                         IsVisible="{Binding RunInfo, Converter={x:Static local:PopupConverters.HasValue}}" />
+              <StackPanel Margin="0,6,0,0" IsVisible="{Binding ResultText, Converter={x:Static local:PopupConverters.HasValue}}">
+                <TextBox Classes="result" Text="{Binding ResultText, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="240"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Cascadia Mono, Consolas" FontSize="10.5" Padding="6,5"
+                         Theme="{StaticResource Style.FieldBox}" Background="{DynamicResource Brush.Surface}" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
+                  <Button Theme="{StaticResource Small}" Content="Copy" Tag="{Binding ResultText}" Click="OnCopy" />
+                  <Button Theme="{StaticResource Small}" Content="Open in Claude" Tag="{Binding Key}" Click="OnOpenInClaude"
+                          IsVisible="{Binding CanOpenInClaude}" />
+                </StackPanel>
+              </StackPanel>
+
+              <!-- Confirm / sending / done / failed -->
+              <Border Margin="0,10,0,0" Padding="10" CornerRadius="6" BorderThickness="1"
+                      Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Hairline}"
+                      IsVisible="{Binding Mode, Converter={x:Static local:PopupConverters.NotEq}, ConverterParameter=Expanded}">
+                <StackPanel>
+                  <TextBlock x:Name="StatementText" Text="{Binding Statement}" FontWeight="Bold" FontSize="12" TextWrapping="Wrap"
+                             IsVisible="{Binding Statement, Converter={x:Static local:PopupConverters.HasValue}}" />
+                  <Border Background="{DynamicResource Brush.Amber}" CornerRadius="10" Padding="9,2,9,3" Margin="0,6,0,0"
+                          HorizontalAlignment="Left" IsVisible="{Binding Warning, Converter={x:Static local:PopupConverters.HasValue}}">
+                    <TextBlock Text="{Binding Warning}" Foreground="#000C1A" FontSize="11" FontWeight="Medium" />
+                  </Border>
+                  <!-- Merge method picker and Delete branch (built in code from the preview options). -->
+                  <StackPanel x:Name="MergePanel" Tag="{Binding Key}" Margin="0,8,0,0" Loaded="OnMergePanelLoaded"
+                              IsVisible="{Binding Options, Converter={x:Static local:PopupConverters.HasValue}}" />
+                  <!-- Merge and re-run take no comment. -->
+                  <TextBox x:Name="CommentBox" Theme="{StaticResource Style.FieldBox}" Tag="{Binding Key}" FontSize="11.5" Padding="6,4"
+                           MaxLength="2000" Margin="0,8,0,0" Watermark="Comment (optional)" Loaded="OnCommentLoaded" TextChanged="OnCommentChanged"
+                           IsVisible="{Binding ., Converter={x:Static local:PopupConverters.ShowsComment}}"
+                           IsEnabled="{Binding Mode, Converter={x:Static local:PopupConverters.NotEq}, ConverterParameter=Sending}" />
+                  <TextBlock Classes="message" Text="{Binding Message}" TextWrapping="Wrap" FontSize="11.5" Margin="0,6,0,0"
+                             IsVisible="{Binding Message, Converter={x:Static local:PopupConverters.HasValue}}"
+                             Classes.failed="{Binding Mode, Converter={x:Static local:PopupConverters.Eq}, ConverterParameter=Failed}"
+                             Classes.done="{Binding Mode, Converter={x:Static local:PopupConverters.Eq}, ConverterParameter=Done}" />
+                  <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                    <Button Theme="{StaticResource Small}" Content="Open in browser" Tag="{Binding Url}" Click="OnOpenInBrowser"
+                            IsVisible="{Binding Refused}" />
+                    <Button Theme="{StaticResource Small}" Tag="{Binding Key}" Click="OnCancel"
+                            Content="{Binding Mode, Converter={x:Static local:PopupConverters.CancelLabel}}"
+                            IsVisible="{Binding Mode, Converter={x:Static local:PopupConverters.NotEq}, ConverterParameter=Sending}" />
+                    <Button x:Name="ConfirmButton" Theme="{StaticResource SmallPrimary}" Content="{Binding ConfirmLabel}" Tag="{Binding Key}"
+                            Click="OnConfirm" IsEnabled="{Binding ConfirmEnabled}" Loaded="OnConfirmLoaded"
+                            IsVisible="{Binding ., Converter={x:Static local:PopupConverters.ShowsConfirm}}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </DataTemplate>
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource Brush.Raised}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="12,9,10,10" />
+    </Style>
+    <Style Selector="Border.card.urgent">
+      <Setter Property="Background" Value="{DynamicResource Brush.UrgentCard}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Red}" />
+      <Setter Property="BorderThickness" Value="3,0,0,0" />
+      <Setter Property="Padding" Value="10,10,11,11" />
+    </Style>
+    <Style Selector="Border.card.stale"><Setter Property="Opacity" Value="0.55" /></Style>
+    <Style Selector="Border.card.muted"><Setter Property="Opacity" Value="0.55" /></Style>
+
+    <!-- The chevron points down when the row is collapsed and up otherwise. -->
+    <Style Selector="Path.chevron"><Setter Property="RenderTransform" Value="rotate(180deg)" /></Style>
+    <Style Selector="Path.chevron.collapsed"><Setter Property="RenderTransform" Value="none" /></Style>
+
+    <Style Selector="Border.badge">
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Muted}" />
+    </Style>
+    <Style Selector="Border.badge > TextBlock"><Setter Property="Foreground" Value="{DynamicResource Brush.Muted}" /></Style>
+    <Style Selector="Border.badge.ready"><Setter Property="BorderBrush" Value="{DynamicResource Brush.ReadyText}" /></Style>
+    <Style Selector="Border.badge.ready > TextBlock"><Setter Property="Foreground" Value="{DynamicResource Brush.ReadyText}" /></Style>
+    <Style Selector="Border.badge.failed"><Setter Property="BorderBrush" Value="{DynamicResource Brush.Red}" /></Style>
+    <Style Selector="Border.badge.failed > TextBlock"><Setter Property="Foreground" Value="{DynamicResource Brush.Red}" /></Style>
+    <Style Selector="Border.badge.running"><Setter Property="BorderBrush" Value="{DynamicResource Brush.Blue}" /></Style>
+    <Style Selector="Border.badge.running > TextBlock"><Setter Property="Foreground" Value="{DynamicResource Brush.Blue}" /></Style>
+
+    <Style Selector="TextBlock.title:pointerover"><Setter Property="TextDecorations" Value="Underline" /></Style>
+
+    <Style Selector="TextBlock.message"><Setter Property="Foreground" Value="{DynamicResource Brush.Muted}" /></Style>
+    <Style Selector="TextBlock.message.failed"><Setter Property="Foreground" Value="{DynamicResource Brush.Red}" /></Style>
+    <Style Selector="TextBlock.message.done">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.ReadyText}" />
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+
+    <!-- Collapsible section header arrow: › collapsed, ⌄ expanded (⌄ sits low in its em box; lift it level with the label). -->
+    <Style Selector="TextBlock.arrow">
+      <Setter Property="Text" Value="›" />
+      <Setter Property="Margin" Value="6,0,0,0" />
+    </Style>
+    <Style Selector="TextBlock.arrow.expanded">
+      <Setter Property="Text" Value="⌄" />
+      <Setter Property="Margin" Value="6,-7,0,0" />
+    </Style>
+  </Window.Styles>
+
+  <!-- Frame: includes the shadow margin. -->
+  <Grid x:Name="Frame">
+    <Border Margin="8" CornerRadius="12" Background="{DynamicResource Brush.Surface}" BoxShadow="0 3 18 0 #59000000" />
+    <Border x:Name="Outer" Margin="8" CornerRadius="12" Background="{DynamicResource Brush.Surface}" ClipToBounds="True">
+      <Grid x:Name="Body">
+        <DockPanel>
+          <!-- Header -->
+          <Grid x:Name="Header" DockPanel.Dock="Top" Background="{DynamicResource Brush.Header}" ClipToBounds="True">
+            <Canvas Width="0" Height="0" HorizontalAlignment="Right" VerticalAlignment="Top">
+              <Ellipse Canvas.Left="-160" Canvas.Top="-110" Width="230" Height="230" Fill="{DynamicResource Brush.Red}" />
+            </Canvas>
+            <Button x:Name="SearchButton" Theme="{StaticResource Style.IconButton}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,10,14,0" Foreground="White" FontFamily="Segoe UI Emoji" FontSize="13" Content="🔍"
+                    ToolTip.Tip="Search (/ or Ctrl+F)" Click="OnSearchButton" />
+            <StackPanel Margin="18,14,18,14">
+              <TextBlock Text="G H _ N O T I F Y" FontSize="10.5" FontWeight="Medium" Foreground="{DynamicResource Brush.Eyebrow}" />
+              <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                <TextBlock x:Name="CountText" FontFamily="{DynamicResource Font.Heavy}" FontWeight="Black" FontSize="26"
+                           Foreground="{DynamicResource Brush.Count}" VerticalAlignment="Bottom" Margin="0,0,9,0" />
+                <TextBlock Text="Waiting on you" FontFamily="{DynamicResource Font.Heavy}" FontWeight="Black" FontSize="17"
+                           VerticalAlignment="Bottom" Margin="0,0,0,5" />
+              </StackPanel>
+            </StackPanel>
+          </Grid>
+
+          <!-- Search: hidden until / , Ctrl+F or the header button. -->
+          <Border x:Name="SearchBar" DockPanel.Dock="Top" IsVisible="False" Padding="14,8,14,2" Background="{DynamicResource Brush.Surface}">
+            <TextBox x:Name="SearchBox" Theme="{StaticResource Style.FieldBox}" FontSize="12" Padding="8,5" MaxLength="200"
+                     Watermark="Search repo, title, author or #number" TextChanged="OnSearchChanged" />
+          </Border>
+
+          <!-- Footer -->
+          <StackPanel DockPanel.Dock="Bottom">
+            <TextBlock x:Name="NoticeText" Foreground="{DynamicResource Brush.Muted}" FontSize="11" TextWrapping="Wrap"
+                       Margin="18,6,18,0" IsVisible="False" />
+            <TextBlock x:Name="ConfigErrorText" Foreground="{DynamicResource Brush.Red}" FontSize="11" TextWrapping="Wrap"
+                       Margin="18,6,18,4" IsVisible="False" />
+            <Border BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="0,1,0,0" Padding="18,6,10,8">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                  <Button Theme="{StaticResource Style.IconButton}" FontFamily="Segoe UI Symbol" FontSize="14" Content="↻"
+                          ToolTip.Tip="Refresh" Click="OnRefresh" />
+                  <Button x:Name="ThemeButton" Theme="{StaticResource Style.IconButton}" FontFamily="Segoe UI Symbol" FontSize="13"
+                          Content="☾" Click="OnCycleTheme" />
+                  <Button x:Name="MenuButton" Theme="{StaticResource Style.IconButton}" FontFamily="Segoe UI Symbol" FontSize="14" Content="⋯"
+                          ToolTip.Tip="Menu" Click="OnMenu" />
+                </StackPanel>
+                <TextBlock x:Name="FooterText" Foreground="{DynamicResource Brush.Muted}" FontSize="11" VerticalAlignment="Center"
+                           TextWrapping="Wrap" />
+              </DockPanel>
+            </Border>
+          </StackPanel>
+
+          <!-- Inbox -->
+          <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,6,0,8">
+              <TextBlock x:Name="NoMatchesText" Text="No matches" Foreground="{DynamicResource Brush.Muted}" FontSize="12.5"
+                         HorizontalAlignment="Center" Margin="16,36" IsVisible="False" />
+              <!-- Where the batch panel sits when the Approvals section is not on screen (e.g. every item was approved). -->
+              <Border x:Name="BatchFallbackSlot" />
+              <StackPanel x:Name="EmptyState" Margin="16,36" HorizontalAlignment="Center" IsVisible="False">
+                <Path Theme="{StaticResource Style.EBars}" HorizontalAlignment="Center" Width="28" Height="20" Stretch="Uniform" StrokeThickness="3" />
+                <TextBlock Text="Nothing waiting on you." Foreground="{DynamicResource Brush.Muted}" FontSize="12.5" Margin="0,10,0,0" />
+              </StackPanel>
+              <ItemsControl x:Name="Sections">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="core:InboxSection">
+                    <StackPanel Margin="0,0,0,4">
+                      <DockPanel Margin="0,10,18,4" LastChildFill="False" IsVisible="{Binding !Collapsible}">
+                        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Margin="18,0,0,0">
+                          <Path Theme="{StaticResource Style.EBars}" />
+                          <TextBlock Text="{Binding Title, Converter={x:Static local:PopupConverters.Upper}}" Theme="{StaticResource Style.SectionLabel}"
+                                     FontSize="10.5" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" IsVisible="{Binding BatchButtons}">
+                          <Button Theme="{StaticResource Small}" Content="Approve all…" Click="OnBatchApprove" />
+                          <Button Theme="{StaticResource Small}" Content="Reject all…" Click="OnBatchReject" />
+                        </StackPanel>
+                      </DockPanel>
+                      <!-- The batch panel is moved in here from code when this is the Approvals section. -->
+                      <Border Tag="{Binding Id}" Loaded="OnBatchSlotLoaded" />
+                      <!-- Collapsible sections ("waiting", "snoozed"): the header toggles the section. -->
+                      <Button Tag="{Binding Id}" Click="OnToggleSection" Margin="18,10,18,4" HorizontalAlignment="Left" Cursor="Hand"
+                              IsVisible="{Binding Collapsible}">
+                        <Button.Template>
+                          <ControlTemplate>
+                            <Border Background="Transparent"><ContentPresenter Content="{TemplateBinding Content}" /></Border>
+                          </ControlTemplate>
+                        </Button.Template>
+                        <StackPanel Orientation="Horizontal">
+                          <Path Theme="{StaticResource Style.EBars}" />
+                          <TextBlock Theme="{StaticResource Style.SectionLabel}" FontSize="10.5" Margin="7,0,0,0" VerticalAlignment="Center">
+                            <Run Text="{Binding Title, Converter={x:Static local:PopupConverters.Upper}, Mode=OneWay}" /><Run Text=" (" /><Run Text="{Binding Count, Mode=OneWay}" /><Run Text=")" />
+                          </TextBlock>
+                          <TextBlock Classes="arrow" Theme="{StaticResource Style.SectionLabel}" FontFamily="Segoe UI Symbol" FontSize="12" VerticalAlignment="Center"
+                                     Classes.expanded="{Binding Expanded}" />
+                        </StackPanel>
+                      </Button>
+                      <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource RowTemplate}" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </ScrollViewer>
+        </DockPanel>
+        <!-- Light theme: red strip down the left edge (transparent in dark). -->
+        <Rectangle Width="5" HorizontalAlignment="Left" Fill="{DynamicResource Brush.EdgeStrip}" IsHitTestVisible="False" />
+      </Grid>
+    </Border>
+  </Grid>
 </Window>

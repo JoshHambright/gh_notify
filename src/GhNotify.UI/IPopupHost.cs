@@ -46,6 +46,10 @@ public interface IPopupHost
     /// <summary>Opens (or re-activates) the settings window.</summary>
     void OpenSettings();
     void Quit();
+    /// <summary>The "Start with Windows" toggle in the footer menu (backed by IStartupService).</summary>
+    bool StartWithWindows { get; set; }
+    /// <summary>The app version for the footer menu header.</summary>
+    string Version { get; }
     void CopyText(string text);
     // Named SnoozeItem, not Snooze: that would shadow the Snooze record inside AppController.
     void SnoozeItem(string key, SnoozeChoice choice);

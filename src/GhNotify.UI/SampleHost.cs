@@ -23,12 +23,20 @@ public sealed class SampleHost : IPopupHost
 
     public Dictionary<string, RowUiState> States { get; } = new();
     public bool Empty { get; set; }
+    /// <summary>Items left out of the inbox (tests use it to leave a single approval, or to make a row disappear on refresh).</summary>
+    public HashSet<string> HiddenKeys { get; } = [];
     /// <summary>No active mutes (the footer menu shows "Nothing muted").</summary>
     public bool NoMutes { get; set; }
+    /// <summary>The GitHub source reports a problem (the footer shows a red ✗).</summary>
+    public bool GitHubFailing { get; set; }
+    /// <summary>What executing an item returns in a batch (succeeds when unset); tests use it to produce stale and failed lines.</summary>
+    public Func<InboxItem, ActionResult>? Outcome { get; set; }
     public ThemeMode ThemeMode { get; set; } = ThemeMode.System;
 
     public SampleHost()
     {
+        Batch = new BatchCoordinator(new SampleActions(this), TimeSpan.FromSeconds(1), () => Clock());
+        Batch.Changed += () => Changed?.Invoke();
         var approval = new InboxItem(ApprovalKey, Provider.Ado, ItemKind.ApprovalPending, "contoso/platform",
             "platform-release 20261013.4", "https://dev.azure.com/contoso/platform/_build/results?buildId=1042", "",
             _now.AddMinutes(-12), null, null, "Instructions: check the release notes before approving")
@@ -141,16 +149,29 @@ public sealed class SampleHost : IPopupHost
         """;
 
     // One muted row (acme/legacy-billing) and one snoozed row (fabrikam/web); waiting on others collapsed, snoozed expanded.
-    InboxView View() => InboxView.Compose(Empty ? [] : _entries, new FiltersConfig { Mute = ["gh:acme/legacy-*"] }, [],
+    InboxView View() => InboxView.Compose(Empty ? [] : _entries.Where(e => !HiddenKeys.Contains(e.Item.Key)).ToList(), new FiltersConfig { Mute = ["gh:acme/legacy-*"] }, [],
         [new Snooze(SnoozedKey, _now.AddMinutes(130), false)], _now);
+
+    /// <summary>The clock the confirm guard reads; tests advance it to pass the 600 ms guard without sleeping.</summary>
+    public Func<DateTimeOffset> Clock { get; set; } = () => DateTimeOffset.Now;
+    /// <summary>"Waiting on others" is expanded (the popup's section toggle).</summary>
+    public bool WaitingExpanded { get; set; }
+    public bool SnoozedExpanded { get; set; } = true;
+    /// <summary>Every command the popup sent, as short strings ("toggle gh:ci:acme/api#57", "confirm … comment=hi"). Tests assert on it.</summary>
+    public List<string> Calls { get; } = [];
+    /// <summary>Per-item previews returned by <see cref="BeginActionAsync"/> (an allowed preview naming the action when none is set).</summary>
+    public Dictionary<string, ActionPreview> Previews { get; } = new();
+
+    public void Raise() => Changed?.Invoke();
 
     public IReadOnlyList<InboxSection> BuildSections(string? query)
     {
         var searching = !string.IsNullOrWhiteSpace(query);
-        var sections = InboxPresenter.Build(View(), k => _runs.GetValueOrDefault(k), Decide, (_, _) => null, _now,
+        var sections = InboxPresenter.Build(View(), k => _runs.GetValueOrDefault(k), Decide, (_, _) => null, Clock(),
             ActionText.DefaultActions, k => States.GetValueOrDefault(k), r => RepoNames.Display(r, null, 34),
-            waitingExpanded: searching, snoozedExpanded: true);
-        return InboxFilter.Apply(sections, query);
+            waitingExpanded: WaitingExpanded || searching, snoozedExpanded: SnoozedExpanded || searching);
+        sections = InboxFilter.Apply(sections, query);
+        return searching ? sections.Select(s => s.BatchButtons ? s with { BatchButtons = false } : s).ToList() : sections;
     }
 
     /// <summary>Unmuted active rows (the muted, snoozed and waiting rows don't count).</summary>
@@ -165,54 +186,158 @@ public sealed class SampleHost : IPopupHost
 
     public IReadOnlyList<SourceStatus> Sources() =>
     [
-        new("GitHub", true, null, _now),
+        new("GitHub", !GitHubFailing, GitHubFailing ? "token expired" : null, _now),
         new("ADO:contoso", true, null, _now),
         new("ADO:fabrikam", true, null, _now),
     ];
 
-    public string? ConfigError => null;
+    public string? ConfigError { get; set; }
     public DateTimeOffset? LastPolledAt => _now.AddMinutes(-1);
     public bool IsRefreshing => false;
-    public event Action? Changed { add { } remove { } }
+    public event Action? Changed;
 
-    public void OpenUrl(string url) { }
-    public void RunAgent(string key) { }
-    public void OpenInClaude(string key) { }
-    public void ToggleExpand(string key) { }
-    public Task BeginActionAsync(string key, ItemAction action) => Task.CompletedTask;
-    public void CancelAction(string key) { }
-    public Task ConfirmActionAsync(string key, ActionInput input) => Task.CompletedTask;
-    public BatchCoordinator Batch { get; } = new(new NoActions(), TimeSpan.FromSeconds(1));
-    public Task<string?> BeginBatchAsync(ItemAction action) => Task.FromResult<string?>(null);
-    public void CancelBatch() { }
-    public Task ConfirmBatchAsync(string? comment) => Task.CompletedTask;
+    public void OpenUrl(string url) => Calls.Add("open " + url);
+    public void RunAgent(string key) => Calls.Add("run " + key);
+    public void OpenInClaude(string key) => Calls.Add("claude " + key);
 
-    /// <summary>Sample data never acts on anything.</summary>
-    sealed class NoActions : IItemActions
+    public void ToggleExpand(string key)
     {
-        public IReadOnlyList<ItemAction> ActionsFor(InboxItem item) => [];
-        public Task<ActionPreview> PreviewAsync(InboxItem item, ItemAction action, AgentRun? run, CancellationToken ct) =>
-            Task.FromResult(ActionText.Refuse("Sample data"));
-        public Task<ActionResult> ExecuteAsync(InboxItem item, ItemAction action, ActionPreview preview, ActionInput input, CancellationToken ct) =>
-            Task.FromResult(new ActionResult(false, "Sample data"));
+        Calls.Add("toggle " + key);
+        var next = RowStateMachine.Toggle(States.GetValueOrDefault(key));
+        if (next.Mode == RowMode.Expanded)
+            foreach (var (k, s) in States.ToList())
+                if (k != key && s.Mode != RowMode.Sending) States.Remove(k);
+        if (next.Mode == RowMode.Collapsed) States.Remove(key);
+        else States[key] = next;
+        Changed?.Invoke();
     }
-    public void OnPopupShown() { }
-    public void CycleTheme() { }
-    public Task RefreshAsync() => Task.CompletedTask;
-    public void OpenConfig() { }
-    public void OpenLogs() { }
-    public void OpenSettings() { }
-    public void Quit() { }
-    public void CopyText(string text) { }
-    public void SnoozeItem(string key, SnoozeChoice choice) { }
-    public void Unsnooze(string key) { }
-    public void Mute(string key, MuteScope scope, MuteDuration duration) { }
+
+    public async Task BeginActionAsync(string key, ItemAction action)
+    {
+        Calls.Add($"begin {key} {action}");
+        if (States.GetValueOrDefault(key) is { Mode: RowMode.Sending or RowMode.Done }) return;
+        var begun = RowStateMachine.Begin(action, Clock());
+        States[key] = begun;
+        Changed?.Invoke();
+        await Task.Yield();
+        var preview = Previews.GetValueOrDefault(key) ?? new ActionPreview(true, $"{ActionText.ButtonLabel(action).TrimEnd('…')} {key}?",
+            ActionText.ButtonLabel(action).TrimEnd('…'), null, null, null);
+        if (States.TryGetValue(key, out var current) && ReferenceEquals(current, begun))
+            States[key] = RowStateMachine.WithPreview(begun, preview, Clock());
+        Changed?.Invoke();
+    }
+
+    public void CancelAction(string key)
+    {
+        Calls.Add("cancel " + key);
+        if (States.GetValueOrDefault(key) is not { Mode: RowMode.Confirming or RowMode.Failed or RowMode.Done } s) return;
+        if (s.Mode == RowMode.Done) States.Remove(key);
+        else States[key] = RowStateMachine.Cancel(s);
+        Changed?.Invoke();
+    }
+
+    public Task ConfirmActionAsync(string key, ActionInput input)
+    {
+        // Like AppController: the button is not trusted, the guard is re-checked here.
+        if (States.GetValueOrDefault(key) is not { } state || !RowStateMachine.CanConfirm(state, Clock())) return Task.CompletedTask;
+        Calls.Add($"confirm {key} comment={input.Comment} method={input.Method} delete={input.DeleteBranch}");
+        var sending = RowStateMachine.Sending(state);
+        States[key] = RowStateMachine.Finished(sending, new ActionResult(true, null));
+        Changed?.Invoke();
+        return Task.CompletedTask;
+    }
+
+    public BatchCoordinator Batch { get; }
+
+    public async Task<string?> BeginBatchAsync(ItemAction action)
+    {
+        Calls.Add("batch " + action);
+        if (Batch.Active) return "Finish the batch first";
+        var section = BuildSections(null).FirstOrDefault(s => s.Id == BatchApproval.SectionId);
+        if (section is null) return null;
+        var rows = BatchApproval.Eligible(section);
+        if (rows.Count < BatchApproval.MinItems) return null;
+        var entries = rows.Select(r => new BatchEntry(_entries.First(e => e.Item.Key == r.Key).Item, null, r.RepoDisplay)).ToList();
+        await Batch.OpenAsync(action, entries, CancellationToken.None);
+        return null;
+    }
+
+    public void CancelBatch()
+    {
+        Calls.Add("batch-cancel");
+        Batch.Close();
+    }
+
+    public Task ConfirmBatchAsync(string? comment)
+    {
+        Calls.Add($"batch-confirm comment={comment}");
+        return Batch.ConfirmAsync(comment, CancellationToken.None);
+    }
+
+    /// <summary>Sample data: every preview is allowed and every execute succeeds, so batches and rows can be driven end to end.</summary>
+    sealed class SampleActions(SampleHost host) : IItemActions
+    {
+        public IReadOnlyList<ItemAction> ActionsFor(InboxItem item) => ActionText.DefaultActions(item);
+        public Task<ActionPreview> PreviewAsync(InboxItem item, ItemAction action, AgentRun? run, CancellationToken ct) =>
+            Task.FromResult(new ActionPreview(true, $"{ActionText.ButtonLabel(action)} {item.Title}", "Go", null, null, null));
+        public Task<ActionResult> ExecuteAsync(InboxItem item, ItemAction action, ActionPreview preview, ActionInput input, CancellationToken ct) =>
+            Task.FromResult(host.Outcome?.Invoke(item) ?? new ActionResult(true, null));
+    }
+
+    public void OnPopupShown()
+    {
+        Calls.Add("shown");
+        foreach (var (key, s) in States.ToList())
+            if (s.Mode == RowMode.Confirming) States[key] = RowStateMachine.Rearm(s, Clock());
+        Batch.Rearm();
+    }
+
+    public void CycleTheme()
+    {
+        Calls.Add("theme");
+        ThemeMode = ThemeResolver.Next(ThemeMode);
+        Changed?.Invoke();
+    }
+
+    public Task RefreshAsync()
+    {
+        Calls.Add("refresh");
+        return Task.CompletedTask;
+    }
+
+    public void OpenConfig() => Calls.Add("open-config");
+    public void OpenLogs() => Calls.Add("open-logs");
+    public void OpenSettings() => Calls.Add("open-settings");
+    public void Quit() => Calls.Add("quit");
+    public bool StartWithWindows { get; set; }
+    public string Version => "1.2.0";
+    public void CopyText(string text) => Calls.Add("copy " + text.Length);
+    public void SnoozeItem(string key, SnoozeChoice choice) => Calls.Add($"snooze {key} {choice}");
+    public void Unsnooze(string key) => Calls.Add("unsnooze " + key);
+    public void Mute(string key, MuteScope scope, MuteDuration duration) => Calls.Add($"mute {key} {scope} {duration}");
     public IReadOnlyList<ActiveMute> ActiveMutes() => NoMutes ? [] :
         [new ActiveMute("gh:acme/legacy-*", "forever", true), new ActiveMute("ado:contoso/platform", "45m left", false)];
-    public void Unmute(string pattern) { }
-    public void ToggleSection(string id) { }
+    public void Unmute(string pattern) => Calls.Add("unmute " + pattern);
+
+    public void ToggleSection(string id)
+    {
+        Calls.Add("section " + id);
+        if (id == "waiting") WaitingExpanded = !WaitingExpanded;
+        else if (id == "snoozed") SnoozedExpanded = !SnoozedExpanded;
+        Changed?.Invoke();
+    }
+
     public UpdateStatus Update { get; set; } = new(UpdatePhase.Ready, "1.2.0", "1.2.1", null, null);
     public int RunningAgents { get; set; }
-    public RestartDecision RestartToUpdate(bool confirmed) => RestartDecision.NothingToApply;
-    public Task CheckForUpdatesAsync() => Task.CompletedTask;
+    public RestartDecision RestartToUpdate(bool confirmed)
+    {
+        Calls.Add("restart " + confirmed);
+        return RunningAgents > 0 && !confirmed ? RestartDecision.NeedsConfirm : RestartDecision.Restarting;
+    }
+
+    public Task CheckForUpdatesAsync()
+    {
+        Calls.Add("check-updates");
+        return Task.CompletedTask;
+    }
 }
