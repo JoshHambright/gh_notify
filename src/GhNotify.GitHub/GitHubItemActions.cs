@@ -65,12 +65,13 @@ public sealed class GitHubItemActions(GitHubClient client) : IItemActions
             ActionText.PrWarning(item, run), null, new PrToken(item.Repo, n, sha));
     }
 
-    public async Task<ActionResult> ExecuteAsync(InboxItem item, ItemAction action, ActionPreview preview, string? comment, CancellationToken ct)
+    public async Task<ActionResult> ExecuteAsync(InboxItem item, ItemAction action, ActionPreview preview, ActionInput input, CancellationToken ct)
     {
+        var comment = input.Comment;
         var result = new ActionResult(false, "failed");
         try
         {
-            result = await ExecuteCoreAsync(item, action, preview, comment, ct);
+            result = await ExecuteCoreAsync(item, action, preview, input, ct);
         }
         catch (HttpRequestException ex) { result = ActionText.FromHttpError(ex); }
         catch (RateLimitedException ex) { result = new ActionResult(false, ex.Message); }
@@ -90,8 +91,9 @@ public sealed class GitHubItemActions(GitHubClient client) : IItemActions
         return result;
     }
 
-    async Task<ActionResult> ExecuteCoreAsync(InboxItem item, ItemAction action, ActionPreview preview, string? comment, CancellationToken ct)
+    async Task<ActionResult> ExecuteCoreAsync(InboxItem item, ItemAction action, ActionPreview preview, ActionInput input, CancellationToken ct)
     {
+        var comment = input.Comment;
         var mismatch = new ActionResult(false, Mismatch);
         if (!preview.Allowed) return mismatch;
 

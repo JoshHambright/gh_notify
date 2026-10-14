@@ -79,8 +79,9 @@ public sealed class AdoItemActions(AdoClient client, AdoDirectory directory) : I
             ActionText.PrWarning(item, run), null, new PrToken(item.Org!, item.Project!, item.RepoId!, item.Number.Value, sha));
     }
 
-    public async Task<ActionResult> ExecuteAsync(InboxItem item, ItemAction action, ActionPreview preview, string? comment, CancellationToken ct)
+    public async Task<ActionResult> ExecuteAsync(InboxItem item, ItemAction action, ActionPreview preview, ActionInput input, CancellationToken ct)
     {
+        var comment = input.Comment;
         var outcome = "failed";
         try
         {

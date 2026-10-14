@@ -52,7 +52,7 @@ public class ItemActionsTests
         public IReadOnlyList<ItemAction> ActionsFor(InboxItem item) => [ItemAction.Approve];
         public Task<ActionPreview> PreviewAsync(InboxItem i, ItemAction a, AgentRun? r, CancellationToken ct) =>
             Task.FromResult(new ActionPreview(true, tag, "Go", null, null, null));
-        public Task<ActionResult> ExecuteAsync(InboxItem i, ItemAction a, ActionPreview p, string? c, CancellationToken ct) =>
+        public Task<ActionResult> ExecuteAsync(InboxItem i, ItemAction a, ActionPreview p, ActionInput c, CancellationToken ct) =>
             Task.FromResult(new ActionResult(true, tag));
     }
 
