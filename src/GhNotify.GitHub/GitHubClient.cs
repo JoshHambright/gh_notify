@@ -46,6 +46,13 @@ public sealed class GitHubClient
         SendAsync(() => new HttpRequestMessage(HttpMethod.Post, new Uri(Api, relativePath))
         { Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json") }, ct);
 
+    public Task<JsonElement> PutAsync(string relativePath, object body, CancellationToken ct) =>
+        SendAsync(() => new HttpRequestMessage(HttpMethod.Put, new Uri(Api, relativePath))
+        { Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json") }, ct);
+
+    public Task<JsonElement> DeleteAsync(string relativePath, CancellationToken ct) =>
+        SendAsync(() => new HttpRequestMessage(HttpMethod.Delete, new Uri(Api, relativePath)), ct);
+
     async Task<JsonElement> SendAsync(Func<HttpRequestMessage> make, CancellationToken ct)
     {
         var now = _time.GetUtcNow();
