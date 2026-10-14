@@ -8,7 +8,12 @@ public sealed class AppConfig
     public WorkHoursConfig WorkHours { get; set; } = new();
     [JsonPropertyName("github")] public GitHubConfig GitHub { get; set; } = new();
     public AdoConfig Ado { get; set; } = new();
-    public List<string> RepoRoots { get; set; } = [@"C:\dev"];
+    public List<string> RepoRoots { get; set; } = [DefaultRepoRoot()];
+
+    /// <summary>C:\dev on Windows, ~/dev elsewhere. Only a new config (or a file that omits repoRoots) gets it; an explicit list is never touched.</summary>
+    public static string DefaultRepoRoot() => DefaultRepoRoot(OperatingSystem.IsWindows(), Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+
+    public static string DefaultRepoRoot(bool windows, string home) => windows ? @"C:\dev" : System.IO.Path.Combine(home, "dev");
     public int MaxConcurrentAgents { get; set; } = 2;
     public int AgentTimeoutMinutes { get; set; } = 20;
     public List<string> AgentAllowedTools { get; set; } =
