@@ -34,6 +34,10 @@ public static class PreviewRenderer
                 written.Add(RenderPopup(new SampleHost(), Path.Combine(dir, $"popup-{name}-menu.png"), DrawRowMenu));
                 written.Add(RenderPopup(new SampleHost(), Path.Combine(dir, $"popup-{name}-footer-menu.png"), DrawFooterMenu));
                 written.Add(RenderPopup(new SampleHost { NoMutes = true }, Path.Combine(dir, $"popup-{name}-footer-menu-empty.png"), DrawFooterMenu));
+                foreach (var page in Enum.GetValues<SettingsPage>())
+                    written.Add(RenderSettings(page, Path.Combine(dir, $"settings-{page.ToString().ToLowerInvariant()}-{name}.png")));
+                written.Add(RenderSettings(SettingsPage.Workflows, Path.Combine(dir, $"settings-workflows-profile-{name}.png"), scrollToEnd: true));
+                written.Add(RenderSettings(SettingsPage.Workflows, Path.Combine(dir, $"settings-workflows-builtin-{name}.png"), scrollToEnd: true, profile: "peer-review"));
             }
             foreach (var size in new[] { 16, 20, 24, 32 })
             {
@@ -78,6 +82,39 @@ public static class PreviewRenderer
 
         // Muted row, collapsed "Waiting on others", expanded "Snoozed" (the sample data's filter states).
         yield return ("filters", new SampleHost());
+    }
+
+    /// <summary>The settings window (sample settings) at 880×620 on <paramref name="page"/>; Workflows opens the sample command profile.</summary>
+    static string RenderSettings(SettingsPage page, string path, bool scrollToEnd = false, string profile = "triage")
+    {
+        var w = new SettingsWindow(new SampleSettingsHost())
+        {
+            ShowActivated = false, WindowStartupLocation = WindowStartupLocation.Manual, Left = -10000, Top = 0, SizeToContent = SizeToContent.WidthAndHeight,
+        };
+        var root = (FrameworkElement)w.Content;
+        root.Width = 880; // the client area, as the window opens
+        root.Height = 620;
+        try
+        {
+            w.ShowPage(page);
+            if (w.CurrentPage is WorkflowsPage workflows) workflows.SelectProfile(profile);
+            w.Show();
+            Pump();
+            w.UpdateLayout();
+            if (scrollToEnd)
+            {
+                w.ScrollToEnd();
+                w.UpdateLayout();
+            }
+            Pump();
+            var bmp = new RenderTargetBitmap((int)Math.Ceiling(root.ActualWidth * 2), (int)Math.Ceiling(root.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
+            bmp.Render(root);
+            return Save(bmp, path);
+        }
+        finally
+        {
+            w.Close();
+        }
     }
 
     /// <param name="overlay">Draws on top of the rendered popup (the ⋯ menus).</param>

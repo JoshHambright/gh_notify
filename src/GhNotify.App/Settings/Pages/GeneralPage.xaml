@@ -1,0 +1,85 @@
+<UserControl x:Class="GhNotify.App.GeneralPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <StackPanel>
+    <ItemsControl x:Name="ErrorList" Foreground="{DynamicResource Brush.Red}" FontSize="12" Margin="0,0,0,8" />
+
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="POLLING" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <DockPanel Margin="0,0,0,22">
+      <TextBlock Text="Poll interval" Style="{StaticResource Style.FieldLabel}" />
+      <TextBox x:Name="PollBox" Width="70" Text="{Binding PollSeconds, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
+      <TextBlock Text="seconds" Foreground="{DynamicResource Brush.Muted}" VerticalAlignment="Center" Margin="8,0,0,0" />
+    </DockPanel>
+
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="WORK HOURS" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <DockPanel Margin="0,0,0,4">
+      <TextBlock Text="Days" Style="{StaticResource Style.FieldLabel}" Margin="0,0,0,8" />
+      <WrapPanel x:Name="DayChips" />
+    </DockPanel>
+    <DockPanel Margin="0,0,0,22">
+      <TextBlock Text="Hours" Style="{StaticResource Style.FieldLabel}" />
+      <TextBox Width="64" Text="{Binding WorkHours.Start, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
+      <TextBlock Text="–" Foreground="{DynamicResource Brush.Muted}" VerticalAlignment="Center" Margin="8,0" />
+      <TextBox Width="64" Text="{Binding WorkHours.End, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" HorizontalAlignment="Left" />
+    </DockPanel>
+
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="APP" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <DockPanel Margin="0,0,0,10">
+      <TextBlock Text="Start with Windows" Style="{StaticResource Style.FieldLabel}" />
+      <CheckBox x:Name="StartupCheck" Checked="OnLocalChoice" Unchecked="OnLocalChoice" />
+    </DockPanel>
+    <DockPanel Margin="0,0,0,22">
+      <TextBlock Text="Theme" Style="{StaticResource Style.FieldLabel}" />
+      <Border Style="{StaticResource Style.SegmentGroup}">
+        <StackPanel Orientation="Horizontal">
+          <RadioButton x:Name="ThemeSystem" Content="System" Style="{StaticResource Style.Segment}" Checked="OnLocalChoice" />
+          <RadioButton x:Name="ThemeDark" Content="Dark" Style="{StaticResource Style.Segment}" Checked="OnLocalChoice" />
+          <RadioButton x:Name="ThemeLight" Content="Light" Style="{StaticResource Style.Segment}" Checked="OnLocalChoice" />
+        </StackPanel>
+      </Border>
+    </DockPanel>
+
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="UPDATES" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <DockPanel Margin="0,0,0,10">
+      <TextBlock Text="Automatic updates" Style="{StaticResource Style.FieldLabel}" />
+      <CheckBox Content="Check for updates" IsChecked="{Binding Updates.Enabled}" Checked="OnEdited" Unchecked="OnEdited" />
+    </DockPanel>
+    <DockPanel Margin="0,0,0,10">
+      <TextBlock Text="Check every" Style="{StaticResource Style.FieldLabel}" />
+      <TextBox x:Name="CheckHoursBox" Width="56" Text="{Binding Updates.CheckHours, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
+      <TextBlock Text="hours" Foreground="{DynamicResource Brush.Muted}" VerticalAlignment="Center" Margin="8,0,0,0" />
+    </DockPanel>
+    <DockPanel Margin="0,0,0,4">
+      <TextBlock x:Name="VersionText" Style="{StaticResource Style.FieldLabel}" />
+      <Button x:Name="CheckNowButton" Content="Check now" Style="{StaticResource Style.PillGhost}" HorizontalAlignment="Left"
+              Click="OnCheckNow" ToolTipService.ShowOnDisabled="True" />
+    </DockPanel>
+    <TextBlock x:Name="UpdateStatusText" Foreground="{DynamicResource Brush.Muted}" FontSize="12" Margin="180,0,0,22" TextWrapping="Wrap" />
+
+    <StackPanel Orientation="Horizontal" Margin="0,4,0,12">
+      <Path Style="{StaticResource Style.EBars}" />
+      <TextBlock Text="AGENTS" Style="{StaticResource Style.SectionLabel}" FontSize="12" Margin="8,0,0,0" />
+    </StackPanel>
+    <DockPanel Margin="0,0,0,10">
+      <TextBlock Text="Max concurrent agents" Style="{StaticResource Style.FieldLabel}" />
+      <TextBox x:Name="MaxAgentsBox" Width="56" Text="{Binding MaxConcurrentAgents, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" HorizontalAlignment="Left" />
+    </DockPanel>
+    <DockPanel Margin="0,0,0,10">
+      <TextBlock Text="Agent timeout" Style="{StaticResource Style.FieldLabel}" />
+      <TextBox x:Name="TimeoutBox" Width="56" Text="{Binding AgentTimeoutMinutes, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnEdited" />
+      <TextBlock Text="minutes" Foreground="{DynamicResource Brush.Muted}" VerticalAlignment="Center" Margin="8,0,0,0" />
+    </DockPanel>
+  </StackPanel>
+</UserControl>

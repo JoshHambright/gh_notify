@@ -74,4 +74,56 @@ public class ConfigStoreSaveTests : IDisposable
         b.Filters.Mute.Add("acme");
         Assert.Empty(a.Filters.Mute);
     }
+
+    [Fact]
+    public void Loaded_hash_is_the_hash_of_the_bytes_current_came_from()
+    {
+        File.WriteAllText(PathJ, "{ \"pollSeconds\": 60 }");
+        var store = new ConfigStore(PathJ);
+        store.Load();
+        var good = store.FileHash();
+        Assert.Equal(good, store.LoadedHash);
+
+        File.WriteAllText(PathJ, "{ \"pollSeconds\": 5 }"); // invalid: the last good config (and its hash) stay
+        store.Load();
+        Assert.NotNull(store.Error);
+        Assert.Equal(good, store.LoadedHash);
+        Assert.NotEqual(store.FileHash(), store.LoadedHash);
+
+        File.WriteAllText(PathJ, "{ \"pollSeconds\": 90 }"); // edited, not reloaded yet
+        Assert.Equal(good, store.LoadedHash);
+    }
+
+    [Fact]
+    public void Loaded_hash_follows_saves_and_the_default_file()
+    {
+        var store = new ConfigStore(PathJ);
+        Assert.Null(store.LoadedHash);
+        store.Load(); // writes the default file
+        Assert.Equal(store.FileHash(), store.LoadedHash);
+        var next = ConfigStore.Clone(store.Current);
+        next.PollSeconds = 90;
+        store.Save(next, store.LoadedHash);
+        Assert.Equal(store.FileHash(), store.LoadedHash);
+    }
+
+    [Fact]
+    public void Is_current_until_the_file_changes_or_a_load_failed()
+    {
+        File.WriteAllText(PathJ, "{ \"pollSeconds\": 60 }");
+        var store = new ConfigStore(PathJ);
+        Assert.False(store.IsCurrent); // never loaded
+        store.Load();
+        Assert.True(store.IsCurrent);
+        var next = ConfigStore.Clone(store.Current);
+        next.PollSeconds = 90;
+        store.Save(next, store.LoadedHash);
+        Assert.True(store.IsCurrent); // our own save: the watcher's reload can be skipped
+        File.WriteAllText(PathJ, "{ \"pollSeconds\": 5 }");
+        Assert.False(store.IsCurrent);
+        store.Load();
+        Assert.False(store.IsCurrent); // failed load: keep trying
+        File.WriteAllText(PathJ, JsonSerializer.Serialize(next, Json.Options));
+        Assert.False(store.IsCurrent); // same bytes as the good load, but the error must still be cleared by a reload
+    }
 }

@@ -31,6 +31,31 @@ public sealed class SettingsDraft
         Config = new AppConfig { Extra = extra };
     }
 
+    /// <summary>
+    /// Renames a user profile: re-keys agentProfiles and points rules and defaultProfiles that named <paramref name="oldName"/> at the
+    /// new name (other references are left alone). Returns an error message, or null when renamed (or unchanged).
+    /// </summary>
+    public string? RenameProfile(string oldName, string newName)
+    {
+        var profiles = Config.AgentProfiles;
+        var key = profiles.Keys.FirstOrDefault(k => string.Equals(k, oldName, StringComparison.OrdinalIgnoreCase));
+        if (key is null) return $"No profile named '{oldName}'.";
+        var name = newName.Trim();
+        if (name.Length == 0) return "The profile needs a name.";
+        if (name == key) return null;
+        var sameProfile = string.Equals(name, key, StringComparison.OrdinalIgnoreCase);
+        if (!sameProfile && profiles.ContainsKey(name)) return $"A profile named '{name}' already exists.";
+        if (!sameProfile && ProfileCatalog.BuiltIn.ContainsKey(name)) return $"'{name}' is a built-in profile name.";
+
+        var profile = profiles[key];
+        profiles.Remove(key);
+        profiles[name] = profile;
+        foreach (var rule in Config.Rules.Where(r => string.Equals(r.Profile, key, StringComparison.OrdinalIgnoreCase))) rule.Profile = name;
+        foreach (var kind in Config.DefaultProfiles.Where(kv => string.Equals(kv.Value, key, StringComparison.OrdinalIgnoreCase)).Select(kv => kv.Key).ToList())
+            Config.DefaultProfiles[kind] = name;
+        return null;
+    }
+
     static string Serialize(AppConfig c) => JsonSerializer.Serialize(c, Json.Options);
 
     public static SettingsPage PageFor(string field)
@@ -71,7 +96,7 @@ public sealed class SettingsDraft
     {
         "default" => "Windows default",
         "none" => "None",
-        _ when sound.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase) =>
+        _ when sound.Length > "builtin:".Length && sound.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase) =>
             char.ToUpperInvariant(sound["builtin:".Length]) + sound["builtin:".Length..][1..],
         _ => Path.GetFileName(sound),
     };

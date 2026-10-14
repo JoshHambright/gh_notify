@@ -9,7 +9,7 @@ using ThemeMode = GhNotify.Core.ThemeMode;
 
 namespace GhNotify.App;
 
-public sealed class AppController : IPopupHost, IDisposable
+public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
 {
     readonly ConfigStore _config;
     readonly StateStore _stateStore;
@@ -37,8 +37,12 @@ public sealed class AppController : IPopupHost, IDisposable
     List<Snooze> _snoozes;
     bool _waitingExpanded;
     bool _snoozedExpanded;
+    bool _commentsWarningShown;
+    readonly SkillLocator _skills = new(SkillLocator.DefaultClaudeHome);
 
     public event Action? Changed;
+    /// <summary>The popup asked for the settings window (⋯ → Settings…, or "Fix in Settings"); App opens it.</summary>
+    public event Action? SettingsRequested;
     /// <summary>Raised (on the caller's thread) after <see cref="CycleTheme"/> changes the persisted mode.</summary>
     public event Action? ThemeModeChanged;
 
@@ -68,6 +72,7 @@ public sealed class AppController : IPopupHost, IDisposable
         _snoozes = state.Snoozes.ToList();
         _waitingExpanded = state.WaitingExpanded;
         _snoozedExpanded = state.SnoozedExpanded;
+        _commentsWarningShown = state.CommentsWarningShown;
         _reconciler = new Reconciler(state.Snapshot.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<InboxItem>)kv.Value));
 
         var runner = new ProcessRunner();
@@ -131,7 +136,14 @@ public sealed class AppController : IPopupHost, IDisposable
 
     public void ReloadConfig()
     {
+        if (_config.IsCurrent) return; // e.g. the watcher seeing our own Settings save: already loaded
         _config.Load();
+        AfterConfigChanged();
+    }
+
+    /// <summary>Applies a newly loaded config: retires disabled sources, re-renders and polls.</summary>
+    void AfterConfigChanged()
+    {
         _claudeAvailable = CommandResolver.Find("claude") is not null;
         HandleDiff(_reconciler.RetireWhere(IsDisabledSource));
         Changed?.Invoke();
@@ -535,6 +547,78 @@ public sealed class AppController : IPopupHost, IDisposable
     /// <summary>Opens one of our own local paths (config file, logs folder).</summary>
     public void OpenPath(string path) => ShellOpen(path);
 
+    public void OpenSettings() => SettingsRequested?.Invoke();
+
+    // ----- ISettingsHost -----
+
+    public AppConfig CurrentConfig => _config.Current;
+    public string LogsPath => AppPaths.Logs;
+    public string DataPath => AppPaths.DataDir;
+    public string? ConfigFileHash() => _config.LoadedHash;
+
+    /// <summary>Settings only lifts timed mutes; permanent ones are edited in the draft's filters.mute and saved with it.</summary>
+    void ISettingsHost.Unmute(string pattern)
+    {
+        lock (_filterGate) _mutes.RemoveAll(m => string.Equals(m.Pattern, pattern, StringComparison.OrdinalIgnoreCase));
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Saves through the store (validation, conflict check, .bak), then applies it like a file-watcher reload.</summary>
+    public void SaveConfig(AppConfig config, string? expectedHash)
+    {
+        _config.Save(config, expectedHash);
+        AfterConfigChanged();
+    }
+
+    public IReadOnlyList<string> DiscoveredAdoOrgs() =>
+        _reconciler.Statuses.Where(s => s.Name.StartsWith("ADO:", StringComparison.Ordinal)).Select(s => s.Name["ADO:".Length..]).ToList();
+
+    public async Task<string> TestAdoSignInAsync(string? subscription, string? tenant)
+    {
+        var provider = new AzTokenProvider(new ProcessRunner(), config: () => new AdoConfig { AzSubscription = subscription, AzTenant = tenant });
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(60));
+            await provider.GetTokenAsync(forceRefresh: true, timeout.Token);
+            return "✓ Signed in";
+        }
+        catch (OperationCanceledException) { return "Timed out waiting for az"; }
+        catch (Exception ex) { return ex.Message; }
+    }
+
+    public bool IsSkillInstalled(string skill) => _skills.IsInstalled(skill, null);
+
+    public IReadOnlyList<InboxItem> CurrentItems() => _reconciler.Entries.Select(e => e.Item).ToList();
+
+    public UpdateStatus UpdateStatus => Update;
+
+    public bool StartWithWindows
+    {
+        get => StartupRegistration.IsEnabled();
+        set => StartupRegistration.Set(value);
+    }
+
+    public void SetThemeMode(ThemeMode mode)
+    {
+        if (mode == _themeMode) return;
+        _themeMode = mode;
+        Save();
+        ThemeModeChanged?.Invoke();
+        Changed?.Invoke();
+    }
+
+    public bool CommentsWarningShown
+    {
+        get => _commentsWarningShown;
+        set
+        {
+            _commentsWarningShown = value;
+            Save();
+        }
+    }
+
     static void ShellOpen(string target)
     {
         try { Process.Start(new ProcessStartInfo(target) { UseShellExecute = true })?.Dispose(); }
@@ -559,6 +643,7 @@ public sealed class AppController : IPopupHost, IDisposable
                         Snoozes = _snoozes.ToList(),
                         WaitingExpanded = _waitingExpanded,
                         SnoozedExpanded = _snoozedExpanded,
+                        CommentsWarningShown = _commentsWarningShown,
                     };
                 }
                 _stateStore.Save(state);

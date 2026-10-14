@@ -56,7 +56,7 @@ public partial class PopupWindow : Window
 
         EmptyState.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         CountText.Text = _host.HeaderCount.ToString();
-        ConfigErrorText.Text = _host.ConfigError;
+        RenderConfigError();
         ConfigErrorText.Visibility = _host.ConfigError is null ? Visibility.Collapsed : Visibility.Visible;
         ThemeButton.ToolTip = $"Theme: {_host.ThemeMode}";
         RenderFooter();
@@ -65,6 +65,18 @@ public partial class PopupWindow : Window
         var waiting = rows.Any(r => r.Mode == RowMode.Confirming && !r.ConfirmEnabled && !string.IsNullOrEmpty(r.ConfirmLabel));
         if (waiting && !_confirmTick.IsEnabled) _confirmTick.Start();
         else if (!waiting && _confirmTick.IsEnabled) _confirmTick.Stop();
+    }
+
+    /// <summary>The config-error banner: the error, then a "Fix in Settings" link.</summary>
+    void RenderConfigError()
+    {
+        var inlines = ConfigErrorText.Inlines;
+        inlines.Clear();
+        if (_host.ConfigError is not { } error) return;
+        inlines.Add(new Run(error + " "));
+        var fix = UpdateLink("Fix in Settings", (_, _) => _host.OpenSettings());
+        fix.FontWeight = FontWeights.Bold;
+        inlines.Add(fix);
     }
 
     void RenderFooter()
@@ -305,6 +317,9 @@ public partial class PopupWindow : Window
     internal ContextMenu FooterMenu(UIElement target)
     {
         var menu = new ContextMenu { PlacementTarget = target };
+        var settings = new MenuItem { Header = "Settings…" };
+        settings.Click += (_, _) => _host.OpenSettings();
+        menu.Items.Add(settings);
         var openConfig = new MenuItem { Header = "Open config" };
         openConfig.Click += (_, _) => _host.OpenConfig();
         var startup = new MenuItem { Header = "Start with Windows", IsCheckable = true, IsChecked = StartupRegistration.IsEnabled() };

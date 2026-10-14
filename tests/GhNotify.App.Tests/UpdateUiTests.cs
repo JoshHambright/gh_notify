@@ -30,6 +30,18 @@ public class UpdateUiTests
     public void Restart_item_names_the_ready_version() =>
         Assert.Equal(("Restart to update (v1.2.1)", null),
             (UpdateUi.RestartItem(S(UpdatePhase.Ready, "1.2.1")), UpdateUi.RestartItem(S(UpdatePhase.Failed))));
+
+    [Fact]
+    public void Settings_status_lines()
+    {
+        var checkedAt = new DateTimeOffset(2026, 10, 14, 9, 30, 0, TimeSpan.Zero);
+        Assert.Equal($"Up to date · checked {checkedAt.ToLocalTime():HH:mm}", UpdateUi.SettingsStatus(S(UpdatePhase.Idle) with { LastChecked = checkedAt }));
+        Assert.Equal("Update ready (v1.2.1) — restart from the tray", UpdateUi.SettingsStatus(S(UpdatePhase.Ready, "1.2.1")));
+        Assert.Equal("Last check failed: offline", UpdateUi.SettingsStatus(S(UpdatePhase.Failed) with { LastError = "offline" }));
+        Assert.Equal("Updates are off in dev builds", UpdateUi.SettingsStatus(S(UpdatePhase.DevBuild)));
+        Assert.Equal(("Version 1.2.0", "Version dev build"),
+            (UpdateUi.SettingsVersion(S(UpdatePhase.Idle)), UpdateUi.SettingsVersion(S(UpdatePhase.DevBuild) with { CurrentVersion = null })));
+    }
 }
 
 public class FooterSignatureTests

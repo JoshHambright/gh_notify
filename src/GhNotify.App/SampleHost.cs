@@ -169,6 +169,7 @@ public sealed class SampleHost : IPopupHost
     public Task RefreshAsync() => Task.CompletedTask;
     public void OpenConfig() { }
     public void OpenLogs() { }
+    public void OpenSettings() { }
     public void Quit() { }
     public void CopyText(string text) { }
     public void SnoozeItem(string key, SnoozeChoice choice) { }

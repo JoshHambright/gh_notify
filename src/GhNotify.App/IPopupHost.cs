@@ -31,6 +31,8 @@ public interface IPopupHost
     Task RefreshAsync();
     void OpenConfig();
     void OpenLogs();
+    /// <summary>Opens (or re-activates) the settings window.</summary>
+    void OpenSettings();
     void Quit();
     void CopyText(string text);
     // Named SnoozeItem, not Snooze: that would shadow the Snooze record inside AppController.

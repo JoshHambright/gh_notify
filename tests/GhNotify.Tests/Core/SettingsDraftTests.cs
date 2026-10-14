@@ -66,6 +66,14 @@ public class SettingsDraftTests
         Assert.Equal("Windows default", SettingsDraft.SoundLabel("default"));
     }
 
+    [Theory]
+    [InlineData("builtin:", "builtin:")]
+    [InlineData("builtin:a", "A")]
+    [InlineData("BUILTIN:chime", "Chime")]
+    [InlineData("", "")]
+    public void Sound_label_never_throws_on_partial_input(string sound, string expected) =>
+        Assert.Equal(expected, SettingsDraft.SoundLabel(sound));
+
     [Fact]
     public void Count_matches_for_filter_hints()
     {
@@ -92,5 +100,57 @@ public class SettingsDraftTests
         Assert.Equal(120, d.Config.PollSeconds);
         Assert.True(d.IsDirty);
         Assert.NotNull(d.Config.Extra);
+    }
+
+    static AppConfig WithTriage() => new()
+    {
+        AgentProfiles = new(StringComparer.OrdinalIgnoreCase) { ["triage"] = new AgentProfile { Command = ["pwsh"] }, ["other"] = new AgentProfile { Prompt = "x" } },
+        Rules = [new Rule { Profile = "triage" }, new Rule { Profile = "TRIAGE" }, new Rule { Profile = "ghost" }, new Rule()],
+        DefaultProfiles = new(StringComparer.OrdinalIgnoreCase) { ["MyPrCiFailing"] = "triage", ["ReviewRequested"] = "ghost" },
+    };
+
+    [Fact]
+    public void Rename_profile_rekeys_and_follows_references()
+    {
+        var d = new SettingsDraft(WithTriage(), null);
+        var profile = d.Config.AgentProfiles["triage"];
+        Assert.Null(d.RenameProfile("triage", "triage-ci"));
+        Assert.False(d.Config.AgentProfiles.ContainsKey("triage"));
+        Assert.Same(profile, d.Config.AgentProfiles["triage-ci"]);
+        Assert.Equal(["triage-ci", "triage-ci", "ghost", null], d.Config.Rules.Select(r => r.Profile));
+        Assert.Equal("triage-ci", d.Config.DefaultProfiles["MyPrCiFailing"]);
+        Assert.Equal("ghost", d.Config.DefaultProfiles["ReviewRequested"]); // a dangling reference to another name is left alone
+    }
+
+    [Theory]
+    [InlineData("", "The profile needs a name.")]
+    [InlineData("  ", "The profile needs a name.")]
+    [InlineData("other", "A profile named 'other' already exists.")]
+    [InlineData("Review", "'Review' is a built-in profile name.")]
+    public void Rename_profile_refuses_bad_names(string name, string error)
+    {
+        var d = new SettingsDraft(WithTriage(), null);
+        Assert.Equal(error, d.RenameProfile("triage", name));
+        Assert.True(d.Config.AgentProfiles.ContainsKey("triage"));
+        Assert.False(d.IsDirty);
+    }
+
+    [Fact]
+    public void Rename_profile_to_the_same_name_or_a_case_change()
+    {
+        var d = new SettingsDraft(WithTriage(), null);
+        Assert.Null(d.RenameProfile("triage", "triage"));
+        Assert.False(d.IsDirty);
+        Assert.Null(d.RenameProfile("triage", "Triage"));
+        Assert.Equal("Triage", d.Config.AgentProfiles.Keys.Single(k => k.Equals("triage", StringComparison.OrdinalIgnoreCase)));
+        Assert.Equal("Triage", d.Config.Rules[0].Profile);
+    }
+
+    [Fact]
+    public void Rename_of_an_unknown_or_built_in_profile_is_refused()
+    {
+        var d = new SettingsDraft(WithTriage(), null);
+        Assert.Equal("No profile named 'nope'.", d.RenameProfile("nope", "x"));
+        Assert.Equal("No profile named 'review'.", d.RenameProfile("review", "x"));
     }
 }
