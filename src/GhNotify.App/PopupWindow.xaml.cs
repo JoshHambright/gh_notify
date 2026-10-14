@@ -17,6 +17,7 @@ public partial class PopupWindow : Window
     // Per-row pointer guard for the confirm button; reset on every render because the button is rebuilt.
     readonly Dictionary<string, ConfirmPointerGuard> _pointerGuards = new();
     string? _restoreFocusKey;
+    IReadOnlyList<InboxSection>? _rendered;
 
     public PopupWindow(IPopupHost host)
     {
@@ -38,12 +39,18 @@ public partial class PopupWindow : Window
         var open = rows.Where(r => r.Mode is RowMode.Confirming or RowMode.Sending).Select(r => r.Key).ToHashSet();
         foreach (var key in _comments.Keys.Where(key => !open.Contains(key)).ToList()) _comments.Remove(key);
 
-        foreach (var g in _pointerGuards.Values) g.Reset();
         foreach (var key in _pointerGuards.Keys.Where(key => !open.Contains(key)).ToList()) _pointerGuards.Remove(key);
 
-        var offset = Scroller.VerticalOffset;
-        Sections.ItemsSource = sections;
-        if (offset > 0) Dispatcher.InvokeAsync(() => Scroller.ScrollToVerticalOffset(offset), DispatcherPriority.Loaded);
+        // Rebuild row visuals only when something visible changed: replacing the buttons between
+        // mouse-down and mouse-up (e.g. the refresh fired by opening the popup) swallows the click.
+        if (!InboxSections.SameContent(_rendered, sections))
+        {
+            _rendered = sections;
+            foreach (var g in _pointerGuards.Values) g.Reset();
+            var offset = Scroller.VerticalOffset;
+            Sections.ItemsSource = sections;
+            if (offset > 0) Dispatcher.InvokeAsync(() => Scroller.ScrollToVerticalOffset(offset), DispatcherPriority.Loaded);
+        }
 
         EmptyState.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         CountText.Text = rows.Count.ToString();
