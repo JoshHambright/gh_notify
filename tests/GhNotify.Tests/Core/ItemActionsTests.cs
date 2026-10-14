@@ -13,9 +13,38 @@ public class ItemActionsTests
     {
         Assert.Equal([ItemAction.Approve, ItemAction.Reject], ActionText.DefaultActions(I(ItemKind.ApprovalPending)));
         Assert.Equal([ItemAction.ApprovePr], ActionText.DefaultActions(I(ItemKind.ReviewRequested)));
-        Assert.Empty(ActionText.DefaultActions(I(ItemKind.MyPrCiFailing)));
+        Assert.Equal([ItemAction.RerunFailed], ActionText.DefaultActions(I(ItemKind.MyPrCiFailing)));
+        Assert.Equal([ItemAction.Merge], ActionText.DefaultActions(I(ItemKind.MyPrReadyToMerge)));
         Assert.Empty(ActionText.DefaultActions(I(ItemKind.MyPrNeedsResponse)));
+        Assert.Empty(ActionText.DefaultActions(I(ItemKind.MyPrWaiting)));
     }
+
+    static readonly MergeMethod[] All = [MergeMethod.Merge, MergeMethod.Squash, MergeMethod.Rebase];
+
+    [Fact]
+    public void Merge_default_uses_configured_when_allowed()
+    {
+        Assert.Equal(MergeMethod.Rebase, MergeDefaults.Pick(All, MergeMethod.Rebase));
+        Assert.Equal(MergeMethod.Merge, MergeDefaults.Pick(All, MergeMethod.Merge));
+    }
+
+    [Fact]
+    public void Merge_default_falls_back_to_squash_when_configured_not_allowed_or_unset()
+    {
+        Assert.Equal(MergeMethod.Squash, MergeDefaults.Pick(All, null));
+        Assert.Equal(MergeMethod.Squash, MergeDefaults.Pick([MergeMethod.Squash, MergeMethod.Merge], MergeMethod.Rebase));
+    }
+
+    [Fact]
+    public void Merge_default_takes_first_allowed_in_squash_merge_rebase_order()
+    {
+        Assert.Equal(MergeMethod.Merge, MergeDefaults.Pick([MergeMethod.Rebase, MergeMethod.Merge], null));
+        Assert.Equal(MergeMethod.Rebase, MergeDefaults.Pick([MergeMethod.Rebase], MergeMethod.Squash));
+    }
+
+    [Fact]
+    public void Merge_and_rerun_button_labels() => Assert.Equal(["Merge…", "Re-run failed…"],
+        new[] { ItemAction.Merge, ItemAction.RerunFailed }.Select(ActionText.ButtonLabel));
 
     [Fact]
     public void Labels() => Assert.Equal(["Approve…", "Reject…", "Approve PR…"],

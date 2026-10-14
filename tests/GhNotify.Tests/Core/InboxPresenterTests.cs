@@ -44,13 +44,13 @@ public class InboxPresenterTests
     }
 
     [Fact]
-    public void New_kinds_are_not_urgent_and_have_no_actions()
+    public void New_kinds_are_not_urgent_and_only_ready_to_merge_has_an_action()
     {
         foreach (var kind in new[] { ItemKind.MyPrReadyToMerge, ItemKind.MyPrWaiting })
         {
             var r = Row(It(kind));
             Assert.False(r.Urgent);
-            Assert.Empty(r.Actions);
+            Assert.Equal(kind == ItemKind.MyPrReadyToMerge ? [ItemAction.Merge] : [], r.Actions.Select(a => a.Action));
         }
     }
 

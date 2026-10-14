@@ -57,7 +57,9 @@ public static class ActionText
     {
         ItemKind.ApprovalPending => [ItemAction.Approve, ItemAction.Reject],
         ItemKind.ReviewRequested => [ItemAction.ApprovePr],
-        ItemKind.MyPrCiFailing or ItemKind.MyPrNeedsResponse or ItemKind.MyPrReadyToMerge or ItemKind.MyPrWaiting => [],
+        ItemKind.MyPrReadyToMerge => [ItemAction.Merge],
+        ItemKind.MyPrCiFailing => [ItemAction.RerunFailed],
+        ItemKind.MyPrNeedsResponse or ItemKind.MyPrWaiting => [],
         _ => [],
     };
 
