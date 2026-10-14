@@ -1,3 +1,4 @@
+#requires -Version 7
 # Install -> upgrade -> uninstall test. CI ONLY: it installs and uninstalls the real per-user install
 # (%LocalAppData%\GhNotify) and writes sentinel files into the real profile. Do not run it on a dev machine.
 param(
@@ -63,7 +64,9 @@ if (-not $fullPkg) { Fail "no GhNotify-<version>-full.nupkg found in $NewFeed" }
 function Wait-Until([scriptblock]$cond, [int]$seconds, [string]$what) {
     $deadline = (Get-Date).AddSeconds($seconds)
     while ((Get-Date) -lt $deadline) {
-        if (& $cond) { return }
+        $ok = $false
+        try { $ok = [bool](& $cond) } catch { $ok = $false }   # transient errors mean "not yet"
+        if ($ok) { return }
         Start-Sleep -Milliseconds 500
     }
     Fail "timed out after $seconds s waiting for $what"
@@ -74,10 +77,17 @@ function Wait-Started([int]$seconds = 20) {
         $log -match 'gh_notify started'
     } $seconds "app to log 'gh_notify started'"
 }
+# Non-throwing, file-based version read (GhNotify.exe is a WinExe, so --version output is unreliable).
+function Read-Version {
+    if (-not (Test-Path $exe)) { return $null }
+    try {
+        $v = ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).ProductVersion + '').Trim() -replace '\+.*$', ''
+        if ($v) { $v } else { $null }
+    } catch { $null }
+}
 function Version-Of {
-    $v = (& $exe --version | Out-String).Trim()
-    if (-not $v) { $v = ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).ProductVersion + '').Trim() }
-    if (-not $v) { Fail "could not determine the app version from --version or the exe ProductVersion" }
+    $v = Read-Version
+    if (-not $v) { Fail "could not read the exe ProductVersion from $exe" }
     $v
 }
 function Start-Check {
@@ -102,7 +112,7 @@ try {
     Step "2. update to new ($($fullPkg.Name))"
     & $updateExe apply --package $fullPkg.FullName --norestart --silent | Out-Null
     if ($LASTEXITCODE -ne 0) { Fail "Update.exe apply exited $LASTEXITCODE" }
-    Wait-Until { (& $exe --version | Out-String).Trim() -ne $old } 60 "version to change from $old"
+    Wait-Until { $v = Read-Version; $v -and $v -ne $old } 60 "version to change from $old"
     Get-Process GhNotify -ErrorAction SilentlyContinue | Stop-Process -Force
     $new = Version-Of
     if ($new -eq $old) { Fail "version did not change after update (still $old)" }
