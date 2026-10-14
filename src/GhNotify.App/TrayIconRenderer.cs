@@ -32,9 +32,14 @@ public static class TrayIconRenderer
         return p;
     }
 
-    public static BitmapSource Render(int sizePx, string? badge, bool attention)
+    public static BitmapSource Render(int sizePx, string? badge, bool attention) => Draw(sizePx, badge, attention, accent: false);
+
+    public static BitmapSource RenderAccent(int sizePx) => Draw(sizePx, null, false, accent: true);
+
+    static BitmapSource Draw(int sizePx, string? badge, bool attention, bool accent)
     {
         var white = Colors.White;
+        var red = accent || badge is not null;
         var dv = new DrawingVisual();
         RenderOptions.SetEdgeMode(dv, EdgeMode.Unspecified);
         using (var dc = dv.RenderOpen())
@@ -46,7 +51,7 @@ public static class TrayIconRenderer
             dc.DrawGeometry(B(Navy), null, tile);
 
             dc.PushClip(tile);
-            dc.DrawEllipse(B(Red), null, new Point(34, 2), 19, 19);
+            if (red) dc.DrawEllipse(B(Red), null, new Point(34, 2), 19, 19);
             dc.Pop();
 
             // merge glyph
@@ -60,14 +65,15 @@ public static class TrayIconRenderer
 
             dc.DrawEllipse(B(white), null, new Point(11, 6.5), 3.2, 3.2);
             dc.DrawEllipse(B(white), null, new Point(11, 27), 3.2, 3.2);
-            dc.DrawEllipse(B(Red), P(white, 2.2), new Point(25, 9), 3.6, 3.6);
+            if (red) dc.DrawEllipse(B(Red), P(white, 2.2), new Point(25, 9), 3.6, 3.6);
+            else dc.DrawEllipse(B(white), null, new Point(25, 9), 3.6, 3.6);
 
             if (badge is not null)
             {
-                dc.DrawEllipse(B(attention ? Amber : Navy), P(white, 1.2), new Point(30, 6), 5.5, 5.5);
+                dc.DrawEllipse(B(Red), P(attention ? Amber : white, 1.2), new Point(30, 6), 5.5, 5.5);
                 var size = badge.Length >= 3 ? 6.0 : 7.0;
                 var ft = new FormattedText(badge, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                    Heavy, size, B(attention ? Navy : white), 1.0);
+                    Heavy, size, B(white), 1.0);
                 dc.DrawText(ft, new Point(30 - ft.WidthIncludingTrailingWhitespace / 2, 6 - ft.Height / 2));
             }
             else if (attention)

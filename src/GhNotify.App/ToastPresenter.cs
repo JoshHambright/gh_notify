@@ -15,7 +15,7 @@ public sealed class ToastPresenter
         try
         {
             var enc = new PngBitmapEncoder();
-            enc.Frames.Add(BitmapFrame.Create(TrayIconRenderer.Render(64, null, false)));
+            enc.Frames.Add(BitmapFrame.Create(TrayIconRenderer.RenderAccent(64)));
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             using (var fs = File.Create(path)) enc.Save(fs);
             _logoPath = path;
