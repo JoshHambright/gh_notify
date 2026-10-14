@@ -386,7 +386,7 @@ public class AdoMergeAndRerunTests
     [InlineData(MergeMethod.Rebase, "rebase", true)]
     public async Task Merge_execute_patches_exact_body(MergeMethod method, string strategy, bool delete)
     {
-        var http = MergeHttp(PrJson()).On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "{}"));
+        var http = MergeHttp(PrJson()).On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, """{"status":"completed"}"""));
         var a = Make(http);
         var p = await a.PreviewAsync(Ready(), ItemAction.Merge, null, default);
         var r = await a.ExecuteAsync(Ready(), ItemAction.Merge, p, new ActionInput(null, method, delete), default);
@@ -403,7 +403,7 @@ public class AdoMergeAndRerunTests
     [Fact]
     public async Task Merge_execute_method_not_allowed_or_missing_is_mismatch()
     {
-        var http = MergeHttp(PrJson(), Strategy(true, true, false)).On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "{}"));
+        var http = MergeHttp(PrJson(), Strategy(true, true, false)).On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, """{"status":"completed"}"""));
         var a = Make(http);
         var p = await a.PreviewAsync(Ready(), ItemAction.Merge, null, default);
         var rebase = await a.ExecuteAsync(Ready(), ItemAction.Merge, p, new ActionInput(null, MergeMethod.Rebase), default);
@@ -416,7 +416,7 @@ public class AdoMergeAndRerunTests
     [Fact]
     public async Task Merge_execute_token_mismatch()
     {
-        var http = MergeHttp(PrJson()).On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "{}"));
+        var http = MergeHttp(PrJson()).On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, """{"status":"completed"}"""));
         var a = Make(http);
         var p = await a.PreviewAsync(Ready(), ItemAction.Merge, null, default);
         var input = new ActionInput(null, MergeMethod.Squash);
@@ -550,6 +550,35 @@ public class AdoMergeAndRerunTests
         var r = await a.ExecuteAsync(Failing(), ItemAction.RerunFailed, p, default(ActionInput), default);
         Assert.True(r.Ok);
         Assert.Equal("Re-queue started, but couldn't re-queue: E2E", r.Error);
+    }
+
+    [Fact]
+    public async Task Rerun_execute_rate_limit_after_a_success_is_ok_with_warning()
+    {
+        var evals = $$"""{"value":[{{Eval("e-1", "CI")}},{{Eval("e-2", "E2E")}}]}""";
+        var http = RerunHttp(evals)
+            .On(r => Is(r, HttpMethod.Patch, "/evaluations/e-2"), _ => FakeHttpHandler.Respond(HttpStatusCode.TooManyRequests, "{}"))
+            .On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, "{}"));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Failing(), ItemAction.RerunFailed, null, default);
+        var r = await a.ExecuteAsync(Failing(), ItemAction.RerunFailed, p, default(ActionInput), default);
+        Assert.True(r.Ok);
+        Assert.Equal("Re-queue started, but couldn't re-queue: E2E", r.Error);
+    }
+
+    [Theory]
+    [InlineData("""{"status":"completed","mergeStatus":"succeeded"}""", true, null)]
+    [InlineData("""{"status":"active","mergeStatus":"succeeded"}""", true, "Merge queued — check the PR")]
+    [InlineData("""{"status":"active","mergeStatus":"conflicts","mergeFailureMessage":"policy"}""", false, "Merge failed: policy")]
+    [InlineData("""{"status":"active","mergeStatus":"rejectedByPolicy"}""", false, "Merge failed — check the PR")]
+    public async Task Merge_execute_inspects_the_patch_response(string response, bool ok, string? error)
+    {
+        var http = MergeHttp(PrJson()).On(r => r.Method == HttpMethod.Patch, _ => FakeHttpHandler.Respond(HttpStatusCode.OK, response));
+        var a = Make(http);
+        var p = await a.PreviewAsync(Ready(), ItemAction.Merge, null, default);
+        var r = await a.ExecuteAsync(Ready(), ItemAction.Merge, p, new ActionInput(null, MergeMethod.Squash), default);
+        Assert.Equal(ok, r.Ok);
+        Assert.Equal(error, r.Error);
     }
 
     [Fact]

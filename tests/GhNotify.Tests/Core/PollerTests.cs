@@ -36,6 +36,22 @@ public class PollerTests
     }
 
     [Fact]
+    public async Task RunAsync_keeps_polling_after_a_failure_and_stops_on_cancel()
+    {
+        var calls = 0;
+        var catalog = new StaticCatalog(() => ++calls == 1 ? throw new InvalidOperationException("catalog down") : [new Src("A", _ => Task.FromResult(SourceResult.Ok([I("a")])))]);
+        var poller = new Poller(catalog, new Reconciler(), TimeSpan.FromSeconds(30));
+        using var cts = new CancellationTokenSource();
+        var second = new TaskCompletionSource();
+        poller.Polled += _ => { second.TrySetResult(); cts.Cancel(); };
+
+        await poller.RunAsync(() => TimeSpan.FromMilliseconds(5), cts.Token).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.True(second.Task.IsCompleted);
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
     public async Task Slow_source_times_out_as_unhealthy()
     {
         var reconciler = new Reconciler();

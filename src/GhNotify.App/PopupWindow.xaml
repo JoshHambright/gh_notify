@@ -263,7 +263,7 @@
                 </Style>
               </Border.Style>
               <StackPanel>
-                <TextBlock Text="{Binding Statement}" FontWeight="Bold" FontSize="12" TextWrapping="Wrap"
+                <TextBlock x:Name="StatementText" Text="{Binding Statement}" FontWeight="Bold" FontSize="12" TextWrapping="Wrap"
                            Visibility="{Binding Statement, Converter={StaticResource HasValue}}" />
                 <Border Background="{DynamicResource Brush.Amber}" CornerRadius="10" Padding="9,2,9,3" Margin="0,6,0,0"
                         HorizontalAlignment="Left" Visibility="{Binding Warning, Converter={StaticResource HasValue}}">

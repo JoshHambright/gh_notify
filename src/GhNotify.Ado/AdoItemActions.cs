@@ -94,13 +94,6 @@ public sealed class AdoItemActions(AdoClient client, AdoDirectory directory) : I
 
     static string Branch(string? refName) => refName is { } r && r.StartsWith("refs/heads/", StringComparison.Ordinal) ? r["refs/heads/".Length..] : refName ?? "the target branch";
 
-    static string MergeVerb(MergeMethod m) => m switch
-    {
-        MergeMethod.Squash => "Squash and merge",
-        MergeMethod.Rebase => "Rebase and merge",
-        _ => "Merge",
-    };
-
     static string StrategyName(MergeMethod m) => m switch { MergeMethod.Squash => "squash", MergeMethod.Rebase => "rebase", _ => "noFastForward" };
 
     static bool ScopeApplies(JsonElement scope, string repoId, string? targetRef)
@@ -162,7 +155,7 @@ public sealed class AdoItemActions(AdoClient client, AdoDirectory directory) : I
         if (allowed.Count == 0) return ActionText.Refuse("No merge method is allowed on this branch");
         var selected = MergeDefaults.Pick(allowed, null);
         var sha7 = sha.Length > 7 ? sha[..7] : sha;
-        return new ActionPreview(true, $"{MergeVerb(selected)} PR #{item.Number} into {Branch(targetRef)} in {item.Repo} at {sha7}", $"Merge PR #{item.Number}",
+        return new ActionPreview(true, MergeStatement.Build(selected, item.Number.Value, Branch(targetRef), item.Repo, sha7), $"Merge PR #{item.Number}",
             null, null, new MergeToken(item.Org!, item.Project!, item.RepoId!, item.Number.Value, sha, [.. allowed]))
         { Options = new MergeOptions(allowed, selected, CanDeleteBranch: true, DeleteBranch: true) };
     }
@@ -256,8 +249,8 @@ public sealed class AdoItemActions(AdoClient client, AdoDirectory directory) : I
             lastMergeSourceCommit = new { commitId = t.Sha },
             completionOptions = new { mergeStrategy = StrategyName(method), deleteSourceBranch = input.DeleteBranch },
         };
-        await client.SendAsync(HttpMethod.Patch, $"{prUrl}?api-version=7.1", body, ct);
-        return new ActionResult(true, null);
+        var done = await client.SendAsync(HttpMethod.Patch, $"{prUrl}?api-version=7.1", body, ct);
+        return MergeOutcome(done);
     }
 
     async Task<ActionResult> ExecuteRerunAsync(RerunToken t, CancellationToken ct)
@@ -265,9 +258,10 @@ public sealed class AdoItemActions(AdoClient client, AdoDirectory directory) : I
         var pr = await client.GetAsync($"{PrUrl(t.Org, t.Project, t.RepoId, t.Number)}?api-version=7.1", ct);
         if (!PrStillValid(pr, t.Sha)) return Stale();
         var failed = new List<string>();
-        HttpRequestException? first = null;
-        foreach (var (id, name) in t.Evaluations)
+        Exception? first = null;
+        for (var i = 0; i < t.Evaluations.Length; i++)
         {
+            var (id, name) = t.Evaluations[i];
             try
             {
                 await client.SendAsync(HttpMethod.Patch,
@@ -278,10 +272,29 @@ public sealed class AdoItemActions(AdoClient client, AdoDirectory directory) : I
                 first ??= ex;
                 failed.Add(name);
             }
+            catch (Exception ex) when (ex is RateLimitedException or SourceAuthException || ex is OperationCanceledException && !ct.IsCancellationRequested)
+            {
+                // Earlier policies were already re-queued: report what failed instead of dropping the partial success.
+                first ??= ex;
+                failed.AddRange(t.Evaluations.Skip(i).Select(r => r.Name));
+                break;
+            }
         }
         if (failed.Count == 0) return new ActionResult(true, null);
-        if (failed.Count == t.Evaluations.Length) return ActionText.FromHttpError(first!);
+        if (failed.Count == t.Evaluations.Length) return first is HttpRequestException h ? ActionText.FromHttpError(h) : ActionText.Rethrow(first!);
         return new ActionResult(true, $"Re-queue started, but couldn't re-queue: {string.Join(", ", failed)}");
+    }
+
+    /// <summary>Completion is asynchronous: only status "completed" is a finished merge; anything else is reported, not claimed.</summary>
+    static ActionResult MergeOutcome(JsonElement response)
+    {
+        var status = response.Str("status");
+        if (string.Equals(status, "completed", StringComparison.OrdinalIgnoreCase)) return new ActionResult(true, null);
+        var mergeStatus = response.Str("mergeStatus");
+        if (string.Equals(mergeStatus, "conflicts", StringComparison.OrdinalIgnoreCase) || string.Equals(mergeStatus, "failure", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mergeStatus, "rejectedByPolicy", StringComparison.OrdinalIgnoreCase))
+            return new ActionResult(false, response.Str("mergeFailureMessage") is { Length: > 0 } m ? $"Merge failed: {m}" : "Merge failed — check the PR");
+        return new ActionResult(true, "Merge queued — check the PR");
     }
 
     static ActionResult Stale() => new(false, Changed, Stale: true);

@@ -266,6 +266,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
             if (!present.Contains(key)) _rowStates.TryRemove(key, out _);
             else if (RowStateMachine.HidesOnNextPoll(state) && _rowStates.TryRemove(new KeyValuePair<string, RowUiState>(key, state)))
                 _doneHidden[key] = 0;
+            else if (RowStateMachine.ClearsOnNextPoll(state))
+                _rowStates.TryRemove(new KeyValuePair<string, RowUiState>(key, state));
         }
     }
 
@@ -286,7 +288,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     {
         var searching = !string.IsNullOrWhiteSpace(query);
         var sections = InboxFilter.Apply(Present(searching), query);
-        if (searching) return sections.Select(s => s.BatchButtons ? s with { BatchButtons = false } : s).ToList();
+        if (searching) sections = sections.Select(s => s.BatchButtons ? s with { BatchButtons = false } : s).ToList();
         if (!Batch.Active) return sections;
         // While a batch is open or running, the Approvals rows can only be acted on through it.
         return sections.Select(s => s.Id != BatchApproval.SectionId ? s : s with
@@ -349,7 +351,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     void CollapseOthers(string key)
     {
         foreach (var (k, s) in _rowStates)
-            if (k != key && s.Mode != RowMode.Sending && _rowStates.TryRemove(new KeyValuePair<string, RowUiState>(k, s)) && s.Mode == RowMode.Done)
+            if (k != key && s.Mode != RowMode.Sending && _rowStates.TryRemove(new KeyValuePair<string, RowUiState>(k, s)) && RowStateMachine.HidesItem(s))
                 _doneHidden[k] = 0;
     }
 
@@ -381,7 +383,10 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         }
         // The panel starts on the configured merge method when the repo allows it (providers preselect without knowing the config).
         if (preview.Options is { } options)
-            preview = preview with { Options = options with { Selected = MergeDefaults.Pick(options.Allowed, _config.Current.Actions.MergeMethod) } };
+        {
+            var picked = MergeDefaults.Pick(options.Allowed, _config.Current.Actions.MergeMethod);
+            preview = preview with { Statement = MergeStatement.WithMethod(preview.Statement, picked), Options = options with { Selected = picked } };
+        }
         // Only apply if the row is still in this confirm session (not cancelled or restarted meanwhile).
         _rowStates.TryUpdate(key, RowStateMachine.WithPreview(begun, preview, DateTimeOffset.Now), begun);
         Changed?.Invoke();
@@ -416,7 +421,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         // Closing a Done row (e.g. one kept for its warning) hides it like a plain success, until the item changes or leaves.
         if (s.Mode == RowMode.Done)
         {
-            if (_rowStates.TryRemove(new KeyValuePair<string, RowUiState>(key, s))) _doneHidden[key] = 0;
+            if (_rowStates.TryRemove(new KeyValuePair<string, RowUiState>(key, s)) && RowStateMachine.HidesItem(s)) _doneHidden[key] = 0;
         }
         else _rowStates.TryUpdate(key, RowStateMachine.Cancel(s), s);
         Changed?.Invoke();

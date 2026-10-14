@@ -93,5 +93,17 @@ public class ItemActionsTests
         var ado = await c.PreviewAsync(I(ItemKind.ApprovalPending, Provider.Ado), ItemAction.Approve, null, default);
         Assert.False(ado.Allowed);
         Assert.Empty(c.ActionsFor(I(ItemKind.ApprovalPending, Provider.Ado)));
+        Assert.Equal([ItemAction.Approve], c.ActionsFor(I(ItemKind.ApprovalPending)));
+        var item = I(ItemKind.ApprovalPending);
+        Assert.Equal("gh", (await c.ExecuteAsync(item, ItemAction.Approve, ActionText.Refuse("x"), default(ActionInput), default)).Error);
+        var adoItem = I(ItemKind.ApprovalPending, Provider.Ado);
+        Assert.False((await c.ExecuteAsync(adoItem, ItemAction.Approve, ActionText.Refuse("x"), default(ActionInput), default)).Ok);
+    }
+
+    [Fact]
+    public void Rethrow_preserves_the_original_exception()
+    {
+        var original = new InvalidOperationException("boom");
+        Assert.Same(original, Assert.Throws<InvalidOperationException>(() => ActionText.Rethrow(original)));
     }
 }

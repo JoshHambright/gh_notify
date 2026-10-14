@@ -21,6 +21,7 @@ public partial class PopupWindow
     TextBlock? _batchStatus;
     Button? _batchCancel;
     Button? _batchConfirm;
+    int? _batchCommentCaret;
     readonly Dictionary<string, (CheckBox Box, TextBlock Head, TextBlock Detail)> _batchViews = new();
 
     void OnBatchApprove(object sender, RoutedEventArgs e) => BeginBatch(ItemAction.Approve);
@@ -50,6 +51,17 @@ public partial class PopupWindow
         if (ReferenceEquals(panel.Parent, slot)) return;
         if (panel.Parent is Border old) old.Child = null;
         slot.Child = panel;
+        if (_batchCommentCaret is { } caret)
+        {
+            _batchCommentCaret = null;
+            Dispatcher.InvokeAsync(() =>
+            {
+                if (_batchComment is not { IsEnabled: true, IsVisible: true } box) return;
+                box.Focus();
+                Keyboard.Focus(box);
+                box.CaretIndex = Math.Min(caret, box.Text.Length);
+            }, System.Windows.Threading.DispatcherPriority.Loaded);
+        }
     }
 
     /// <summary>Syncs the panel with the coordinator and puts it where it belongs (called on every render).</summary>
@@ -63,6 +75,7 @@ public partial class PopupWindow
                 if (_batchPanel.Parent is Border parent) parent.Child = null;
                 _batchPanel.Visibility = Visibility.Collapsed;
                 _batchComment!.Clear();
+                _batchCommentCaret = null;
                 _batchViews.Clear();
                 _batchLines!.Children.Clear();
             }

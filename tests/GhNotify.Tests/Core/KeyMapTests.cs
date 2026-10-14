@@ -15,6 +15,17 @@ public class KeyMapTests
     static KeyCommand K(KeyCommandKind kind) => new(kind);
 
     [Theory]
+    [InlineData("Enter")]
+    [InlineData("Space")]
+    public void Enter_and_space_stay_with_a_focused_button(string key)
+    {
+        Assert.Equal(KeyCommand.None, R(key, new PopupContext(ConfirmOpen: true, BatchOpen: true, ButtonFocused: true)));
+        Assert.Equal(KeyCommand.None, R(key, List(RowMode.Confirming, ItemAction.Approve) with { ButtonFocused = true }));
+        Assert.Equal(KeyCommand.None, R(key, List(RowMode.Collapsed, ItemAction.Approve) with { ButtonFocused = true }));
+        Assert.Equal(K(KeyCommandKind.CancelConfirm), R("Esc", new PopupContext(ConfirmOpen: true, ButtonFocused: true)));
+    }
+
+    [Theory]
     [InlineData("Down", KeyCommandKind.MoveDown)]
     [InlineData("Up", KeyCommandKind.MoveUp)]
     [InlineData("Home", KeyCommandKind.First)]

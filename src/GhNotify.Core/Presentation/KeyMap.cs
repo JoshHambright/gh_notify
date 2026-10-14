@@ -13,7 +13,8 @@ public sealed record PopupContext(
     RowMode? SelectedRowMode = null,
     IReadOnlyList<ItemAction>? SelectedRowActions = null,
     bool ConfirmOpen = false,
-    bool BatchOpen = false);
+    bool BatchOpen = false,
+    bool ButtonFocused = false);
 
 public enum KeyCommandKind
 {
@@ -43,6 +44,9 @@ public static class KeyMap
             if (ctx.SearchFocused) return new(ctx.SearchEmpty ? KeyCommandKind.HidePopup : KeyCommandKind.ClearSearch);
             return new(KeyCommandKind.HidePopup);
         }
+
+        // A focused button keeps Enter/Space: WPF clicks it (Cancel must cancel, not confirm).
+        if (ctx.ButtonFocused && key is "Enter" or "Space") return KeyCommand.None;
 
         if (ctx.TextBoxFocused || ctx.SearchFocused)
             return key == "Down" && plain && ctx.SearchFocused && !confirm ? new(KeyCommandKind.MoveDown) : KeyCommand.None;

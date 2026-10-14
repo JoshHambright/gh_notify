@@ -22,7 +22,8 @@ public class RowStateMachineActionsTests
         var finished = RowStateMachine.Finished(s, new ActionResult(true, null));
         Assert.Equal(RowMode.Done, finished.Mode);
         Assert.Equal(done, finished.Message);
-        Assert.True(RowStateMachine.HidesOnNextPoll(finished));
+        Assert.Equal(action != ItemAction.RerunFailed, RowStateMachine.HidesOnNextPoll(finished));
+        Assert.Equal(action == ItemAction.RerunFailed, RowStateMachine.ClearsOnNextPoll(finished));
         Assert.Null(RowStateMachine.ToastFor(new ActionResult(true, done), action));
     }
 
@@ -35,6 +36,18 @@ public class RowStateMachineActionsTests
         Assert.Equal(warning, done.Message);
         Assert.False(RowStateMachine.HidesOnNextPoll(done));
         Assert.Equal(warning, RowStateMachine.ToastFor(new ActionResult(true, warning), action));
+    }
+
+    [Fact]
+    public void Rerun_never_hides_the_item_only_its_message_clears()
+    {
+        var started = RowStateMachine.Finished(SendingFor(ItemAction.RerunFailed), new ActionResult(true, null));
+        Assert.False(RowStateMachine.HidesItem(started));
+        Assert.True(RowStateMachine.ClearsOnNextPoll(started));
+        var warned = RowStateMachine.Finished(SendingFor(ItemAction.RerunFailed), new ActionResult(true, "Re-run started, but couldn't re-run: e2e"));
+        Assert.False(RowStateMachine.HidesItem(warned));
+        Assert.False(RowStateMachine.ClearsOnNextPoll(warned));
+        Assert.True(RowStateMachine.HidesItem(RowStateMachine.Finished(SendingFor(ItemAction.Merge), new ActionResult(true, "Merge queued"))));
     }
 
     [Fact]

@@ -173,7 +173,8 @@ public partial class PopupWindow
             SelectedRowMode: row?.Mode,
             SelectedRowActions: row?.Actions.Select(a => a.Action).ToList(),
             ConfirmOpen: batch,
-            BatchOpen: batch);
+            BatchOpen: batch,
+            ButtonFocused: focused is System.Windows.Controls.Primitives.ButtonBase);
     }
 
     /// <summary>Carries out a resolved command; false when it did nothing (so the key keeps its normal meaning).</summary>
@@ -268,6 +269,14 @@ public partial class PopupWindow
         if (((FrameworkElement)sender).Tag is string url) _host.OpenUrl(url);
     }
 
+    /// <summary>The confirm statement names the method that will be used, so it follows the picker.</summary>
+    static void ShowStatement(StackPanel panel, InboxRow row, MergeMethod method)
+    {
+        if (row.Statement is not { Length: > 0 } statement) return;
+        if ((panel.Parent as Panel)?.Children.OfType<TextBlock>().FirstOrDefault(t => t.Name == "StatementText") is { } text)
+            text.Text = MergeStatement.WithMethod(statement, method);
+    }
+
     static string MethodLabel(MergeMethod m) => m switch
     {
         MergeMethod.Squash => "Squash",
@@ -302,10 +311,15 @@ public partial class PopupWindow
                 VerticalContentAlignment = VerticalAlignment.Center,
             };
             radio.SetResourceReference(Control.ForegroundProperty, "Brush.Text");
-            radio.Checked += (_, _) => _methods[key] = method;
+            radio.Checked += (_, _) =>
+            {
+                _methods[key] = method;
+                ShowStatement(panel, row, method);
+            };
             methods.Children.Add(radio);
         }
         panel.Children.Add(methods);
+        ShowStatement(panel, row, selected);
 
         if (!options.CanDeleteBranch) return;
         var box = new CheckBox

@@ -76,13 +76,6 @@ public sealed class GitHubItemActions(GitHubClient client) : IItemActions
 
     static string Sha7(string sha) => sha[..Math.Min(7, sha.Length)];
 
-    static string MergeVerb(MergeMethod m) => m switch
-    {
-        MergeMethod.Squash => "Squash and merge",
-        MergeMethod.Rebase => "Rebase and merge",
-        _ => "Merge",
-    };
-
     async Task<ActionPreview> PreviewMergeAsync(InboxItem item, CancellationToken ct)
     {
         var n = item.Number!.Value;
@@ -118,7 +111,7 @@ public sealed class GitHubItemActions(GitHubClient client) : IItemActions
         var headRef = pr.Obj("head").Str("ref") ?? "";
         var selected = MergeDefaults.Pick(allowed, null);
         var target = pr.Obj("base").Str("ref") ?? "the base branch";
-        return new ActionPreview(true, $"{MergeVerb(selected)} PR #{n} into {target} in {item.Repo} at {Sha7(sha)}", $"Merge PR #{n}",
+        return new ActionPreview(true, MergeStatement.Build(selected, n, target, item.Repo, Sha7(sha)), $"Merge PR #{n}",
             null, null, new MergeToken(item.Repo, n, sha, [.. allowed], headRef, canDelete))
         { Options = new MergeOptions(allowed, selected, canDelete, deleteDefault) };
     }
@@ -236,9 +229,10 @@ public sealed class GitHubItemActions(GitHubClient client) : IItemActions
         if (pr.Str("state") != "open" || pr.Obj("head").Str("sha") != t.Sha)
             return new ActionResult(false, StaleHead, Stale: true);
         var failed = new List<string>();
-        HttpRequestException? first = null;
-        foreach (var (id, name) in t.Runs)
+        Exception? first = null;
+        for (var i = 0; i < t.Runs.Length; i++)
         {
+            var (id, name) = t.Runs[i];
             try
             {
                 await client.PostAsync($"repos/{t.Repo}/actions/runs/{id}/rerun-failed-jobs", new { }, ct);
@@ -248,9 +242,16 @@ public sealed class GitHubItemActions(GitHubClient client) : IItemActions
                 first ??= ex;
                 failed.Add(name);
             }
+            catch (Exception ex) when (ex is RateLimitedException or SourceAuthException || ex is OperationCanceledException && !ct.IsCancellationRequested)
+            {
+                // Earlier runs were already re-run: report what failed instead of dropping the partial success.
+                first ??= ex;
+                failed.AddRange(t.Runs.Skip(i).Select(r => r.Name));
+                break;
+            }
         }
         if (failed.Count == 0) return new ActionResult(true, null);
-        if (failed.Count == t.Runs.Length) return ActionText.FromHttpError(first!);
+        if (failed.Count == t.Runs.Length) return first is HttpRequestException h ? ActionText.FromHttpError(h) : ActionText.Rethrow(first!);
         return new ActionResult(true, $"Re-run started, but couldn't re-run: {string.Join(", ", failed)}");
     }
 }

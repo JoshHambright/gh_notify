@@ -66,6 +66,8 @@ public partial class PopupWindow : Window
         _rows = rows;
         var batch = _host.Batch;
 
+        // A rebuild detaches the batch panel; remember its comment box focus so it can be restored once re-attached.
+        if (_batchComment is { IsKeyboardFocusWithin: true } bc) _batchCommentCaret = bc.CaretIndex;
         _restoreFocusKey = Keyboard.FocusedElement is TextBox { Name: "CommentBox", Tag: string k } ? k : null;
         var open = rows.Where(r => r.Mode is RowMode.Confirming or RowMode.Sending).Select(r => r.Key).ToHashSet();
         foreach (var key in _comments.Keys.Where(key => !open.Contains(key)).ToList()) _comments.Remove(key);

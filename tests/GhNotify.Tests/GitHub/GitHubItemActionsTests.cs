@@ -531,6 +531,30 @@ public class GitHubMergeAndRerunTests
     }
 
     [Fact]
+    public async Task Rerun_execute_rate_limit_after_a_success_is_ok_with_warning()
+    {
+        var http = RerunHttp()
+            .On(r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.Contains("/runs/502/"), _ => FakeHttpHandler.Respond(HttpStatusCode.TooManyRequests, "{}"))
+            .On(r => r.Method == HttpMethod.Post, _ => FakeHttpHandler.Respond(HttpStatusCode.Created, "{}"));
+        var (a, _) = Make(http);
+        var p = await a.PreviewAsync(Failing(), ItemAction.RerunFailed, null, default);
+        var r = await a.ExecuteAsync(Failing(), ItemAction.RerunFailed, p, default(ActionInput), default);
+        Assert.True(r.Ok);
+        Assert.Equal("Re-run started, but couldn't re-run: e2e", r.Error);
+    }
+
+    [Fact]
+    public async Task Rerun_execute_rate_limit_on_the_first_run_is_a_plain_failure()
+    {
+        var http = RerunHttp().On(r => r.Method == HttpMethod.Post, _ => FakeHttpHandler.Respond(HttpStatusCode.TooManyRequests, "{}"));
+        var (a, _) = Make(http);
+        var p = await a.PreviewAsync(Failing(), ItemAction.RerunFailed, null, default);
+        var r = await a.ExecuteAsync(Failing(), ItemAction.RerunFailed, p, default(ActionInput), default);
+        Assert.False(r.Ok);
+        Assert.Single(http.Requests, q => q.Method == HttpMethod.Post);
+    }
+
+    [Fact]
     public async Task Rerun_execute_all_failed_is_not_ok()
     {
         var http = RerunHttp().On(r => r.Method == HttpMethod.Post, _ => FakeHttpHandler.Respond(HttpStatusCode.Forbidden, """{"message":"nope"}"""));

@@ -67,7 +67,16 @@ public static class RowStateMachine
     /// A plain-success Done row is hidden on the next poll. A Done row carrying a warning stays until the user closes it,
     /// so the warning can't vanish unread.
     /// </summary>
-    public static bool HidesOnNextPoll(RowUiState s) => s.Mode == RowMode.Done && IsPlainDoneLabel(s.Message);
+    public static bool HidesOnNextPoll(RowUiState s) => HidesItem(s) && IsPlainDoneLabel(s.Message);
+
+    /// <summary>
+    /// Dismissing a Done row hides its item until it changes or leaves — except after a re-run: the PR is still CI-failing
+    /// until a later poll shows new results (spec §4), so only the message goes away.
+    /// </summary>
+    public static bool HidesItem(RowUiState s) => s is { Mode: RowMode.Done } && s.Action != ItemAction.RerunFailed;
+
+    /// <summary>The plain "Re-run started" message is dropped on the next poll; the row itself stays.</summary>
+    public static bool ClearsOnNextPoll(RowUiState s) => s is { Mode: RowMode.Done, Action: ItemAction.RerunFailed, Message: RerunStarted };
 
     /// <summary>
     /// A successful action that came back with a warning is also toasted: the success refresh usually removes the row

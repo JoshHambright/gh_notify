@@ -84,5 +84,12 @@ public static class ActionText
         _ => new(false, ex.Message),
     };
 
+    /// <summary>Re-throws a captured exception (keeping its stack) from an expression position; never returns.</summary>
+    public static ActionResult Rethrow(Exception ex)
+    {
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw();
+        return default!;
+    }
+
     public static ActionPreview Refuse(string reason) => new(false, "", "", null, reason, null);
 }
