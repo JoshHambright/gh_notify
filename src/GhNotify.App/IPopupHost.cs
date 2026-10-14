@@ -5,7 +5,11 @@ namespace GhNotify.App;
 /// <summary>Everything the popup needs; implemented by AppController (live) and SampleHost (previews).</summary>
 public interface IPopupHost
 {
-    IReadOnlyList<InboxSection> BuildSections();
+    /// <summary>
+    /// The sections, filtered by the search <paramref name="query"/> (null/blank = unfiltered). While a query is active the Waiting and
+    /// Snoozed sections are built expanded so their rows can match, and the batch buttons are off. <see cref="HeaderCount"/> is never filtered.
+    /// </summary>
+    IReadOnlyList<InboxSection> BuildSections(string? query);
     IReadOnlyList<SourceStatus> Sources();
     /// <summary>The header number: active rows that are neither muted, snoozed nor waiting on others (the tray badge count).</summary>
     int HeaderCount { get; }
@@ -24,7 +28,15 @@ public interface IPopupHost
     /// <summary>Back to Expanded.</summary>
     void CancelAction(string key);
     /// <summary>Sends the action; re-checks the confirm guard itself (600 ms, allowed preview).</summary>
-    Task ConfirmActionAsync(string key, string? comment);
+    Task ConfirmActionAsync(string key, ActionInput input);
+    /// <summary>The batch approve/reject panel state (Idle when none is open).</summary>
+    BatchCoordinator Batch { get; }
+    /// <summary>Opens the batch panel for the Approvals section; returns a message when it can't open (null = opened).</summary>
+    Task<string?> BeginBatchAsync(ItemAction action);
+    /// <summary>Closes the batch panel (a no-op while items are being sent).</summary>
+    void CancelBatch();
+    /// <summary>Sends the ticked batch items sequentially; re-checks the 600 ms guard itself.</summary>
+    Task ConfirmBatchAsync(string? comment);
     /// <summary>Called when the popup is shown: re-arms the 600 ms guard on any open confirm panel.</summary>
     void OnPopupShown();
     void CycleTheme();

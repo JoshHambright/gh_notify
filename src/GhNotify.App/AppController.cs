@@ -47,9 +47,13 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     public event Action? ThemeModeChanged;
 
     UpdateService? _updates;
+    GlobalHotkey? _hotkey;
     public AppConfig Config => _config.Current;
     /// <summary>Attaches the background update service (created after the controller because it reads <see cref="Config"/>).</summary>
     public void AttachUpdates(UpdateService updates) => _updates = updates;
+    /// <summary>Attaches the global hotkey so config changes re-register it and Settings can show why it failed.</summary>
+    public void AttachHotkey(GlobalHotkey hotkey) => _hotkey = hotkey;
+    public string? HotkeyError => _hotkey?.Error;
     public void RaiseChanged() => Changed?.Invoke();
     public UpdateStatus Update => _updates?.Status ?? new UpdateStatus(UpdatePhase.Off, null, null, null, null);
     public int RunningAgents => _agents.Runs.Values.Count(r => r.State is AgentState.Running or AgentState.Queued);
@@ -88,6 +92,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
             [Provider.GitHub] = new GitHubItemActions(ghClient),
             [Provider.Ado] = new AdoItemActions(adoClient, directory),
         });
+        Batch = new BatchCoordinator(_actions, PreviewTimeout);
+        Batch.Changed += () => Changed?.Invoke();
         var catalog = new CompositeCatalog(
             new StaticCatalog(() => _config.Current.GitHub.Enabled ? [ghSource] : []),
             new AdoSourceCatalog(directory, () => _config.Current.Ado,
@@ -146,6 +152,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     {
         _claudeAvailable = CommandResolver.Find("claude") is not null;
         HandleDiff(_reconciler.RetireWhere(IsDisabledSource));
+        _hotkey?.Apply(_config.Current.Hotkey);
         Changed?.Invoke();
         _ = RefreshAsync();
     }
@@ -275,11 +282,30 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         return InboxView.Compose(entries, _config.Current.Filters, mutes, snoozes, DateTimeOffset.Now);
     }
 
-    public IReadOnlyList<InboxSection> BuildSections()
+    public IReadOnlyList<InboxSection> BuildSections(string? query)
+    {
+        var searching = !string.IsNullOrWhiteSpace(query);
+        var sections = InboxFilter.Apply(Present(searching), query);
+        if (searching) return sections.Select(s => s.BatchButtons ? s with { BatchButtons = false } : s).ToList();
+        if (!Batch.Active) return sections;
+        // While a batch is open or running, the Approvals rows can only be acted on through it.
+        return sections.Select(s => s.Id != BatchApproval.SectionId ? s : s with
+        {
+            Rows = s.Rows.Select(r => r with
+            {
+                Actions = r.Actions.Select(a => a with { Enabled = false, DisabledReason = BatchBusy }).ToList(),
+            }).ToList(),
+        }).ToList();
+    }
+
+    public const string BatchBusy = "Finish the batch first";
+
+    /// <summary>The presented sections; while searching, Waiting and Snoozed are built expanded so their rows can be matched.</summary>
+    IReadOnlyList<InboxSection> Present(bool expandAll)
     {
         var cfg = _config.Current;
         bool waitingExpanded, snoozedExpanded;
-        lock (_filterGate) { waitingExpanded = _waitingExpanded; snoozedExpanded = _snoozedExpanded; }
+        lock (_filterGate) { waitingExpanded = _waitingExpanded || expandAll; snoozedExpanded = _snoozedExpanded || expandAll; }
         return InboxPresenter.Build(CurrentView(), _agents.Get, i => RulesEngine.Decide(i, cfg), _agents.WhyCannotRun,
             DateTimeOffset.Now, _actions.ActionsFor, k => _rowStates.GetValueOrDefault(k),
             r => RepoNames.Display(r, cfg.Display.RepoAliases, cfg.Display.MaxRepoChars), waitingExpanded, snoozedExpanded);
@@ -299,6 +325,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         var now = DateTimeOffset.Now;
         foreach (var (key, s) in _rowStates)
             if (s.Mode == RowMode.Confirming) _rowStates.TryUpdate(key, RowStateMachine.Rearm(s, now), s);
+        Batch.Rearm();
     }
 
     public void CycleTheme()
@@ -330,6 +357,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     {
         if (FindEntry(key) is not { Stale: false } entry || !_actions.ActionsFor(entry.Item).Contains(action)) return;
         if (_rowStates.GetValueOrDefault(key) is { Mode: RowMode.Sending or RowMode.Done }) return;
+        if (Batch.Active && entry.Item.Kind == ItemKind.ApprovalPending) return; // the popup says "Finish the batch first"
         var begun = RowStateMachine.Begin(action, DateTimeOffset.Now);
         CollapseOthers(key);
         _rowStates[key] = begun;
@@ -351,10 +379,36 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
             Log.Error($"action preview {action} {key} failed", ex);
             preview = ActionText.Refuse(ex.Message);
         }
+        // The panel starts on the configured merge method when the repo allows it (providers preselect without knowing the config).
+        if (preview.Options is { } options)
+            preview = preview with { Options = options with { Selected = MergeDefaults.Pick(options.Allowed, _config.Current.Actions.MergeMethod) } };
         // Only apply if the row is still in this confirm session (not cancelled or restarted meanwhile).
         _rowStates.TryUpdate(key, RowStateMachine.WithPreview(begun, preview, DateTimeOffset.Now), begun);
         Changed?.Invoke();
     }
+
+    /// <summary>The batch approve/reject panel (v1.3 spec §5).</summary>
+    public BatchCoordinator Batch { get; }
+
+    public async Task<string?> BeginBatchAsync(ItemAction action)
+    {
+        if (action is not (ItemAction.Approve or ItemAction.Reject)) return null;
+        if (Batch.Active) return BatchBusy;
+        var section = Present(false).FirstOrDefault(s => s.Id == BatchApproval.SectionId);
+        if (section is null) return null;
+        var rows = BatchApproval.Eligible(section).Where(r => r.Mode != RowMode.Done).ToList();
+        if (rows.Any(r => r.Mode == RowMode.Sending)) return "An approval is being sent — wait a moment";
+        if (rows.Count < BatchApproval.MinItems) return null;
+        foreach (var r in rows.Where(r => r.Mode is RowMode.Confirming or RowMode.Failed)) CancelAction(r.Key);
+        var entries = rows.Select(r => Find(r.Key) is { } item ? new BatchEntry(item, _agents.Get(r.Key), r.RepoDisplay) : null)
+            .OfType<BatchEntry>().ToList();
+        await Batch.OpenAsync(action, entries, _cts.Token);
+        return null;
+    }
+
+    public void CancelBatch() => Batch.Close();
+
+    public Task ConfirmBatchAsync(string? comment) => Batch.ConfirmAsync(comment, _cts.Token, RefreshAsync);
 
     public void CancelAction(string key)
     {
@@ -368,7 +422,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         Changed?.Invoke();
     }
 
-    public async Task ConfirmActionAsync(string key, string? comment)
+    public async Task ConfirmActionAsync(string key, ActionInput input)
     {
         // Defence in depth: the button's ConfirmEnabled is not trusted; re-check the guard here.
         if (_rowStates.GetValueOrDefault(key) is not { } state || !RowStateMachine.CanConfirm(state, DateTimeOffset.Now)) return;
@@ -383,11 +437,16 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         if (!_rowStates.TryUpdate(key, sending, state)) return; // a concurrent confirm already moved this row on
         Changed?.Invoke();
 
-        comment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
+        // Merge and re-run take no comment; only merge takes a method and a branch choice.
+        var action = state.Action!.Value;
+        var comment = action is ItemAction.Merge or ItemAction.RerunFailed || string.IsNullOrWhiteSpace(input.Comment) ? null : input.Comment.Trim();
+        input = action == ItemAction.Merge
+            ? new ActionInput(null, input.Method ?? state.Preview!.Options?.Selected, input.DeleteBranch && state.Preview!.Options is { CanDeleteBranch: true })
+            : new ActionInput(comment);
         ActionResult result;
         try
         {
-            result = await _actions.ExecuteAsync(entry.Item, state.Action!.Value, state.Preview!, comment, _cts.Token);
+            result = await _actions.ExecuteAsync(entry.Item, action, state.Preview!, input, _cts.Token);
         }
         catch (Exception ex)
         {

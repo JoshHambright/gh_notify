@@ -7,7 +7,8 @@
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True" UseLayoutRounding="True"
         FontFamily="{StaticResource Font.Body}" FontSize="12" Foreground="{DynamicResource Brush.Text}"
-        Deactivated="OnDeactivated" Activated="OnActivated" SizeChanged="OnWindowSizeChanged">
+        Deactivated="OnDeactivated" Activated="OnActivated" SizeChanged="OnWindowSizeChanged"
+        PreviewKeyDown="OnPreviewKeyDown" PreviewMouseLeftButtonDown="OnWindowMouseDown">
   <Window.Resources>
     <local:HasValueToVisibilityConverter x:Key="HasValue" />
     <local:RowDetailsConverter x:Key="RowDetails" />
@@ -82,7 +83,11 @@
     </DataTemplate>
 
     <DataTemplate x:Key="RowTemplate" DataType="{x:Type core:InboxRow}">
-      <Border Margin="10,4" CornerRadius="8">
+      <Grid>
+      <!-- Keyboard selection: a ring just outside the card, toggled from code (the card border carries the urgent stripe). -->
+      <Border x:Name="SelectionRing" Tag="{Binding Key}" Margin="8,2" CornerRadius="10" BorderThickness="2" IsHitTestVisible="False"
+              BorderBrush="{DynamicResource Brush.Blue}" Visibility="Collapsed" />
+      <Border x:Name="RowCard" Tag="{Binding Key}" Margin="10,4" CornerRadius="8">
         <Border.Style>
           <Style TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource Brush.Raised}" />
@@ -196,6 +201,7 @@
                         <Style TargetType="Button" BasedOn="{StaticResource SmallPrimary}">
                           <Style.Triggers>
                             <DataTrigger Binding="{Binding Action}" Value="Reject"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                            <DataTrigger Binding="{Binding Action}" Value="RerunFailed"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
                           </Style.Triggers>
                         </Style>
                       </Button.Style>
@@ -208,6 +214,7 @@
                           <Setter Property="Visibility" Value="Collapsed" />
                           <Style.Triggers>
                             <DataTrigger Binding="{Binding Action}" Value="Reject"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                            <DataTrigger Binding="{Binding Action}" Value="RerunFailed"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
                           </Style.Triggers>
                         </Style>
                       </Button.Style>
@@ -262,6 +269,9 @@
                         HorizontalAlignment="Left" Visibility="{Binding Warning, Converter={StaticResource HasValue}}">
                   <TextBlock Text="{Binding Warning}" Foreground="#000C1A" FontSize="11" FontWeight="Medium" />
                 </Border>
+                <!-- Merge method picker and Delete branch (built in code from the preview options). -->
+                <StackPanel x:Name="MergePanel" Tag="{Binding Key}" Margin="0,8,0,0" Loaded="OnMergePanelLoaded"
+                            Visibility="{Binding Options, Converter={StaticResource HasValue}}" />
                 <Grid Margin="0,8,0,0">
                   <Grid.Style>
                     <Style TargetType="Grid">
@@ -271,6 +281,9 @@
                         <DataTrigger Binding="{Binding Mode}" Value="Sending"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
                         <DataTrigger Binding="{Binding ConfirmLabel}" Value=""><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
                         <DataTrigger Binding="{Binding ConfirmLabel}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                        <!-- Merge and re-run take no comment. -->
+                        <DataTrigger Binding="{Binding ActiveAction}" Value="Merge"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                        <DataTrigger Binding="{Binding ActiveAction}" Value="RerunFailed"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
                       </Style.Triggers>
                     </Style>
                   </Grid.Style>
@@ -314,6 +327,8 @@
                   </TextBlock.Style>
                 </TextBlock>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                  <Button Style="{StaticResource Small}" Content="Open in browser" Tag="{Binding Url}" Click="OnOpenInBrowser"
+                          Visibility="{Binding Refused, Converter={StaticResource HasValue}}" />
                   <Button Tag="{Binding Key}" Click="OnCancel">
                     <Button.Style>
                       <Style TargetType="Button" BasedOn="{StaticResource Small}">
@@ -347,6 +362,7 @@
           </StackPanel>
         </StackPanel>
       </Border>
+      </Grid>
     </DataTemplate>
   </Window.Resources>
 
@@ -363,6 +379,9 @@
             <Canvas Width="0" Height="0" HorizontalAlignment="Right" VerticalAlignment="Top">
               <Ellipse Canvas.Left="-160" Canvas.Top="-110" Width="230" Height="230" Fill="{DynamicResource Brush.Red}" />
             </Canvas>
+            <Button x:Name="SearchButton" Style="{StaticResource Style.IconButton}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,10,14,0" Foreground="White" FontFamily="Segoe UI Emoji" FontSize="13" Content="🔍" ToolTip="Search (/ or Ctrl+F)"
+                    Click="OnSearchButton" />
             <StackPanel Margin="18,14,18,14">
               <TextBlock Text="G H _ N O T I F Y" FontSize="10.5" FontWeight="Medium" Foreground="{DynamicResource Brush.Eyebrow}" />
               <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
@@ -374,8 +393,30 @@
             </StackPanel>
           </Grid>
 
+          <!-- Search: hidden until / , Ctrl+F or the header button. -->
+          <Border x:Name="SearchBar" DockPanel.Dock="Top" Visibility="Collapsed" Padding="14,8,14,2" Background="{DynamicResource Brush.Surface}">
+            <Grid>
+              <TextBox x:Name="SearchBox" FontSize="12" Padding="8,5" MaxLength="200" TextChanged="OnSearchChanged"
+                       Background="{DynamicResource Brush.Raised}" Foreground="{DynamicResource Brush.Text}"
+                       CaretBrush="{DynamicResource Brush.Text}" BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="1" />
+              <TextBlock Text="Search repo, title, author or #number" Margin="11,0,0,0" VerticalAlignment="Center" FontSize="12" IsHitTestVisible="False"
+                         Foreground="{DynamicResource Brush.Muted}">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding Text.Length, ElementName=SearchBox}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+            </Grid>
+          </Border>
+
           <!-- Footer -->
           <StackPanel DockPanel.Dock="Bottom">
+            <TextBlock x:Name="NoticeText" Foreground="{DynamicResource Brush.Muted}" FontSize="11" TextWrapping="Wrap"
+                       Margin="18,6,18,0" Visibility="Collapsed" />
             <TextBlock x:Name="ConfigErrorText" Foreground="{DynamicResource Brush.Red}" FontSize="11" TextWrapping="Wrap"
                        Margin="18,6,18,4" Visibility="Collapsed" />
             <Border BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="0,1,0,0" Padding="18,6,10,8">
@@ -397,6 +438,10 @@
           <!-- Inbox -->
           <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="0,6,0,8">
+              <TextBlock x:Name="NoMatchesText" Text="No matches" Foreground="{DynamicResource Brush.Muted}" FontSize="12.5"
+                         HorizontalAlignment="Center" Margin="16,36" Visibility="Collapsed" />
+              <!-- Where the batch panel sits when the Approvals section is not on screen (e.g. every item was approved). -->
+              <Border x:Name="BatchFallbackSlot" />
               <StackPanel x:Name="EmptyState" Margin="16,36" HorizontalAlignment="Center" Visibility="Collapsed">
                 <Path Style="{StaticResource Style.EBars}" HorizontalAlignment="Center" Width="28" Height="20" Stretch="Uniform" StrokeThickness="3" />
                 <TextBlock Text="Nothing waiting on you." Foreground="{DynamicResource Brush.Muted}" FontSize="12.5" Margin="0,10,0,0" />
@@ -405,7 +450,8 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate DataType="{x:Type core:InboxSection}">
                     <StackPanel Margin="0,0,0,4">
-                      <StackPanel Orientation="Horizontal" Margin="18,10,18,4">
+                      <DockPanel Margin="0,10,18,4" LastChildFill="False"><DockPanel.Style><Style TargetType="DockPanel"><Style.Triggers><DataTrigger Binding="{Binding Collapsible}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></DockPanel.Style>
+                      <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Margin="18,0,0,0">
                         <StackPanel.Style>
                           <Style TargetType="StackPanel">
                             <Style.Triggers>
@@ -417,6 +463,13 @@
                         <TextBlock Text="{Binding Title, Converter={StaticResource Upper}}" Style="{StaticResource Style.SectionLabel}"
                                    FontSize="10.5" Margin="7,0,0,0" VerticalAlignment="Center" />
                       </StackPanel>
+                      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Visibility="{Binding BatchButtons, Converter={StaticResource HasValue}}">
+                        <Button Style="{StaticResource Small}" Content="Approve all…" Click="OnBatchApprove" />
+                        <Button Style="{StaticResource Small}" Content="Reject all…" Click="OnBatchReject" />
+                      </StackPanel>
+                      </DockPanel>
+                      <!-- The batch panel is moved in here from code when this is the Approvals section. -->
+                      <Border Tag="{Binding Id}" Loaded="OnBatchSlotLoaded" />
                       <!-- Collapsible sections ("waiting", "snoozed"): the header toggles the section. -->
                       <Button Tag="{Binding Id}" Click="OnToggleSection" Margin="18,10,18,4" HorizontalAlignment="Left" Cursor="Hand"
                               Visibility="{Binding Collapsible, Converter={StaticResource HasValue}}">

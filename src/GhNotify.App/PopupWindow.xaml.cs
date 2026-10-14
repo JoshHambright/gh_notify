@@ -16,10 +16,19 @@ public partial class PopupWindow : Window
     readonly Dictionary<string, string> _comments = new();
     // Per-row pointer guard for the confirm button; reset on every render because the button is rebuilt.
     readonly Dictionary<string, ConfirmPointerGuard> _pointerGuards = new();
+    // Merge choices made in the confirm panel (survive re-renders like the comment drafts).
+    readonly Dictionary<string, MergeMethod> _methods = new();
+    readonly Dictionary<string, bool> _deleteBranch = new();
+    readonly DispatcherTimer _noticeTimer;
     string? _restoreFocusKey;
     IReadOnlyList<InboxSection>? _rendered;
+    IReadOnlyList<InboxRow> _rows = [];
     bool _confirmingRestart;
     string? _footerSignature;
+    // Search query (cleared when the popup hides) and the keyboard selection, keyed by item key so a refresh can't move it.
+    string _query = "";
+    string? _selectedKey;
+    int _selectedIndex;
 
     public PopupWindow(IPopupHost host)
     {
@@ -28,20 +37,42 @@ public partial class PopupWindow : Window
         _confirmTick = new DispatcherTimer(DispatcherPriority.Normal, Dispatcher) { Interval = TimeSpan.FromMilliseconds(100) };
         _confirmTick.Tick += (_, _) => { if (IsVisible) Render(); else _confirmTick.Stop(); };
         _host.Changed += () => Dispatcher.InvokeAsync(() => { if (IsVisible) Render(); });
+        _noticeTimer = new DispatcherTimer(DispatcherPriority.Normal, Dispatcher) { Interval = TimeSpan.FromSeconds(3) };
+        _noticeTimer.Tick += (_, _) => { _noticeTimer.Stop(); NoticeText.Visibility = Visibility.Collapsed; };
+        IsVisibleChanged += (_, e) =>
+        {
+            if (e.NewValue is false) ResetTransientState();
+        };
+    }
+
+    /// <summary>Hiding the popup clears the search and any notice; the selection restarts on the first row next time.</summary>
+    void ResetTransientState()
+    {
+        _query = "";
+        SearchBox.Clear();
+        SearchBar.Visibility = Visibility.Collapsed;
+        _noticeTimer.Stop();
+        NoticeText.Visibility = Visibility.Collapsed;
+        _selectedKey = null;
+        _selectedIndex = 0;
     }
 
     public DateTime LastHiddenByDeactivateUtc { get; private set; }
 
     public void Render()
     {
-        var sections = _host.BuildSections();
+        var sections = _host.BuildSections(string.IsNullOrWhiteSpace(_query) ? null : _query);
         var rows = sections.SelectMany(s => s.Rows).ToList();
+        _rows = rows;
+        var batch = _host.Batch;
 
         _restoreFocusKey = Keyboard.FocusedElement is TextBox { Name: "CommentBox", Tag: string k } ? k : null;
         var open = rows.Where(r => r.Mode is RowMode.Confirming or RowMode.Sending).Select(r => r.Key).ToHashSet();
         foreach (var key in _comments.Keys.Where(key => !open.Contains(key)).ToList()) _comments.Remove(key);
 
-        foreach (var key in _pointerGuards.Keys.Where(key => !open.Contains(key)).ToList()) _pointerGuards.Remove(key);
+        foreach (var key in _methods.Keys.Where(key => !open.Contains(key)).ToList()) _methods.Remove(key);
+        foreach (var key in _deleteBranch.Keys.Where(key => !open.Contains(key)).ToList()) _deleteBranch.Remove(key);
+        foreach (var key in _pointerGuards.Keys.Where(key => !open.Contains(key) && !(key == BatchGuardKey && batch.Active)).ToList()) _pointerGuards.Remove(key);
 
         // Rebuild row visuals only when something visible changed: replacing the buttons between
         // mouse-down and mouse-up (e.g. the refresh fired by opening the popup) swallows the click.
@@ -54,7 +85,12 @@ public partial class PopupWindow : Window
             if (offset > 0) Dispatcher.InvokeAsync(() => Scroller.ScrollToVerticalOffset(offset), DispatcherPriority.Loaded);
         }
 
-        EmptyState.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        var searching = !string.IsNullOrWhiteSpace(_query);
+        EmptyState.Visibility = rows.Count == 0 && !searching ? Visibility.Visible : Visibility.Collapsed;
+        NoMatchesText.Visibility = rows.Count == 0 && searching ? Visibility.Visible : Visibility.Collapsed;
+        UpdateBatchPanel(sections);
+        EnsureSelection(rows);
+        Dispatcher.InvokeAsync(() => ApplySelection(scrollIntoView: false), DispatcherPriority.Loaded);
         CountText.Text = _host.HeaderCount.ToString();
         RenderConfigError();
         ConfigErrorText.Visibility = _host.ConfigError is null ? Visibility.Collapsed : Visibility.Visible;
@@ -62,7 +98,8 @@ public partial class PopupWindow : Window
         RenderFooter();
 
         // While a confirm button is waiting out its 600 ms guard, re-render so it enables on time.
-        var waiting = rows.Any(r => r.Mode == RowMode.Confirming && !r.ConfirmEnabled && !string.IsNullOrEmpty(r.ConfirmLabel));
+        var waiting = rows.Any(r => r.Mode == RowMode.Confirming && !r.ConfirmEnabled && !string.IsNullOrEmpty(r.ConfirmLabel))
+            || batch is { Phase: BatchPhase.Ready, CheckedCount: > 0 } && !batch.CanConfirm(DateTimeOffset.Now);
         if (waiting && !_confirmTick.IsEnabled) _confirmTick.Start();
         else if (!waiting && _confirmTick.IsEnabled) _confirmTick.Stop();
     }
@@ -147,6 +184,8 @@ public partial class PopupWindow : Window
 
     public void ShowNearTray()
     {
+        _selectedKey = null; // opening selects the first row
+        _selectedIndex = 0;
         _host.OnPopupShown();
         Render();
         var area = SystemParameters.WorkArea;
@@ -199,6 +238,8 @@ public partial class PopupWindow : Window
         if (b.Tag is string key && b.CommandParameter is ItemAction action)
         {
             _comments.Remove(key);
+            _methods.Remove(key);
+            _deleteBranch.Remove(key);
             _ = _host.BeginActionAsync(key, action);
         }
     }
@@ -251,7 +292,16 @@ public partial class PopupWindow : Window
         var key = Key(sender);
         // A mouse click only counts once the pointer moved onto the enabled button (see ConfirmPointerGuard); keyboard is fine.
         if (InputManager.Current.MostRecentInputDevice is MouseDevice && !Guard(key).IsArmed) return;
-        _ = _host.ConfirmActionAsync(key, _comments.GetValueOrDefault(key));
+        _ = _host.ConfirmActionAsync(key, InputFor(key));
+    }
+
+    /// <summary>What the user chose in the row's confirm panel: the comment, and for merge the method and Delete branch.</summary>
+    ActionInput InputFor(string key)
+    {
+        var options = _rows.FirstOrDefault(r => r.Key == key)?.Options;
+        return new ActionInput(_comments.GetValueOrDefault(key),
+            _methods.TryGetValue(key, out var m) ? m : null,
+            _deleteBranch.TryGetValue(key, out var d) ? d : options?.DeleteBranch ?? false);
     }
 
     ConfirmPointerGuard Guard(string key)

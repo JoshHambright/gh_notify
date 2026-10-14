@@ -9,6 +9,8 @@ namespace GhNotify.App;
 public sealed class SampleHost : IPopupHost
 {
     public const string ApprovalKey = "ado:approval:contoso/platform/7f1c";
+    public const string Approval2Key = "ado:approval:contoso/platform/8a2d";
+    public const string ReadyKey = "gh:ready:acme/web#31";
     public const string ReviewKey = "ado:review:fabrikam/customer-platform/checkout-service-api#482";
     public const string Review2Key = "ado:review:fabrikam/customer-platform/web-portal#479";
     public const string CiKey = "gh:ci:acme/api#57";
@@ -37,6 +39,16 @@ public sealed class SampleHost : IPopupHost
             Details = DetailList.Of(("Pipeline", "platform-release"), ("Run", "20261013.4"), ("Project", "platform"),
                 ("Created", _now.AddMinutes(-12).ToString("yyyy-MM-dd HH:mm"))),
         };
+        var approval2 = new InboxItem(Approval2Key, Provider.Ado, ItemKind.ApprovalPending, "contoso/platform",
+            "platform-hotfix 20261013.5", "https://dev.azure.com/contoso/platform/_build/results?buildId=1043", "",
+            _now.AddMinutes(-31), null, null, "Instructions: hotfix for the checkout timeout")
+        {
+            Org = "contoso",
+            Project = "platform",
+            ApprovalId = "8a2d",
+            Details = DetailList.Of(("Pipeline", "platform-hotfix"), ("Run", "20261013.5"), ("Project", "platform"),
+                ("Created", _now.AddMinutes(-31).ToString("yyyy-MM-dd HH:mm"))),
+        };
         var review = Pr(ReviewKey, "fabrikam/customer-platform/checkout-service-api", 482,
             "Add retry with jitter to payment gateway client", "alice", "feature/payment-retries", "9f3c2ab", 47);
         var review2 = Pr(Review2Key, "fabrikam/customer-platform/web-portal", 479,
@@ -48,7 +60,7 @@ public sealed class SampleHost : IPopupHost
             Details = DetailList.Of(("Author", "you"), ("Branch", "settings-options → main"), ("Commit", "c0ffee1"),
                 ("Created", _now.AddDays(-1).ToString("yyyy-MM-dd HH:mm"))),
         };
-        var ready = new InboxItem("gh:ready:acme/web#31", Provider.GitHub, ItemKind.MyPrReadyToMerge, "acme/web", "Add health endpoint",
+        var ready = new InboxItem(ReadyKey, Provider.GitHub, ItemKind.MyPrReadyToMerge, "acme/web", "Add health endpoint",
             "https://github.com/acme/web/pull/31", "you", _now.AddHours(-5), "beef001", 22, "Approved · checks green")
         { Number = 31 };
         var waiting1 = new InboxItem("gh:waiting:fabrikam/api#88", Provider.GitHub, ItemKind.MyPrWaiting, "fabrikam/api", "Cache token lookups",
@@ -67,6 +79,7 @@ public sealed class SampleHost : IPopupHost
         _entries =
         [
             new(approval, "ADO:contoso", false),
+            new(approval2, "ADO:contoso", false),
             review,
             review2,
             new(ci, "GitHub", false),
@@ -131,9 +144,14 @@ public sealed class SampleHost : IPopupHost
     InboxView View() => InboxView.Compose(Empty ? [] : _entries, new FiltersConfig { Mute = ["gh:acme/legacy-*"] }, [],
         [new Snooze(SnoozedKey, _now.AddMinutes(130), false)], _now);
 
-    public IReadOnlyList<InboxSection> BuildSections() =>
-        InboxPresenter.Build(View(), k => _runs.GetValueOrDefault(k), Decide, (_, _) => null, _now,
-            ActionText.DefaultActions, k => States.GetValueOrDefault(k), r => RepoNames.Display(r, null, 34), waitingExpanded: false, snoozedExpanded: true);
+    public IReadOnlyList<InboxSection> BuildSections(string? query)
+    {
+        var searching = !string.IsNullOrWhiteSpace(query);
+        var sections = InboxPresenter.Build(View(), k => _runs.GetValueOrDefault(k), Decide, (_, _) => null, _now,
+            ActionText.DefaultActions, k => States.GetValueOrDefault(k), r => RepoNames.Display(r, null, 34),
+            waitingExpanded: searching, snoozedExpanded: true);
+        return InboxFilter.Apply(sections, query);
+    }
 
     /// <summary>Unmuted active rows (the muted, snoozed and waiting rows don't count).</summary>
     public int HeaderCount => View().BadgeCount;
@@ -163,7 +181,21 @@ public sealed class SampleHost : IPopupHost
     public void ToggleExpand(string key) { }
     public Task BeginActionAsync(string key, ItemAction action) => Task.CompletedTask;
     public void CancelAction(string key) { }
-    public Task ConfirmActionAsync(string key, string? comment) => Task.CompletedTask;
+    public Task ConfirmActionAsync(string key, ActionInput input) => Task.CompletedTask;
+    public BatchCoordinator Batch { get; } = new(new NoActions(), TimeSpan.FromSeconds(1));
+    public Task<string?> BeginBatchAsync(ItemAction action) => Task.FromResult<string?>(null);
+    public void CancelBatch() { }
+    public Task ConfirmBatchAsync(string? comment) => Task.CompletedTask;
+
+    /// <summary>Sample data never acts on anything.</summary>
+    sealed class NoActions : IItemActions
+    {
+        public IReadOnlyList<ItemAction> ActionsFor(InboxItem item) => [];
+        public Task<ActionPreview> PreviewAsync(InboxItem item, ItemAction action, AgentRun? run, CancellationToken ct) =>
+            Task.FromResult(ActionText.Refuse("Sample data"));
+        public Task<ActionResult> ExecuteAsync(InboxItem item, ItemAction action, ActionPreview preview, ActionInput input, CancellationToken ct) =>
+            Task.FromResult(new ActionResult(false, "Sample data"));
+    }
     public void OnPopupShown() { }
     public void CycleTheme() { }
     public Task RefreshAsync() => Task.CompletedTask;
