@@ -19,19 +19,28 @@ dotnet run --project src/GhNotify.App
 Stop a running tray instance first; it locks the output folder. In a dev build updates are off ("Dev build — updates off").
 `GHNOTIFY_CONFIG_DIR` and `GHNOTIFY_DATA_DIR` point a run at scratch folders so it never touches your real config or state.
 
-`GhNotify.exe --version` prints the version. `GhNotify.exe --render-preview <dir>` renders the popup (dark and light, each state),
-every settings page and the tray icon to PNGs from built-in sample data (placeholder names only), then exits. WPF pixel tests
-and previews need an unlocked desktop session.
+`GhNotify.exe --version` prints the version. The UI tests run headless (Avalonia.Headless), so they need no desktop session
+and run on Windows and Linux alike.
 
 ## Screenshots
 
-`build/screenshots.ps1` builds the app, runs `--render-preview` into a temp folder and copies the chosen frames to `docs/images/`
-(`hero-dark.png`, `popup-dark.png`, `popup-light.png`, `approve.png`, `filters.png`, `settings-workflows.png`,
-`settings-notifications.png`, `tray-calm.png`, `tray-waiting.png`). Re-run it when the UI changes and commit the images.
+`build/screenshots.ps1` renders `docs/images/*.png` with Avalonia.Headless: the `Screenshots` test in `tests/GhNotify.UI.Tests`
+draws the popup (from `SampleHost`) and the settings pages (from `SampleSettingsHost`) in light and dark, using placeholder names only.
+The test does nothing unless `GHNOTIFY_SCREENSHOTS=<outdir>` is set, so a normal `dotnet test` skips it. To run it by hand:
+
+```powershell
+$env:GHNOTIFY_SCREENSHOTS = "$PWD/docs/images"; dotnet test tests/GhNotify.UI.Tests --filter Category=Screenshots
+```
+
+It writes `hero-dark.png`, `popup-dark.png`, `popup-light.png`, `approve.png`, `filters.png`, `settings-workflows.png`,
+`settings-notifications.png`, `tray-calm.png`, `tray-waiting.png`, plus a `review/` folder of every popup state and settings page in
+both themes (the script deletes it). Re-run it when the UI changes and commit the images.
 
 ## Quality gates
 
-CI (`.github/workflows/ci.yml`) runs these on every push and PR on `windows-latest`. All are required.
+CI (`.github/workflows/ci.yml`) runs these on every push and PR on `windows-latest`. All are required. A second job on
+`ubuntu-latest` builds `GhNotify.UI` and Core and runs `GhNotify.UI.Tests` headless; it proves the UI project has no Windows
+dependency, so never reference a Windows API from `GhNotify.UI` (put it behind a platform interface instead).
 
 | Gate | Run locally |
 |---|---|
@@ -40,7 +49,7 @@ CI (`.github/workflows/ci.yml`) runs these on every push and PR on `windows-late
 | Coverage floor | `dotnet test GhNotify.slnx -c Release --collect:"XPlat Code Coverage" --results-directory $env:TEMP\ghn-cov`, then `pwsh build/check-coverage.ps1 -Results $env:TEMP\ghn-cov` |
 | Formatting | `dotnet format GhNotify.slnx --verify-no-changes` (drop the flag to fix) |
 | Leak scan | `pwsh build/leak-scan.ps1 -TermsFile <path>` |
-| Install / upgrade / uninstall | `build/test-install.ps1`, CI only (it installs real packages) |
+| Install / upgrade / uninstall | `build/test-install.ps1`, CI only (it installs real packages). Also upgrades from the latest published release's `GhNotify-win-Setup.exe` to the locally packed build and checks config, state, the Run key and the shortcut survive; skipped with a notice if no release exists |
 | CodeQL | `codeql.yml`, weekly and on PRs |
 | Dependency updates | Dependabot, weekly (NuGet and Actions) |
 
@@ -102,10 +111,15 @@ src/
   GhNotify.GitHub    GitHub source (GraphQL via gh), approvals and actions
   GhNotify.Ado       Azure DevOps source, discovery, approvals and actions
   GhNotify.Agents    Claude and command runners, worktrees, repo and skill locators, coordinator
-  GhNotify.App       WPF tray app: popup, settings window, toasts, sounds, tray icon, Velopack install hooks and updates
+  GhNotify.UI        Avalonia UI, platform-neutral (net10.0): App, popup, settings window and pages, themes, tray icon rendering,
+                     AppController, row state machine, batch coordinator, sample hosts, and the platform interfaces it needs
+  GhNotify.Platform.Windows  Windows implementations of those interfaces: toasts, global hotkey, start with Windows (Run key),
+                     sounds, system theme, shell, install hooks and install info
+  GhNotify.App       Windows host: Program (Velopack entry, --version, single instance), paths, update client, composition
 tests/
   GhNotify.Tests     Core, GitHub, ADO and Agents unit tests
-  GhNotify.App.Tests App tests (tray icon pixels, install info, action flow)
+  GhNotify.UI.Tests  Headless Avalonia tests with fake platform services (also run on Linux CI), plus the screenshot renderer
+  GhNotify.Platform.Windows.Tests  Windows-only tests (install info, ICO writer, hotkey registrar)
 build/               pack, coverage, leak scan, screenshots and sound generation scripts
 docs/                user guides; docs/superpowers has design specs and notes
 ```

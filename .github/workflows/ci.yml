@@ -74,8 +74,13 @@ jobs:
           }
       - name: Install vpk
         run: dotnet tool install -g vpk --version $env:VELOPACK_VERSION
-      - name: Install / upgrade / uninstall test
+      - name: Install / upgrade / uninstall test (includes published release -> new upgrade)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./build/pack.ps1 -Version 0.0.1-ci -OutDir artifacts/old
           ./build/pack.ps1 -Version 0.0.2-ci -OutDir artifacts/new
-          ./build/test-install.ps1 -OldSetup artifacts/old/GhNotify-win-Setup.exe -NewFeed artifacts/new
+          # Must sort above the latest published release so the release -> new step is an upgrade.
+          ./build/pack.ps1 -Version 99.0.0-ci -OutDir artifacts/release-upgrade
+          ./build/test-install.ps1 -OldSetup artifacts/old/GhNotify-win-Setup.exe -NewFeed artifacts/new -ReleaseUpgradeFeed artifacts/release-upgrade
