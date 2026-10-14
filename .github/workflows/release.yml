@@ -1,0 +1,122 @@
+name: Release
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag (vMAJOR.MINOR.PATCH)
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (vMAJOR.MINOR.PATCH)
+        required: true
+        type: string
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+permissions:
+  contents: write
+env:
+  VELOPACK_VERSION: "1.2.161"
+defaults:
+  run:
+    shell: pwsh
+jobs:
+  gates:
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ inputs.tag }}
+    secrets: inherit
+  release:
+    needs: gates
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Install vpk
+        run: dotnet tool install -g vpk --version $env:VELOPACK_VERSION
+      - name: Version from tag
+        id: v
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          if ($env:TAG -notmatch '^v\d+\.\d+\.\d+$') {
+            Write-Host "::error::tag '$env:TAG' is not vMAJOR.MINOR.PATCH (prereleases are not supported)"
+            exit 1
+          }
+          "version=$($env:TAG.TrimStart('v'))" >> $env:GITHUB_OUTPUT
+      - name: Previous release (for deltas and the upgrade test)
+        id: prev
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          # The current release already exists (release-please made it) but has no assets yet, so pick the newest
+          # other release that has a Setup.exe. The first release has no predecessor: every step tolerates that.
+          New-Item -ItemType Directory -Force artifacts/releases | Out-Null
+          $prevTag = $null
+          $tags = @(gh release list --repo "$env:GITHUB_REPOSITORY" --exclude-drafts --limit 30 --json tagName --jq '.[].tagName')
+          foreach ($t in $tags) {
+            if (-not $t -or $t -eq $env:TAG) { continue }
+            $names = @(gh release view $t --repo "$env:GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+            if ($names | Where-Object { $_ -like '*Setup.exe' }) { $prevTag = $t; break }
+          }
+          if ($prevTag) {
+            gh release download $prevTag --repo "$env:GITHUB_REPOSITORY" --dir artifacts/releases --clobber
+            if ($LASTEXITCODE) { Write-Host "::error::could not download $prevTag"; exit 1 }
+          } else {
+            Write-Host "::notice::no previous release to download"
+          }
+          $files = @(Get-ChildItem artifacts/releases -File -ErrorAction SilentlyContinue)
+          $old = $files | Where-Object Name -like '*Setup.exe' | Select-Object -First 1
+          "setup=$(if ($old) { $old.FullName })" >> $env:GITHUB_OUTPUT
+          "has_releases=$($files.Count -gt 0)" >> $env:GITHUB_OUTPUT
+      - name: Release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          $tag = $env:TAG
+          # Prefer the body release-please wrote on the GitHub release.
+          $notes = (gh release view $tag --repo "$env:GITHUB_REPOSITORY" --json body --jq .body 2>$null | Out-String).Trim()
+          if ($LASTEXITCODE) { $notes = ''; $global:LASTEXITCODE = 0 }
+          if (-not $notes) {
+            # Manual dispatch without a release: annotated tag message, else the commit subjects since the previous tag.
+            if ((git cat-file -t "refs/tags/$tag") -eq 'tag') {
+              $notes = (git tag -l --format='%(contents)' $tag | Out-String).Trim()
+            }
+            if (-not $notes) {
+              $prev = git describe --tags --abbrev=0 "$tag^" 2>$null
+              $global:LASTEXITCODE = 0
+              $lines = if ($prev) { git log --format='- %s' "$prev..$tag" } else { git log --format='- %s' -20 $tag }
+              if ($LASTEXITCODE) { Write-Host "::error::git log failed"; exit 1 }
+              $notes = ($lines -join "`n")
+            }
+          }
+          $notes = (($notes -split "`r?`n") | Where-Object { $_ -notmatch '^\s*Co-Authored-By:' }) -join "`n"
+          Set-Content artifacts/notes.md $notes.Trim()
+      - name: Pack
+        run: |
+          $p = @{ Version = '${{ steps.v.outputs.version }}'; OutDir = 'artifacts/new'; ReleaseNotes = 'artifacts/notes.md' }
+          if ('${{ steps.prev.outputs.has_releases }}' -eq 'True') { $p.PrevReleases = 'artifacts/releases' }
+          ./build/pack.ps1 @p
+      - name: Upgrade test from the previous release
+        if: steps.prev.outputs.setup != ''
+        run: ./build/test-install.ps1 -OldSetup "${{ steps.prev.outputs.setup }}" -NewFeed artifacts/new
+      # SIGNING: sign artifacts/new/* here once a certificate or Trusted Signing account exists.
+      # Release notes travel inside the package (vpk pack --releaseNotes); --merge adds the assets to the
+      # release-please release without replacing its body.
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: >
+          vpk upload github --repoUrl "https://github.com/$env:GITHUB_REPOSITORY" --token "$env:GH_TOKEN"
+          --outputDir artifacts/new --merge --publish --tag "$env:TAG"

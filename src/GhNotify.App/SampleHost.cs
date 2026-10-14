@@ -12,6 +12,8 @@ public sealed class SampleHost : IPopupHost
     public const string ReviewKey = "ado:review:fabrikam/customer-platform/checkout-service-api#482";
     public const string Review2Key = "ado:review:fabrikam/customer-platform/web-portal#479";
     public const string CiKey = "gh:ci:acme/api#57";
+    public const string SnoozedKey = "gh:review:fabrikam/web#203";
+    public const string MutedKey = "gh:review:acme/legacy-billing#12";
 
     readonly DateTimeOffset _now = DateTimeOffset.Now;
     readonly List<InboxEntry> _entries;
@@ -19,6 +21,8 @@ public sealed class SampleHost : IPopupHost
 
     public Dictionary<string, RowUiState> States { get; } = new();
     public bool Empty { get; set; }
+    /// <summary>No active mutes (the footer menu shows "Nothing muted").</summary>
+    public bool NoMutes { get; set; }
     public ThemeMode ThemeMode { get; set; } = ThemeMode.System;
 
     public SampleHost()
@@ -27,7 +31,9 @@ public sealed class SampleHost : IPopupHost
             "platform-release 20261013.4", "https://dev.azure.com/contoso/platform/_build/results?buildId=1042", "",
             _now.AddMinutes(-12), null, null, "Instructions: check the release notes before approving")
         {
-            Org = "contoso", Project = "platform", ApprovalId = "7f1c",
+            Org = "contoso",
+            Project = "platform",
+            ApprovalId = "7f1c",
             Details = DetailList.Of(("Pipeline", "platform-release"), ("Run", "20261013.4"), ("Project", "platform"),
                 ("Created", _now.AddMinutes(-12).ToString("yyyy-MM-dd HH:mm"))),
         };
@@ -42,20 +48,49 @@ public sealed class SampleHost : IPopupHost
             Details = DetailList.Of(("Author", "you"), ("Branch", "settings-options → main"), ("Commit", "c0ffee1"),
                 ("Created", _now.AddDays(-1).ToString("yyyy-MM-dd HH:mm"))),
         };
+        var ready = new InboxItem("gh:ready:acme/web#31", Provider.GitHub, ItemKind.MyPrReadyToMerge, "acme/web", "Add health endpoint",
+            "https://github.com/acme/web/pull/31", "you", _now.AddHours(-5), "beef001", 22, "Approved · checks green")
+        { Number = 31 };
+        var waiting1 = new InboxItem("gh:waiting:fabrikam/api#88", Provider.GitHub, ItemKind.MyPrWaiting, "fabrikam/api", "Cache token lookups",
+            "https://github.com/fabrikam/api/pull/88", "you", _now.AddHours(-9), "beef002", 64, "Waiting on review")
+        { Number = 88 };
+        var waiting2 = new InboxItem("ado:waiting:contoso/platform/portal#214", Provider.Ado, ItemKind.MyPrWaiting, "contoso/platform/portal",
+            "Switch portal to the new auth client", "https://dev.azure.com/contoso/platform/_git/portal/pullrequest/214", "you", _now.AddHours(-20),
+            "beef003", null, "Checks running")
+        { Number = 214 };
+        var snoozed = new InboxItem(SnoozedKey, Provider.GitHub, ItemKind.ReviewRequested, "fabrikam/web", "Bump analyzer versions",
+            "https://github.com/fabrikam/web/pull/203", "bob", _now.AddHours(-2), "beef004", 12, null)
+        { Number = 203 };
+        var muted = new InboxItem(MutedKey, Provider.GitHub, ItemKind.ReviewRequested, "acme/legacy-billing", "Fix rounding in invoice totals",
+            "https://github.com/acme/legacy-billing/pull/12", "alice", _now.AddHours(-6), "beef005", 18, null)
+        { Number = 12 };
         _entries =
         [
             new(approval, "ADO:contoso", false),
             review,
             review2,
             new(ci, "GitHub", false),
+            new(ready, "GitHub", false),
+            new(waiting1, "GitHub", false),
+            new(waiting2, "ADO:contoso", false),
+            new(snoozed, "GitHub", false),
+            new(muted, "GitHub", false),
         ];
         _runs = new()
         {
             [CiKey] = new AgentRun
             {
-                Key = CiKey, Profile = "pr-shepherd", State = AgentState.Ready, SessionId = "sample", WorktreePath = @"C:\sample",
-                HeadSha = "c0ffee1", Summary = "Fixed: options binding test expects the old section name", CostUsd = 0.31m,
-                DurationSeconds = 184, FinishedAt = _now.AddMinutes(-40), ResultText = ShepherdResult,
+                Key = CiKey,
+                Profile = "pr-shepherd",
+                State = AgentState.Ready,
+                SessionId = "sample",
+                WorktreePath = @"C:\sample",
+                HeadSha = "c0ffee1",
+                Summary = "Fixed: options binding test expects the old section name",
+                CostUsd = 0.31m,
+                DurationSeconds = 184,
+                FinishedAt = _now.AddMinutes(-40),
+                ResultText = ShepherdResult,
             },
         };
     }
@@ -92,9 +127,16 @@ public sealed class SampleHost : IPopupHost
         SUMMARY: one test fixture uses the old section name; update it and CI goes green.
         """;
 
+    // One muted row (acme/legacy-billing) and one snoozed row (fabrikam/web); waiting on others collapsed, snoozed expanded.
+    InboxView View() => InboxView.Compose(Empty ? [] : _entries, new FiltersConfig { Mute = ["gh:acme/legacy-*"] }, [],
+        [new Snooze(SnoozedKey, _now.AddMinutes(130), false)], _now);
+
     public IReadOnlyList<InboxSection> BuildSections() =>
-        InboxPresenter.Build(Empty ? [] : _entries, k => _runs.GetValueOrDefault(k), Decide, (_, _) => null, _now,
-            ActionText.DefaultActions, k => States.GetValueOrDefault(k), r => RepoNames.Display(r, null, 34));
+        InboxPresenter.Build(View(), k => _runs.GetValueOrDefault(k), Decide, (_, _) => null, _now,
+            ActionText.DefaultActions, k => States.GetValueOrDefault(k), r => RepoNames.Display(r, null, 34), waitingExpanded: false, snoozedExpanded: true);
+
+    /// <summary>Unmuted active rows (the muted, snoozed and waiting rows don't count).</summary>
+    public int HeaderCount => View().BadgeCount;
 
     static AgentDecision Decide(InboxItem i) => i.Kind switch
     {
@@ -127,6 +169,18 @@ public sealed class SampleHost : IPopupHost
     public Task RefreshAsync() => Task.CompletedTask;
     public void OpenConfig() { }
     public void OpenLogs() { }
+    public void OpenSettings() { }
     public void Quit() { }
     public void CopyText(string text) { }
+    public void SnoozeItem(string key, SnoozeChoice choice) { }
+    public void Unsnooze(string key) { }
+    public void Mute(string key, MuteScope scope, MuteDuration duration) { }
+    public IReadOnlyList<ActiveMute> ActiveMutes() => NoMutes ? [] :
+        [new ActiveMute("gh:acme/legacy-*", "forever", true), new ActiveMute("ado:contoso/platform", "45m left", false)];
+    public void Unmute(string pattern) { }
+    public void ToggleSection(string id) { }
+    public UpdateStatus Update { get; set; } = new(UpdatePhase.Ready, "1.2.0", "1.2.1", null, null);
+    public int RunningAgents { get; set; }
+    public RestartDecision RestartToUpdate(bool confirmed) => RestartDecision.NothingToApply;
+    public Task CheckForUpdatesAsync() => Task.CompletedTask;
 }

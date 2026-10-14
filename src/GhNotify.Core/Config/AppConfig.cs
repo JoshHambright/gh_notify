@@ -23,6 +23,13 @@ public sealed class AppConfig
     public Dictionary<string, AgentProfile> AgentProfiles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public List<HookConfig> Hooks { get; set; } = [];
     public DisplayConfig Display { get; set; } = new();
+    public UpdatesConfig Updates { get; set; } = new();
+    public NotificationsConfig Notifications { get; set; } = new();
+    public FiltersConfig Filters { get; set; } = new();
+    /// <summary>Item kind name (e.g. "ReviewRequested") → profile name; overrides the built-in default per kind.</summary>
+    public Dictionary<string, string> DefaultProfiles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Unknown keys round-trip through Settings saves.</summary>
+    [JsonExtensionData] public Dictionary<string, System.Text.Json.JsonElement>? Extra { get; set; }
 }
 
 public sealed class WorkHoursConfig
@@ -76,6 +83,8 @@ public sealed class AgentProfile
     public string? RequiresSkill { get; set; }
     public List<string> AllowedTools { get; set; } = [];
     public List<string> DisallowedTools { get; set; } = [];
+    /// <summary>Run this command (argv; placeholders filled per argument) instead of claude. Exactly one of Prompt/Command.</summary>
+    public List<string>? Command { get; set; }
 }
 
 public enum HookEvent { ItemAdded, ItemRemoved, ItemChanged, AgentFinished }

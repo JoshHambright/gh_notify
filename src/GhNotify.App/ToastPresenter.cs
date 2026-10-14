@@ -15,7 +15,7 @@ public sealed class ToastPresenter
         try
         {
             var enc = new PngBitmapEncoder();
-            enc.Frames.Add(BitmapFrame.Create(TrayIconRenderer.Render(64, null, false)));
+            enc.Frames.Add(BitmapFrame.Create(TrayIconRenderer.RenderAccent(64)));
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             using (var fs = File.Create(path)) enc.Save(fs);
             _logoPath = path;
@@ -36,6 +36,7 @@ public sealed class ToastPresenter
                 return;
             }
             var builder = new ToastContentBuilder().AddText(t.Title ?? "gh_notify");
+            if (t.Silent) builder.AddAudio(new ToastAudio { Silent = true });
             if (!string.IsNullOrEmpty(t.Body)) builder.AddText(t.Body);
             if (_logoPath is { } logo) builder.AddAppLogoOverride(new Uri(logo));
             if (t.Url is not null) builder.AddArgument("url", t.Url);

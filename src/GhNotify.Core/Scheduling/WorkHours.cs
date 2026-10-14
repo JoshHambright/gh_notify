@@ -15,6 +15,18 @@ public static class WorkHours
         return (t >= start && IsDay(cfg, local.DayOfWeek)) || (t < end && IsDay(cfg, local.AddDays(-1).DayOfWeek));
     }
 
+    /// <summary>The first start-of-work strictly after <paramref name="fromLocal"/> on a listed day (any day if none listed).</summary>
+    public static DateTime NextStart(WorkHoursConfig cfg, DateTime fromLocal)
+    {
+        var start = Parse(cfg.Start).ToTimeSpan();
+        for (var d = 0; d <= 8; d++)
+        {
+            var candidate = fromLocal.Date.AddDays(d) + start;
+            if (candidate > fromLocal && (cfg.Days.Count == 0 || IsDay(cfg, candidate.DayOfWeek))) return candidate;
+        }
+        return fromLocal.Date.AddDays(1) + start;
+    }
+
     public static void Validate(WorkHoursConfig cfg)
     {
         Parse(cfg.Start);

@@ -26,7 +26,7 @@ public class StateStoreTests
     {
         var path = Path.Combine(Directory.CreateTempSubdirectory("ghn-state").FullName, "state.json");
         var item = new InboxItem("k", Provider.Ado, ItemKind.ApprovalPending, "o/p", "t", "u", "", DateTimeOffset.UnixEpoch, null, null, null)
-            { Details = [new ItemDetail("Pipeline", "api-release"), new ItemDetail("Run", "20261013.3")] };
+        { Details = [new ItemDetail("Pipeline", "api-release"), new ItemDetail("Run", "20261013.3")] };
         new StateStore(path).Save(new AppState { Snapshot = new() { ["ADO:o"] = [item] } });
         var loaded = new StateStore(path).Load().Snapshot["ADO:o"].Single();
         Assert.Equal(item.Details, loaded.Details!.ToArray());
@@ -75,5 +75,39 @@ public class StateStoreTests
         var state = new StateStore(path).Load();
         Assert.Empty(state.AgentRuns);
         Assert.True(File.Exists(path + ".bad"));
+    }
+
+    [Fact]
+    public void Mutes_snoozes_and_expander_flags_round_trip()
+    {
+        var path = Path.Combine(Directory.CreateTempSubdirectory("ghn-state").FullName, "state.json");
+        var store = new StateStore(path);
+        var until = DateTimeOffset.Parse("2026-10-15T09:00:00Z");
+        store.Save(new AppState
+        {
+            Mutes = [new TimedMute("acme/api", until), new TimedMute("gh:acme", null)],
+            Snoozes = [new Snooze("gh:review:acme/api#1", until, false), new Snooze("gh:review:acme/api#2", null, true)],
+            WaitingExpanded = true,
+            SnoozedExpanded = true,
+        });
+
+        var loaded = store.Load();
+        Assert.Equal([new TimedMute("acme/api", until), new TimedMute("gh:acme", null)], loaded.Mutes);
+        Assert.Equal([new Snooze("gh:review:acme/api#1", until, false), new Snooze("gh:review:acme/api#2", null, true)], loaded.Snoozes);
+        Assert.True(loaded.WaitingExpanded);
+        Assert.True(loaded.SnoozedExpanded);
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("""{ "mutes": null, "snoozes": null }""")]
+    public void Missing_or_null_mutes_and_snoozes_load_empty(string json)
+    {
+        var path = Path.Combine(Directory.CreateTempSubdirectory("ghn-state").FullName, "state.json");
+        File.WriteAllText(path, json);
+        var state = new StateStore(path).Load();
+        Assert.Empty(state.Mutes);
+        Assert.Empty(state.Snoozes);
+        Assert.False(state.WaitingExpanded);
     }
 }

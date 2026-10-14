@@ -1,134 +1,142 @@
 # gh_notify
 
-A small Windows tray app that shows everything on GitHub and Azure DevOps waiting on you:
+A small Windows tray app that shows everything on GitHub and Azure DevOps that's waiting on you — and clears it the moment it isn't.
+
+[![CI](https://github.com/JoshHambright/gh_notify/actions/workflows/ci.yml/badge.svg)](https://github.com/JoshHambright/gh_notify/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/JoshHambright/gh_notify)](https://github.com/JoshHambright/gh_notify/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/JoshHambright/gh_notify/total)](https://github.com/JoshHambright/gh_notify/releases)
+[![License: MIT](https://img.shields.io/github/license/JoshHambright/gh_notify)](LICENSE)
+![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)
+
+<p align="center"><img src="docs/images/hero-dark.png" alt="The gh_notify popup with one row expanded" width="380"></p>
+
+| Dark | Light |
+|---|---|
+| ![Popup, dark theme](docs/images/popup-dark.png) | ![Popup, light theme](docs/images/popup-light.png) |
+
+## What it watches
 
 - review requests
-- pipeline and deployment approvals
-- your PRs with failing CI
-- your PRs that need a response
+- deployment and pipeline approvals
+- your PRs failing CI
+- your PRs needing a response
+- your PRs ready to merge
+- your other open PRs, as a quiet "Waiting on others" list
 
-It toasts new items during work hours. When something is merged, approved or
-voted on, it disappears from the inbox, and its toast is removed from Action
-Center.
+## Quickstart (60 seconds)
 
-It can also pre-run Claude Code agents, so a review is already done by the time you open it.
+1. Download `GhNotify-win-Setup.exe` from the [latest release](https://github.com/JoshHambright/gh_notify/releases/latest).
+2. SmartScreen: **More info → Run anyway** (the build is unsigned; see the [FAQ](#faq)).
+3. Run `gh auth login`.
+4. Optional: run `az login` for Azure DevOps.
+5. Click the tray icon.
 
-## Requirements
+It starts with Windows and updates itself.
 
-- Windows 10/11, .NET 10 SDK
-- `gh` logged in (`gh auth login`). Used for GitHub.
-- `az` logged in (`az login`). Used for Azure DevOps. One login covers every org.
-- Optional: `claude` (Claude Code) on PATH, for agents.
+## Tour
 
-## Run
+### Two-step approvals
 
-```
+Approve or reject a deployment, pipeline approval or PR without leaving the tray. The first click checks the live state and
+spells out exactly what will happen. The second click, on a button that names the target, sends it.
+
+![Confirm panel for a deployment approval](docs/images/approve.png)
+
+### Pre-review and diagnose agents
+
+Claude Code agents can run unattended in a throwaway worktree: **Pre-review** reads a review request, **Diagnose** works out
+why your PR is red. They are read-only, and a finished run shows **✓ Ready** with a one-line summary. The built-in
+profiles need no skills; bring your own skills or scripts if you want. See [docs/workflows.md](docs/workflows.md).
+
+### Sounds and off-hours alerts
+
+Give any kind of item its own sound (five built-in tones or your own `.wav`). Outside work hours nothing toasts, unless a
+sound rule says to alert off-hours, which is handy for approvals. One sound plays per poll, for the most important item.
+See [docs/notifications.md](docs/notifications.md).
+
+### Mute, hide and snooze
+
+**Mute** a repo, org or project (silent but still listed), **hide** it entirely, or **snooze** a single item until it changes.
+The row's **⋯** menu does timed mutes and snoozes in two clicks (**Snooze** › 1 hour, 4 hours, Until tomorrow, Next week, Until it changes; **Mute repo / org / project** › 1 hour, Until tomorrow, Forever). Active mutes are listed, with **Unmute**, in the popup's own **⋯** menu.
+
+![Popup with a muted row (dimmed, 🔇) and a snoozed item at the bottom](docs/images/filters.png)
+
+### The settings window
+
+Everything in `config.json` has a visual editor: sources, sound rules, filters, workflows and profiles, hooks.
+Open it from the popup's **⋯** menu › **Settings…** (the tray icon has no right-click menu; the same menu has **Check for updates** and, once one is downloaded, **Restart to update**, next to the footer's **Update ready · Restart** link). Raw JSON stays one click away.
+
+![Settings, Workflows page](docs/images/settings-workflows.png)
+
+![Settings, Notifications page](docs/images/settings-notifications.png)
+
+### Pull request numbers
+
+PR rows and toasts show the number after the repo, for example `acme/api #57`, and the expanded row has a **PR** detail line.
+
+### The calm / red tray icon
+
+No red when nothing is waiting. A red sweep and a red count appear the moment something is.
+
+| Nothing waiting | Something waiting |
+|---|---|
+| ![Calm tray icon](docs/images/tray-calm.png) | ![Tray icon with a count](docs/images/tray-waiting.png) |
+
+## FAQ
+
+**Why does Windows warn when I install it?**
+The installer isn't code-signed yet, so SmartScreen shows "Windows protected your PC". Click **More info → Run anyway**.
+Releases are built by CI from tagged source (versions come from conventional commits via release-please); see [docs/security.md](docs/security.md).
+
+**Azure DevOps shows ✗ or an AADSTS error.**
+Your default `az` account probably isn't the one Azure DevOps uses. Set the subscription in
+**Settings › Sources › Test ADO sign-in**, which shows ✓ or the fix. See [docs/troubleshooting.md](docs/troubleshooting.md).
+
+**An item didn't clear.**
+Items clear on the next poll after the provider reports them done. **Refresh** (↻) forces a poll. GitHub's search index can lag
+by about a minute after a merge or review.
+
+**Is approving from the tray safe?**
+Every action takes two steps, the state is re-checked live just before sending, and the confirm button is disabled for 600 ms
+after it appears. If anything changed, it refuses. Details in [docs/security.md](docs/security.md).
+
+**What can the agents do?**
+They are read-only: they can't comment, review, merge, push, commit or run pipelines. See [docs/security.md](docs/security.md).
+
+**Where are my settings, logs and state?**
+Config: `%APPDATA%\GhNotify\config.json`. State and logs: `%LocalAppData%\GhNotify-data`. The app itself is in
+`%LocalAppData%\GhNotify`. **Settings › Advanced** has buttons that open each.
+
+**How do I uninstall completely?**
+Uninstall *GhNotify* from Windows **Apps & features**. That removes the app, shortcuts and the start-up entry, and keeps your
+data. To remove that too, delete `%APPDATA%\GhNotify` and `%LocalAppData%\GhNotify-data`.
+
+**Can I use my own skills or scripts?**
+Yes. Map item kinds to your own profiles with `defaultProfiles`, or add rules. A profile is either a Claude prompt (which can
+invoke your skills) or a command that runs any script. See [docs/workflows.md](docs/workflows.md).
+
+**Toasts don't appear.**
+Check Windows Focus Assist / Do Not Disturb. Also, toasts are off outside your work hours unless a sound rule sets
+`alertOffHours`. See [docs/notifications.md](docs/notifications.md).
+
+## Docs
+
+- [Configuration](docs/configuration.md): every `config.json` key, type and default
+- [Workflows](docs/workflows.md): profiles, rules, command scripts, hooks
+- [Notifications](docs/notifications.md): work hours, sounds, mute, hide, snooze
+- [Security](docs/security.md): tokens, agent limits, approvals, updates
+- [Troubleshooting](docs/troubleshooting.md)
+- [Development](docs/development.md): build, test, quality gates, releases
+
+## Build from source
+
+```powershell
+dotnet build GhNotify.slnx -c Release
+dotnet test GhNotify.slnx -c Release
 dotnet run --project src/GhNotify.App
 ```
-or publish it with `dotnet publish src/GhNotify.App -c Release -o publish` and run `publish\GhNotify.exe`.
-Use the popup's **⋯ → Start with Windows** to launch it at login.
 
-## Screenshots
-
-Render the popup (dark and light, each state) and the tray icon to PNGs from built-in sample data:
-
-```
-GhNotify.exe --render-preview <dir>
-```
-
-It uses placeholder data only (contoso / fabrikam / acme), never your accounts, and exits when done.
-
-## Using the popup
-
-Click the tray icon to open the popup. Opening or focusing it refreshes the inbox, unless a poll finished in the last 10 seconds.
-
-- **Title:** opens the PR, run or approval in the browser.
-- **Chevron (⌄):** expands the row in place. The details show the full repo name, author, branch, commit,
-  environment or pipeline, and, if an agent ran, its profile, state, cost, duration and full result text,
-  with **Copy** and **Open in Claude**. Only one row is open at a time.
-- **Approvals:** approvals get **Approve…** and **Reject…**. Review requests get **Approve PR…**. Your own PRs get none.
-  Every action takes two steps:
-  1. The first click checks the live state and shows exactly what will happen, such as
-     "Approve deployment of acme/deploy run 9001 to production" (GitHub) or "Approve platform-release 20261013.4 in contoso/platform" (ADO). A PR without a pre-review at its current commit shows
-     a yellow "No pre-review at this commit." warning. You can add an optional one-line comment.
-  2. The second click, on a button that names the target (**Approve production**, **Approve platform-release 20261013.4**,
-     **Approve PR #12**), sends it. It stays disabled for 600 ms after the panel opens, and again whenever the popup is re-shown,
-     so a double-click can't go through both steps.
-
-  The app checks the state again just before sending. If anything changed (new commits, approval already handled),
-  it refuses and asks you to refresh. Actions use your own `gh` / `az` login. Agents never trigger them.
-- **Footer:** shows the last update time and the health of each source. A red ✗ means a source failed, and its tooltip
-  says why. The buttons are ↻ (refresh), ☾ (theme) and ⋯ (menu).
-- **Theme:** ☾ cycles System → Dark → Light. System follows the Windows app theme. The choice is saved in `state.json`.
-
-## Config
-
-`%APPDATA%\GhNotify\config.json` is created on first run and reloaded when you save it.
-**⋯ → Open config** opens it.
-
-```jsonc
-{
-  "pollSeconds": 120,
-  "workHours": { "days": ["Mon","Tue","Wed","Thu","Fri"], "start": "08:00", "end": "18:00" },
-  "github": { "enabled": true, "includeDrafts": false, "watchRepos": [] },
-  "ado": { "enabled": true, "orgs": [], "discoverOrgs": true, "excludeOrgs": [], "includeDrafts": false, "azSubscription": null, "azTenant": null },
-  "repoRoots": ["C:\\dev"],
-  "rules": [
-    { "match": { "author": "dependabot[bot]" }, "agent": "none" },
-    { "match": { "repo": "my-org/core-*", "kind": "ReviewRequested" }, "agent": "auto" },
-    { "match": { "kind": "MyPrCiFailing" }, "agent": "auto" }
-  ],
-  "agentProfiles": {
-    "deploy-check": { "prompt": "/post-deploy-verify {url} — report only. End with \"SUMMARY:\".", "needsWorktree": false, "requiresSkill": "post-deploy-verify" }
-  },
-  "hooks": [
-    { "event": "ItemAdded", "match": { "kind": "ApprovalPending" }, "run": ["pwsh", "-File", "C:\\scripts\\ping-teams.ps1"] }
-  ],
-  "display": { "repoAliases": { "contoso-engineering": "contoso" }, "maxRepoChars": 34 }
-}
-```
-
-`display.repoAliases` shortens repo names in the popup. A key is an org (`"contoso-engineering"`) or an
-org/project prefix (`"contoso-engineering/platform"`). The longest matching prefix is replaced by the value.
-A name still longer than `display.maxRepoChars` (default 34, minimum 12) is shortened in the middle. The repo name
-itself is kept, for example `contoso-engi…/checkout-service-api`. The full name is in the tooltip and in the expanded details.
-
-`ado.azSubscription` / `ado.azTenant` (optional): use when your default `az` account is not the one in Azure DevOps. The token is requested with `--subscription <name-or-id>` (preferred) or `--tenant <id>`.
-
-Most changes apply when you save. A change to `maxConcurrentAgents` needs a restart: quit from the tray and start the app again.
-
-## Agents and skills
-
-The app ships **no skills**: bring your own. The built-in profiles call `/peer-review` (for review requests) and
-`/pr-shepherd` (for your red PRs). A skill counts as installed if its `SKILL.md` is in one of these places:
-
-- `~/.claude/skills/<name>/`
-- an installed Claude Code plugin
-
-Skills in the repo's own `.claude/skills/` do not count; see below.
-
-If a skill is missing, the row's button is disabled and its tooltip says why.
-
-Agents run unattended in a throwaway git worktree of your local clone, found under `repoRoots`.
-They are told not to post, push or comment, and a deny list blocks the usual commands for that.
-The worktree holds the PR's own code, so runs pass `--setting-sources user`: the PR's `.claude/settings.json`
-(hooks, permission rules) never applies. That also stops Claude loading the repo's `.claude/skills/`, so keep the skills
-you use in `~/.claude/skills/` or a plugin.
-When a run finishes, the row shows **✓ Ready** and a toast appears.
-**Open in Claude** resumes that exact session in Windows Terminal, so you can approve what gets posted.
-
-## Hooks
-
-Each hook gets the item as JSON on stdin, plus these environment variables:
-`GHN_EVENT`, `GHN_KEY`, `GHN_URL`, `GHN_KIND`, `GHN_REPO`.
-The events are `ItemAdded`, `ItemRemoved`, `ItemChanged` and `AgentFinished`.
-
-## Files
-
-- Config: `%APPDATA%\GhNotify\config.json`
-- State: `%LOCALAPPDATA%\GhNotify\state.json`
-- Logs: `%LOCALAPPDATA%\GhNotify\logs\`
-- Agent worktrees: `%LOCALAPPDATA%\GhNotify\worktrees\`
+See [docs/development.md](docs/development.md).
 
 ## License
 

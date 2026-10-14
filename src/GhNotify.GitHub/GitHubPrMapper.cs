@@ -9,7 +9,7 @@ public static class GitHubPrMapper
     public static IEnumerable<InboxItem> ReviewRequests(JsonElement data) => ReviewRequests(data, Section(data, "review"));
 
     /// <exception cref="JsonException">data.mine is missing or not an object.</exception>
-    public static IEnumerable<InboxItem> MyPrs(JsonElement data) => MyPrs(data, Section(data, "mine"));
+    public static IEnumerable<InboxItem> MyPrs(JsonElement data, bool includeDrafts = true) => MyPrs(data, Section(data, "mine"), includeDrafts);
 
     // A missing search result is an error, not "no items" (it would remove every item of that kind).
     static JsonElement Section(JsonElement data, string name)
@@ -30,14 +30,15 @@ public static class GitHubPrMapper
         }
     }
 
-    static IEnumerable<InboxItem> MyPrs(JsonElement data, JsonElement mine)
+    static IEnumerable<InboxItem> MyPrs(JsonElement data, JsonElement mine, bool includeDrafts)
     {
         var me = data.Obj("viewer").Str("login");
         foreach (var node in mine.Arr("nodes"))
         {
             if (node.Int("number") is null) continue;
             var state = node.Obj("commits").Arr("nodes").Select(n => n.Obj("commit").Obj("statusCheckRollup").Str("state")).FirstOrDefault();
-            if (state is "FAILURE" or "ERROR")
+            var failing = state is "FAILURE" or "ERROR";
+            if (failing)
                 yield return Base(node, ItemKind.MyPrCiFailing, "gh:cifail", "Checks failing");
 
             var parts = new List<string>();
@@ -48,8 +49,28 @@ public static class GitHubPrMapper
             if (unresolved > 0) parts.Add($"{unresolved} unresolved thread{(unresolved == 1 ? "" : "s")}");
             if (parts.Count > 0)
                 yield return Base(node, ItemKind.MyPrNeedsResponse, "gh:respond", string.Join(", ", parts));
+            if (failing || parts.Count > 0) continue;
+
+            var draft = node.Bool("isDraft");
+            var decision = node.Str("reviewDecision");
+            var merge = node.Str("mergeStateStatus");
+            if (!draft && decision == "APPROVED" && state == "SUCCESS" && merge is "CLEAN" or "HAS_HOOKS")
+            {
+                yield return Base(node, ItemKind.MyPrReadyToMerge, "gh:ready", "Approved · checks green");
+                continue;
+            }
+            if (draft && !includeDrafts) continue;
+            yield return Base(node, ItemKind.MyPrWaiting, "gh:waiting", WaitingDetail(draft, decision, state, merge));
         }
     }
+
+    static string WaitingDetail(bool draft, string? decision, string? rollup, string? merge) =>
+        draft ? "Draft"
+        : merge == "DIRTY" ? "Merge conflicts"
+        : rollup is "PENDING" or "EXPECTED" ? "Checks running"
+        : decision != "APPROVED" ? "Waiting on review"
+        : merge == "BEHIND" ? "Behind base branch"
+        : "Not mergeable yet";
 
     static InboxItem Base(JsonElement n, ItemKind kind, string prefix, string? detail)
     {

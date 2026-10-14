@@ -43,6 +43,7 @@ public static class ActionText
     {
         ItemKind.ApprovalPending => [ItemAction.Approve, ItemAction.Reject],
         ItemKind.ReviewRequested => [ItemAction.ApprovePr],
+        ItemKind.MyPrCiFailing or ItemKind.MyPrNeedsResponse or ItemKind.MyPrReadyToMerge or ItemKind.MyPrWaiting => [],
         _ => [],
     };
 

@@ -18,7 +18,7 @@ public static class AdoPullRequests
         foreach (var pr in prs.Arr("value"))
         {
             if (string.Equals(pr.Obj("createdBy").Str("id"), ctx.MyId, StringComparison.OrdinalIgnoreCase))
-                items.AddRange(await MineAsync(c, org, p, baseUrl, ctx, pr, ct));
+                items.AddRange(await MineAsync(c, org, p, baseUrl, ctx, pr, includeDrafts, ct));
             else if (ReviewWaiting(pr, ctx, includeDrafts))
                 items.Add(Map(org, p, pr, ItemKind.ReviewRequested, "ado:review", null));
         }
@@ -37,7 +37,7 @@ public static class AdoPullRequests
     static bool Pending(JsonElement reviewer) => (reviewer.Int("vote") ?? 0) == 0 && !reviewer.Bool("hasDeclined");
 
     static async Task<IReadOnlyList<InboxItem>> MineAsync(
-        AdoClient c, string org, AdoProject p, string baseUrl, AdoOrgContext ctx, JsonElement pr, CancellationToken ct)
+        AdoClient c, string org, AdoProject p, string baseUrl, AdoOrgContext ctx, JsonElement pr, bool includeDrafts, CancellationToken ct)
     {
         var list = new List<InboxItem>();
         var prId = pr.Int("pullRequestId");
@@ -66,6 +66,26 @@ public static class AdoPullRequests
 
         if (parts.Count > 0)
             list.Add(Map(org, p, pr, ItemKind.MyPrNeedsResponse, "ado:respond", string.Join(", ", parts)));
+
+        if (list.Count == 0)
+        {
+            var draft = pr.Bool("isDraft");
+            var blocking = evals.Arr("value").Where(e => e.Obj("configuration").Bool("isBlocking")).ToList();
+            var policiesOk = blocking.All(e => e.Str("status") is "approved" or "notApplicable");
+            var anyNegative = others.Any(r => (r.Int("vote") ?? 0) < 0);
+            var mergeOk = pr.Str("mergeStatus") == "succeeded";
+            var waitingOn = others.Count(r => r.Bool("isRequired") && (r.Int("vote") ?? 0) == 0);
+            if (!draft && mergeOk && policiesOk && !anyNegative && waitingOn == 0)
+                list.Add(Map(org, p, pr, ItemKind.MyPrReadyToMerge, "ado:ready", "Approved · policies passing"));
+            else if (!draft || includeDrafts)
+            {
+                var detail = draft ? "Draft"
+                    : pr.Str("mergeStatus") == "conflicts" ? "Merge conflicts"
+                    : waitingOn > 0 ? $"Waiting on {waitingOn} reviewer{(waitingOn == 1 ? "" : "s")}"
+                    : "Waiting on policies";
+                list.Add(Map(org, p, pr, ItemKind.MyPrWaiting, "ado:waiting", detail));
+            }
+        }
         return list;
     }
 

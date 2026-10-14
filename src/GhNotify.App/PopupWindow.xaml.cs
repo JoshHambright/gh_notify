@@ -17,6 +17,9 @@ public partial class PopupWindow : Window
     // Per-row pointer guard for the confirm button; reset on every render because the button is rebuilt.
     readonly Dictionary<string, ConfirmPointerGuard> _pointerGuards = new();
     string? _restoreFocusKey;
+    IReadOnlyList<InboxSection>? _rendered;
+    bool _confirmingRestart;
+    string? _footerSignature;
 
     public PopupWindow(IPopupHost host)
     {
@@ -38,16 +41,22 @@ public partial class PopupWindow : Window
         var open = rows.Where(r => r.Mode is RowMode.Confirming or RowMode.Sending).Select(r => r.Key).ToHashSet();
         foreach (var key in _comments.Keys.Where(key => !open.Contains(key)).ToList()) _comments.Remove(key);
 
-        foreach (var g in _pointerGuards.Values) g.Reset();
         foreach (var key in _pointerGuards.Keys.Where(key => !open.Contains(key)).ToList()) _pointerGuards.Remove(key);
 
-        var offset = Scroller.VerticalOffset;
-        Sections.ItemsSource = sections;
-        if (offset > 0) Dispatcher.InvokeAsync(() => Scroller.ScrollToVerticalOffset(offset), DispatcherPriority.Loaded);
+        // Rebuild row visuals only when something visible changed: replacing the buttons between
+        // mouse-down and mouse-up (e.g. the refresh fired by opening the popup) swallows the click.
+        if (!InboxSections.SameContent(_rendered, sections))
+        {
+            _rendered = sections;
+            foreach (var g in _pointerGuards.Values) g.Reset();
+            var offset = Scroller.VerticalOffset;
+            Sections.ItemsSource = sections;
+            if (offset > 0) Dispatcher.InvokeAsync(() => Scroller.ScrollToVerticalOffset(offset), DispatcherPriority.Loaded);
+        }
 
         EmptyState.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        CountText.Text = rows.Count.ToString();
-        ConfigErrorText.Text = _host.ConfigError;
+        CountText.Text = _host.HeaderCount.ToString();
+        RenderConfigError();
         ConfigErrorText.Visibility = _host.ConfigError is null ? Visibility.Collapsed : Visibility.Visible;
         ThemeButton.ToolTip = $"Theme: {_host.ThemeMode}";
         RenderFooter();
@@ -58,15 +67,67 @@ public partial class PopupWindow : Window
         else if (!waiting && _confirmTick.IsEnabled) _confirmTick.Stop();
     }
 
+    /// <summary>The config-error banner: the error, then a "Fix in Settings" link.</summary>
+    void RenderConfigError()
+    {
+        var inlines = ConfigErrorText.Inlines;
+        inlines.Clear();
+        if (_host.ConfigError is not { } error) return;
+        inlines.Add(new Run(error + " "));
+        var fix = UpdateLink("Fix in Settings", (_, _) => _host.OpenSettings());
+        fix.FontWeight = FontWeights.Bold;
+        inlines.Add(fix);
+    }
+
     void RenderFooter()
     {
+        var statusText = _host.IsRefreshing ? "Refreshing…"
+            : _host.LastPolledAt is { } t ? $"Updated {t.ToLocalTime():HH:mm}" : "Not refreshed yet";
+        var sources = _host.Sources();
+        var update = _host.Update;
+        var agents = _host.RunningAgents;
+        if (update.Phase != UpdatePhase.Ready || agents == 0) _confirmingRestart = false;
+        var signature = UpdateUi.FooterSignature(statusText, sources, update, _confirmingRestart, agents);
+        if (signature == _footerSignature) return;
+        _footerSignature = signature;
         var inlines = FooterText.Inlines;
         inlines.Clear();
-        inlines.Add(new Run(_host.IsRefreshing ? "Refreshing…"
-            : _host.LastPolledAt is { } t ? $"Updated {t.ToLocalTime():HH:mm}" : "Not refreshed yet"));
-        var sources = _host.Sources();
+        inlines.Add(new Run(statusText));
         AddSource(inlines, "GitHub", sources.Where(s => s.Name == "GitHub").ToList());
         AddSource(inlines, "ADO", sources.Where(s => s.Name == "ADO" || s.Name.StartsWith("ADO:", StringComparison.Ordinal)).ToList());
+        AddUpdateLink(inlines);
+    }
+
+    void AddUpdateLink(InlineCollection inlines)
+    {
+        var status = _host.Update;
+        var agents = _host.RunningAgents;
+        if (status.Phase != UpdatePhase.Ready || agents == 0) _confirmingRestart = false;
+        if (UpdateUi.FooterLink(status) is not { } text) return;
+        inlines.Add(new Run(" · "));
+        if (!_confirmingRestart)
+        {
+            inlines.Add(UpdateLink(text, OnRestartClick));
+            return;
+        }
+        inlines.Add(new Run(UpdateUi.ConfirmPrompt(agents)));
+        inlines.Add(UpdateLink(UpdateUi.RestartAnyway, (_, _) => _host.RestartToUpdate(true)));
+        inlines.Add(new Run(" · "));
+        inlines.Add(UpdateLink(UpdateUi.Cancel, (_, _) => { _confirmingRestart = false; RenderFooter(); }));
+    }
+
+    static Hyperlink UpdateLink(string text, RoutedEventHandler click)
+    {
+        var link = new Hyperlink(new Run(text)) { TextDecorations = null, Cursor = Cursors.Hand };
+        link.SetResourceReference(TextElement.ForegroundProperty, "Brush.Red");
+        link.Click += click;
+        return link;
+    }
+
+    void OnRestartClick(object sender, RoutedEventArgs e)
+    {
+        if (_host.RestartToUpdate(false) == RestartDecision.NeedsConfirm) _confirmingRestart = true;
+        RenderFooter();
     }
 
     void AddSource(InlineCollection inlines, string label, IReadOnlyList<SourceStatus> group)
@@ -144,6 +205,47 @@ public partial class PopupWindow : Window
 
     void OnCancel(object sender, RoutedEventArgs e) => _host.CancelAction(Key(sender));
 
+    void OnRowMenu(object sender, RoutedEventArgs e)
+    {
+        if (RowMenuFor((UIElement)sender, Key(sender)) is { } menu) menu.IsOpen = true;
+    }
+
+    /// <summary>The row's snooze / mute menu, or null when the row is no longer shown. Internal for the preview renderer.</summary>
+    internal ContextMenu? RowMenuFor(UIElement target, string key)
+    {
+        var row = _rendered?.SelectMany(s => s.Rows).FirstOrDefault(r => r.Key == key);
+        return row is null ? null : MenuOf(target, key, RowMenus.For(row));
+    }
+
+    /// <summary>A context menu of row menu entries for <paramref name="key"/> (the preview renderer also draws a submenu with it).</summary>
+    internal ContextMenu MenuOf(UIElement target, string key, IEnumerable<RowMenuEntry> entries)
+    {
+        var menu = new ContextMenu { PlacementTarget = target };
+        foreach (var entry in entries) menu.Items.Add(MenuItemFor(key, entry));
+        return menu;
+    }
+
+    MenuItem MenuItemFor(string key, RowMenuEntry entry)
+    {
+        var item = new MenuItem { Header = entry.Header };
+        foreach (var child in entry.Children) item.Items.Add(MenuItemFor(key, child));
+        if (entry.Command is { } cmd)
+            item.Click += (_, _) =>
+            {
+                switch (cmd.Kind)
+                {
+                    case RowMenuKind.Snooze: _host.SnoozeItem(key, cmd.Snooze!.Value); break;
+                    case RowMenuKind.Mute: _host.Mute(key, cmd.Scope!.Value, cmd.Duration!.Value); break;
+                    case RowMenuKind.Unsnooze: _host.Unsnooze(key); break;
+                }
+            };
+        return item;
+    }
+
+    void OnUnsnooze(object sender, RoutedEventArgs e) => _host.Unsnooze(Key(sender));
+
+    void OnToggleSection(object sender, RoutedEventArgs e) => _host.ToggleSection(Key(sender));
+
     void OnConfirm(object sender, RoutedEventArgs e)
     {
         var key = Key(sender);
@@ -209,9 +311,15 @@ public partial class PopupWindow : Window
 
     void OnCycleTheme(object sender, RoutedEventArgs e) => _host.CycleTheme();
 
-    void OnMenu(object sender, RoutedEventArgs e)
+    void OnMenu(object sender, RoutedEventArgs e) => FooterMenu((UIElement)sender).IsOpen = true;
+
+    /// <summary>The footer ⋯ menu. Internal for the preview renderer.</summary>
+    internal ContextMenu FooterMenu(UIElement target)
     {
-        var menu = new ContextMenu { PlacementTarget = (UIElement)sender };
+        var menu = new ContextMenu { PlacementTarget = target };
+        var settings = new MenuItem { Header = "Settings…" };
+        settings.Click += (_, _) => _host.OpenSettings();
+        menu.Items.Add(settings);
         var openConfig = new MenuItem { Header = "Open config" };
         openConfig.Click += (_, _) => _host.OpenConfig();
         var startup = new MenuItem { Header = "Start with Windows", IsCheckable = true, IsChecked = StartupRegistration.IsEnabled() };
@@ -220,11 +328,41 @@ public partial class PopupWindow : Window
         logs.Click += (_, _) => _host.OpenLogs();
         var quit = new MenuItem { Header = "Quit" };
         quit.Click += (_, _) => _host.Quit();
+        menu.Items.Add(new MenuItem { Header = UpdateUi.VersionHeader(AppVersion.Current).Replace("_", "__"), IsEnabled = false });
+        var (checkHeader, checkEnabled, checkTip) = UpdateUi.CheckItem(_host.Update);
+        var check = new MenuItem { Header = checkHeader, IsEnabled = checkEnabled, ToolTip = checkTip };
+        ToolTipService.SetShowOnDisabled(check, true);
+        check.Click += (_, _) => _ = _host.CheckForUpdatesAsync();
+        menu.Items.Add(check);
+        if (UpdateUi.RestartItem(_host.Update) is { } restartHeader)
+        {
+            var restart = new MenuItem { Header = restartHeader };
+            restart.Click += OnRestartClick;
+            menu.Items.Add(restart);
+        }
+        menu.Items.Add(new Separator());
         menu.Items.Add(openConfig);
         menu.Items.Add(startup);
         menu.Items.Add(logs);
+        menu.Items.Add(MutedMenu());
         menu.Items.Add(new Separator());
         menu.Items.Add(quit);
-        menu.IsOpen = true;
+        return menu;
+    }
+
+    /// <summary>"Muted (n)" with an Unmute entry per active mute; a disabled "Nothing muted" when there are none.</summary>
+    MenuItem MutedMenu()
+    {
+        var mutes = _host.ActiveMutes();
+        if (mutes.Count == 0) return new MenuItem { Header = "Nothing muted", IsEnabled = false };
+        var item = new MenuItem { Header = $"Muted ({mutes.Count})" };
+        foreach (var m in mutes)
+        {
+            // "__": a single underscore in a MenuItem header marks an access key and is not shown.
+            var unmute = new MenuItem { Header = $"Unmute {m.Pattern} · {m.Remaining}".Replace("_", "__") };
+            unmute.Click += (_, _) => _host.Unmute(m.Pattern);
+            item.Items.Add(unmute);
+        }
+        return item;
     }
 }

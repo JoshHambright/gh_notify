@@ -5,7 +5,7 @@ namespace GhNotify.Core;
 
 public enum Provider { GitHub, Ado }
 
-public enum ItemKind { ReviewRequested, ApprovalPending, MyPrCiFailing, MyPrNeedsResponse }
+public enum ItemKind { ReviewRequested, ApprovalPending, MyPrCiFailing, MyPrNeedsResponse, MyPrReadyToMerge, MyPrWaiting }
 
 public sealed record InboxItem(
     string Key,

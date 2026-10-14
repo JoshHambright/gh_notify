@@ -13,10 +13,13 @@ public partial class App : Application
     Mutex? _mutex;
     TaskbarIcon? _tray;
     PopupWindow? _popup;
+    SettingsWindow? _settings;
     AppController? _controller;
     FileSystemWatcher? _watcher;
     DispatcherTimer? _debounce;
     ThemeService? _theme;
+    UpdateService? _updates;
+    readonly CancellationTokenSource _cts = new();
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -58,6 +61,7 @@ public partial class App : Application
 
     void StartUp()
     {
+        if (Environment.GetEnvironmentVariable("GHNOTIFY_DATA_DIR") is null or "") DataMigration.Run(AppPaths.LegacyDataDir, AppPaths.DataDir);
         Log.Configure(AppPaths.Logs);
         DispatcherUnhandledException += (_, a) => { Log.Error("unhandled UI exception", a.Exception); a.Handled = true; };
         AppDomain.CurrentDomain.UnhandledException += (_, a) => Log.Error("unhandled exception", a.ExceptionObject as Exception);
@@ -72,7 +76,12 @@ public partial class App : Application
         controller.ThemeModeChanged += _theme.Apply;
         ToastPresenter.PrepareLogo(AppPaths.ToastLogo);
 
+        _updates = new UpdateService(new VelopackUpdateClient(), () => controller.Config.Updates);
+        controller.AttachUpdates(_updates);
+        _updates.Changed += () => Dispatcher.InvokeAsync(controller.RaiseChanged);
+
         _popup = new PopupWindow(_controller);
+        controller.SettingsRequested += () => Dispatcher.InvokeAsync(OpenSettings);
 
         _tray = new TaskbarIcon { ToolTipText = "gh_notify" };
         _tray.TrayLeftMouseUp += (_, _) => TogglePopup();
@@ -89,7 +98,21 @@ public partial class App : Application
 
         WatchConfig();
         _controller.Start();
+        _ = _updates.RunAsync(_cts.Token);
         Log.Info("gh_notify started");
+    }
+
+    /// <summary>One settings window at a time: re-activates the open one, or opens a new one after the last closed.</summary>
+    void OpenSettings()
+    {
+        if (_settings is null)
+        {
+            var window = _settings = new SettingsWindow(_controller!);
+            window.Closed += (_, _) => { if (_settings == window) _settings = null; };
+            window.Show();
+        }
+        else if (_settings.WindowState == WindowState.Minimized) _settings.WindowState = WindowState.Normal;
+        _settings.Activate();
     }
 
     void TogglePopup()
@@ -113,9 +136,11 @@ public partial class App : Application
         var px = GetSystemMetrics(49); // SM_CXSMICON: the tray icon size in pixels at the system DPI
         using (var ms = new MemoryStream(ico)) _tray.Icon = new System.Drawing.Icon(ms, px > 0 ? px : 16, px > 0 ? px : 16);
         old?.Dispose();
-        _tray.ToolTipText = unhealthy
-            ? $"gh_notify — {count} waiting (a source needs attention)"
-            : $"gh_notify — {count} waiting";
+        var problem = _controller.TrayProblem();
+        var tip = count == 0 ? "gh_notify — nothing waiting" : $"gh_notify — {count} waiting";
+        if (problem is not null) tip += "\n" + (problem.Length > 80 ? problem[..79] + "…" : problem);
+        tip += "\nv" + AppVersion.Current;
+        _tray.ToolTipText = tip;
     }
 
     void WatchConfig()
@@ -140,6 +165,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _cts.Cancel();
         _theme?.Dispose();
         _watcher?.Dispose();
         _controller?.Dispose();

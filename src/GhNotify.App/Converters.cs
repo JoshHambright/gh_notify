@@ -40,3 +40,20 @@ public sealed class UpperCaseConverter : IValueConverter
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
+
+/// <summary>null → false; anything else → true.</summary>
+public sealed class NotNullConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value is not null;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>Two-way text for optional strings: an empty or blank box writes null back (so an untouched config stays unchanged).</summary>
+public sealed class EmptyToNullConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value ?? "";
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is string s && !string.IsNullOrWhiteSpace(s) ? s : null;
+}

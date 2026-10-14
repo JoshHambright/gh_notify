@@ -7,6 +7,8 @@ public interface IPopupHost
 {
     IReadOnlyList<InboxSection> BuildSections();
     IReadOnlyList<SourceStatus> Sources();
+    /// <summary>The header number: active rows that are neither muted, snoozed nor waiting on others (the tray badge count).</summary>
+    int HeaderCount { get; }
     string? ConfigError { get; }
     DateTimeOffset? LastPolledAt { get; }
     bool IsRefreshing { get; }
@@ -29,6 +31,25 @@ public interface IPopupHost
     Task RefreshAsync();
     void OpenConfig();
     void OpenLogs();
+    /// <summary>Opens (or re-activates) the settings window.</summary>
+    void OpenSettings();
     void Quit();
     void CopyText(string text);
+    // Named SnoozeItem, not Snooze: that would shadow the Snooze record inside AppController.
+    void SnoozeItem(string key, SnoozeChoice choice);
+    void Unsnooze(string key);
+    void Mute(string key, MuteScope scope, MuteDuration duration);
+    IReadOnlyList<ActiveMute> ActiveMutes();
+    void Unmute(string pattern);
+    /// <summary>Expands or collapses a collapsible section ("waiting", "snoozed").</summary>
+    void ToggleSection(string id);
+    UpdateStatus Update { get; }
+    /// <summary>Runs, or queued, agents: what a restart would interrupt.</summary>
+    int RunningAgents { get; }
+    /// <summary>Applies the downloaded update and shuts down, unless agents are running and <paramref name="confirmed"/> is false.</summary>
+    RestartDecision RestartToUpdate(bool confirmed);
+    Task CheckForUpdatesAsync();
 }
+
+/// <summary>A mute shown in the popup's active-mutes list. <paramref name="Remaining"/> is display text ("forever", "45m left").</summary>
+public sealed record ActiveMute(string Pattern, string Remaining, bool Permanent);

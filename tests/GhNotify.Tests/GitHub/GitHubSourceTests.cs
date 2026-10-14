@@ -25,7 +25,7 @@ public class GitHubSourceTests
         var (source, http, _) = Make(Happy());
         var result = await source.FetchAsync(CancellationToken.None);
         Assert.True(result.Healthy);
-        Assert.Equal(5, result.Items.Count);
+        Assert.Equal(7, result.Items.Count); // 2 review + failing + 2 needs-response + 2 waiting
         var gql = http.Requests.First(r => r.RequestUri!.AbsolutePath == "/graphql");
         Assert.Equal("Bearer", gql.Headers.Authorization!.Scheme);
         Assert.Equal("tok", gql.Headers.Authorization.Parameter);

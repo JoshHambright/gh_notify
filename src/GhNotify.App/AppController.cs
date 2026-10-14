@@ -9,7 +9,7 @@ using ThemeMode = GhNotify.Core.ThemeMode;
 
 namespace GhNotify.App;
 
-public sealed class AppController : IPopupHost, IDisposable
+public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
 {
     readonly ConfigStore _config;
     readonly StateStore _stateStore;
@@ -31,10 +31,36 @@ public sealed class AppController : IPopupHost, IDisposable
     int _refreshing;
     ThemeMode _themeMode;
     bool _claudeAvailable;
+    // Guards the four filter fields below (mutes, snoozes, section toggles).
+    readonly object _filterGate = new();
+    List<TimedMute> _mutes;
+    List<Snooze> _snoozes;
+    bool _waitingExpanded;
+    bool _snoozedExpanded;
+    bool _commentsWarningShown;
+    readonly SkillLocator _skills = new(SkillLocator.DefaultClaudeHome);
 
     public event Action? Changed;
+    /// <summary>The popup asked for the settings window (⋯ → Settings…, or "Fix in Settings"); App opens it.</summary>
+    public event Action? SettingsRequested;
     /// <summary>Raised (on the caller's thread) after <see cref="CycleTheme"/> changes the persisted mode.</summary>
     public event Action? ThemeModeChanged;
+
+    UpdateService? _updates;
+    public AppConfig Config => _config.Current;
+    /// <summary>Attaches the background update service (created after the controller because it reads <see cref="Config"/>).</summary>
+    public void AttachUpdates(UpdateService updates) => _updates = updates;
+    public void RaiseChanged() => Changed?.Invoke();
+    public UpdateStatus Update => _updates?.Status ?? new UpdateStatus(UpdatePhase.Off, null, null, null, null);
+    public int RunningAgents => _agents.Runs.Values.Count(r => r.State is AgentState.Running or AgentState.Queued);
+    public Task CheckForUpdatesAsync() => _updates?.CheckNowAsync(_cts.Token) ?? Task.CompletedTask;
+
+    public RestartDecision RestartToUpdate(bool confirmed)
+    {
+        var d = _updates?.RequestRestart(RunningAgents, confirmed) ?? RestartDecision.NothingToApply;
+        if (d == RestartDecision.Restarting) Application.Current.Shutdown();
+        return d;
+    }
 
     public AppController(ConfigStore config, StateStore stateStore)
     {
@@ -42,6 +68,11 @@ public sealed class AppController : IPopupHost, IDisposable
         _stateStore = stateStore;
         var state = stateStore.Load();
         _themeMode = state.ThemeMode;
+        _mutes = state.Mutes.ToList();
+        _snoozes = state.Snoozes.ToList();
+        _waitingExpanded = state.WaitingExpanded;
+        _snoozedExpanded = state.SnoozedExpanded;
+        _commentsWarningShown = state.CommentsWarningShown;
         _reconciler = new Reconciler(state.Snapshot.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<InboxItem>)kv.Value));
 
         var runner = new ProcessRunner();
@@ -68,7 +99,7 @@ public sealed class AppController : IPopupHost, IDisposable
         _repos = new RepoLocator(() => _config.Current.RepoRoots);
         _claudeAvailable = CommandResolver.Find("claude") is not null;
         var deps = new AgentDeps(_repos, new WorktreeManager(runner, AppPaths.Worktrees), new ClaudeRunner(runner),
-            new SkillLocator(SkillLocator.DefaultClaudeHome), () => _claudeAvailable);
+            new SkillLocator(SkillLocator.DefaultClaudeHome), () => _claudeAvailable, new CommandRunner(runner));
         _agents = new AgentCoordinator(deps, () => _config.Current, AppPaths.Scratch, restored: state.AgentRuns);
         foreach (var r in state.AgentRuns)
             if (r.FinishedAt is { } f) _announced[r.Key] = f; // don't re-announce runs finished before a restart
@@ -105,7 +136,14 @@ public sealed class AppController : IPopupHost, IDisposable
 
     public void ReloadConfig()
     {
+        if (_config.IsCurrent) return; // e.g. the watcher seeing our own Settings save: already loaded
         _config.Load();
+        AfterConfigChanged();
+    }
+
+    /// <summary>Applies a newly loaded config: retires disabled sources, re-renders and polls.</summary>
+    void AfterConfigChanged()
+    {
         _claudeAvailable = CommandResolver.Find("claude") is not null;
         HandleDiff(_reconciler.RetireWhere(IsDisabledSource));
         Changed?.Invoke();
@@ -131,9 +169,21 @@ public sealed class AppController : IPopupHost, IDisposable
     void ProcessDiff(InboxDiff diff)
     {
         var cfg = _config.Current;
-        foreach (var t in NotificationPolicy.Plan(diff, WorkHours.IsWithin(cfg.WorkHours, DateTime.Now))) _toasts.Apply(t);
-        foreach (var i in diff.InitialLoad) { _agents.OnItemAdded(i); MaybeAutoRun(i, cfg); }
-        foreach (var i in diff.Added) { _agents.OnItemAdded(i); _ = _hooks.DispatchAsync(HookEvent.ItemAdded, i); MaybeAutoRun(i, cfg); }
+        var now = DateTimeOffset.Now;
+        IReadOnlyList<InboxItem> woken;
+        lock (_filterGate)
+        {
+            var result = Snoozes.Evaluate(_snoozes, diff, _reconciler.Entries, now);
+            _snoozes = result.Kept.ToList();
+            woken = result.Woken;
+            _mutes = Snoozes.PruneMutes(_mutes, now).ToList();
+        }
+        var view = CurrentView();
+        var plan = NotificationPlanner.Plan(diff, woken, view, cfg, WorkHours.IsWithin(cfg.WorkHours, DateTime.Now));
+        foreach (var t in plan.Toasts) _toasts.Apply(t);
+        if (plan.Sound is { } sound) Application.Current?.Dispatcher.InvokeAsync(() => SoundPlayerService.PlayOrDefault(sound));
+        foreach (var i in diff.InitialLoad) { _agents.OnItemAdded(i); MaybeAutoRun(i, cfg, view); }
+        foreach (var i in diff.Added) { _agents.OnItemAdded(i); _ = _hooks.DispatchAsync(HookEvent.ItemAdded, i); MaybeAutoRun(i, cfg, view); }
         foreach (var c in diff.Changed) { _agents.OnItemChanged(c); _ = _hooks.DispatchAsync(HookEvent.ItemChanged, c.New); }
         foreach (var r in diff.Removed) { _agents.OnItemRemoved(r); _ = _hooks.DispatchAsync(HookEvent.ItemRemoved, r); }
         PruneRowStates(diff);
@@ -142,8 +192,9 @@ public sealed class AppController : IPopupHost, IDisposable
         Changed?.Invoke();
     }
 
-    void MaybeAutoRun(InboxItem item, AppConfig cfg)
+    void MaybeAutoRun(InboxItem item, AppConfig cfg, InboxView view)
     {
+        if (view.AttentionFor(item.Key) != Attention.Normal) return;
         var d = RulesEngine.Decide(item, cfg);
         if (d.Mode == AgentMode.Auto) _agents.TryStart(item, d, manual: false);
     }
@@ -166,7 +217,7 @@ public sealed class AppController : IPopupHost, IDisposable
                 var label = InboxPresenter.LabelFor(run.Profile);
                 if (WorkHours.IsWithin(_config.Current.WorkHours, DateTime.Now))
                     _toasts.Apply(new ToastRequest(ToastAction.Show, ItemTag.ForAgent(run.Key),
-                        $"{label} {(run.State == AgentState.Ready ? "ready" : "failed")}: {item.Repo}",
+                        $"{label} {(run.State == AgentState.Ready ? "ready" : "failed")}: {ItemText.RepoAndNumber(item)}",
                         $"{item.Title}\n{run.Summary ?? run.Error}", item.Url));
                 _ = _hooks.DispatchAsync(HookEvent.AgentFinished, item, run);
             }
@@ -211,16 +262,31 @@ public sealed class AppController : IPopupHost, IDisposable
         }
     }
 
+    InboxView CurrentView()
+    {
+        var entries = _doneHidden.IsEmpty ? _reconciler.Entries : _reconciler.Entries.Where(e => !_doneHidden.ContainsKey(e.Item.Key)).ToList();
+        TimedMute[] mutes;
+        Snooze[] snoozes;
+        lock (_filterGate)
+        {
+            mutes = _mutes.ToArray();
+            snoozes = _snoozes.ToArray();
+        }
+        return InboxView.Compose(entries, _config.Current.Filters, mutes, snoozes, DateTimeOffset.Now);
+    }
+
     public IReadOnlyList<InboxSection> BuildSections()
     {
         var cfg = _config.Current;
-        var entries = _doneHidden.IsEmpty ? _reconciler.Entries : _reconciler.Entries.Where(e => !_doneHidden.ContainsKey(e.Item.Key)).ToList();
-        return InboxPresenter.Build(entries, _agents.Get, i => RulesEngine.Decide(i, cfg), _agents.WhyCannotRun,
+        bool waitingExpanded, snoozedExpanded;
+        lock (_filterGate) { waitingExpanded = _waitingExpanded; snoozedExpanded = _snoozedExpanded; }
+        return InboxPresenter.Build(CurrentView(), _agents.Get, i => RulesEngine.Decide(i, cfg), _agents.WhyCannotRun,
             DateTimeOffset.Now, _actions.ActionsFor, k => _rowStates.GetValueOrDefault(k),
-            r => RepoNames.Display(r, cfg.Display.RepoAliases, cfg.Display.MaxRepoChars));
+            r => RepoNames.Display(r, cfg.Display.RepoAliases, cfg.Display.MaxRepoChars), waitingExpanded, snoozedExpanded);
     }
 
     public IReadOnlyList<SourceStatus> Sources() => _reconciler.Statuses;
+    public int HeaderCount => CurrentView().BadgeCount;
 
     public string? ConfigError => _config.Error;
 
@@ -350,8 +416,96 @@ public sealed class AppController : IPopupHost, IDisposable
         catch (Exception ex) { Log.Error("could not copy to clipboard", ex); }
     }
 
+    public string? TrayProblem()
+    {
+        if (_config.Error is not null) return _config.Error;
+        var s = _reconciler.Statuses.FirstOrDefault(x => !x.Healthy);
+        return s is null ? null : $"{s.Name}: {s.Problem}";
+    }
+
     public (int Count, bool Unhealthy) TrayState() =>
-        (_reconciler.Entries.Count(e => !_doneHidden.ContainsKey(e.Item.Key)), _config.Error is not null || _reconciler.Statuses.Any(s => !s.Healthy));
+        (CurrentView().BadgeCount, _config.Error is not null || _reconciler.Statuses.Any(s => !s.Healthy));
+
+    public void SnoozeItem(string key, SnoozeChoice choice)
+    {
+        var (until, untilChange) = SnoozeTimes.For(choice, DateTimeOffset.Now, _config.Current.WorkHours);
+        lock (_filterGate)
+        {
+            _snoozes.RemoveAll(s => s.Key == key);
+            _snoozes.Add(new Snooze(key, until, untilChange));
+        }
+        _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.For(key)));
+        _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.ForAgent(key)));
+        _rowStates.TryRemove(key, out _);
+        Save();
+        Changed?.Invoke();
+    }
+
+    public void Unsnooze(string key)
+    {
+        lock (_filterGate) _snoozes.RemoveAll(s => s.Key == key);
+        Save();
+        Changed?.Invoke();
+    }
+
+    public void Mute(string key, MuteScope scope, MuteDuration duration)
+    {
+        if (Find(key) is not { } item || MutePatterns.For(item, scope) is not { } pattern) return;
+        if (duration == MuteDuration.Forever)
+        {
+            if (!EditMuteConfig(list => { if (!list.Contains(pattern, StringComparer.OrdinalIgnoreCase)) list.Add(pattern); })) return;
+        }
+        else
+        {
+            var until = MutePatterns.Until(duration, DateTimeOffset.Now, _config.Current.WorkHours);
+            lock (_filterGate) _mutes.Add(new TimedMute(pattern, until));
+        }
+        Save();
+        Changed?.Invoke();
+    }
+
+    public IReadOnlyList<ActiveMute> ActiveMutes()
+    {
+        var now = DateTimeOffset.Now;
+        List<TimedMute> timed;
+        lock (_filterGate) timed = _mutes.ToList();
+        return _config.Current.Filters.Mute.Select(p => new ActiveMute(p, "forever", true))
+            .Concat(timed.Where(m => m.Until is { } u && u > now).Select(m => new ActiveMute(m.Pattern, Snoozes.Left(m.Until!.Value - now, m.Until.Value), false)))
+            .ToList();
+    }
+
+    public void Unmute(string pattern)
+    {
+        lock (_filterGate) _mutes.RemoveAll(m => string.Equals(m.Pattern, pattern, StringComparison.OrdinalIgnoreCase));
+        if (_config.Current.Filters.Mute.Contains(pattern, StringComparer.OrdinalIgnoreCase)
+            && !EditMuteConfig(list => list.RemoveAll(p => string.Equals(p, pattern, StringComparison.OrdinalIgnoreCase)))) return;
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Applies an edit to filters.mute in config.json with the Settings guards; false (after a toast) when it was not saved.</summary>
+    bool EditMuteConfig(Action<List<string>> edit)
+    {
+        var result = MuteConfigEditor.TrySave(_config, edit, _commentsWarningShown);
+        if (result == MuteSaveResult.Saved) return true;
+        var message = result == MuteSaveResult.CommentsNotAcknowledged
+            ? "Couldn't save mute: config.json has comments — use Settings to save it once"
+            : "Couldn't save mute: config.json changed or has an error. Fix it or use Settings.";
+        _toasts.Apply(new ToastRequest(ToastAction.Show, ItemTag.For("mute-error"), "gh_notify", message));
+        return false;
+    }
+
+    public void ToggleSection(string id)
+    {
+        lock (_filterGate)
+        {
+            if (id == "waiting") _waitingExpanded = !_waitingExpanded;
+            else if (id == "snoozed") _snoozedExpanded = !_snoozedExpanded;
+            else return;
+        }
+        Save();
+        Changed?.Invoke();
+    }
 
     public void RunAgent(string key)
     {
@@ -387,6 +541,78 @@ public sealed class AppController : IPopupHost, IDisposable
     /// <summary>Opens one of our own local paths (config file, logs folder).</summary>
     public void OpenPath(string path) => ShellOpen(path);
 
+    public void OpenSettings() => SettingsRequested?.Invoke();
+
+    // ----- ISettingsHost -----
+
+    public AppConfig CurrentConfig => _config.Current;
+    public string LogsPath => AppPaths.Logs;
+    public string DataPath => AppPaths.DataDir;
+    public string? ConfigFileHash() => _config.LoadedHash;
+
+    /// <summary>Settings only lifts timed mutes; permanent ones are edited in the draft's filters.mute and saved with it.</summary>
+    void ISettingsHost.Unmute(string pattern)
+    {
+        lock (_filterGate) _mutes.RemoveAll(m => string.Equals(m.Pattern, pattern, StringComparison.OrdinalIgnoreCase));
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Saves through the store (validation, conflict check, .bak), then applies it like a file-watcher reload.</summary>
+    public void SaveConfig(AppConfig config, string? expectedHash)
+    {
+        _config.Save(config, expectedHash);
+        AfterConfigChanged();
+    }
+
+    public IReadOnlyList<string> DiscoveredAdoOrgs() =>
+        _reconciler.Statuses.Where(s => s.Name.StartsWith("ADO:", StringComparison.Ordinal)).Select(s => s.Name["ADO:".Length..]).ToList();
+
+    public async Task<string> TestAdoSignInAsync(string? subscription, string? tenant)
+    {
+        var provider = new AzTokenProvider(new ProcessRunner(), config: () => new AdoConfig { AzSubscription = subscription, AzTenant = tenant });
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(60));
+            await provider.GetTokenAsync(forceRefresh: true, timeout.Token);
+            return "✓ Signed in";
+        }
+        catch (OperationCanceledException) { return "Timed out waiting for az"; }
+        catch (Exception ex) { return ex.Message; }
+    }
+
+    public bool IsSkillInstalled(string skill) => _skills.IsInstalled(skill, null);
+
+    public IReadOnlyList<InboxItem> CurrentItems() => _reconciler.Entries.Select(e => e.Item).ToList();
+
+    public UpdateStatus UpdateStatus => Update;
+
+    public bool StartWithWindows
+    {
+        get => StartupRegistration.IsEnabled();
+        set => StartupRegistration.Set(value);
+    }
+
+    public void SetThemeMode(ThemeMode mode)
+    {
+        if (mode == _themeMode) return;
+        _themeMode = mode;
+        Save();
+        ThemeModeChanged?.Invoke();
+        Changed?.Invoke();
+    }
+
+    public bool CommentsWarningShown
+    {
+        get => _commentsWarningShown;
+        set
+        {
+            _commentsWarningShown = value;
+            Save();
+        }
+    }
+
     static void ShellOpen(string target)
     {
         try { Process.Start(new ProcessStartInfo(target) { UseShellExecute = true })?.Dispose(); }
@@ -399,7 +625,22 @@ public sealed class AppController : IPopupHost, IDisposable
         {
             try
             {
-                _stateStore.Save(new AppState { Snapshot = _reconciler.Snapshot(), AgentRuns = _agents.Runs.Values.ToList(), ThemeMode = _themeMode });
+                AppState state;
+                lock (_filterGate)
+                {
+                    state = new AppState
+                    {
+                        Snapshot = _reconciler.Snapshot(),
+                        AgentRuns = _agents.Runs.Values.ToList(),
+                        ThemeMode = _themeMode,
+                        Mutes = _mutes.ToList(),
+                        Snoozes = _snoozes.ToList(),
+                        WaitingExpanded = _waitingExpanded,
+                        SnoozedExpanded = _snoozedExpanded,
+                        CommentsWarningShown = _commentsWarningShown,
+                    };
+                }
+                _stateStore.Save(state);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

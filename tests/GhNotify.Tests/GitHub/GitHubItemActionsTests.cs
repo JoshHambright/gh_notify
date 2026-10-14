@@ -9,9 +9,11 @@ namespace GhNotify.Tests.GitHub;
 public class GitHubItemActionsTests
 {
     static InboxItem Approval() => new("gh:approval:acme/deploy/runs/9001", Provider.GitHub, ItemKind.ApprovalPending, "acme/deploy",
-        "Release", "https://x", "carol", DateTimeOffset.UnixEpoch, "abc999", null, null) { RunId = 9001 };
+        "Release", "https://x", "carol", DateTimeOffset.UnixEpoch, "abc999", null, null)
+    { RunId = 9001 };
     static InboxItem Pr(string sha = "aaa1111") => new("gh:review:acme/api#12", Provider.GitHub, ItemKind.ReviewRequested, "acme/api",
-        "Add retry", "https://x", "alice", DateTimeOffset.UnixEpoch, sha, 10, null) { Number = 12 };
+        "Add retry", "https://x", "alice", DateTimeOffset.UnixEpoch, sha, 10, null)
+    { Number = 12 };
 
     const string Pending = """
         [ { "environment": { "id": 11, "name": "production" }, "current_user_can_approve": true },

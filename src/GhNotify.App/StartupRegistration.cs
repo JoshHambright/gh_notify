@@ -16,7 +16,7 @@ public static class StartupRegistration
     public static void Set(bool enabled)
     {
         using var key = Registry.CurrentUser.CreateSubKey(RunKey);
-        if (enabled) key.SetValue(Name, $"\"{Environment.ProcessPath}\"");
+        if (enabled) key.SetValue(Name, $"\"{InstallInfo.StableExePath ?? Environment.ProcessPath}\"");
         else key.DeleteValue(Name, throwOnMissingValue: false);
     }
 }

@@ -7,7 +7,12 @@ public sealed record InboxRow(
     string? BadgeText, string? BadgeTooltip, string? RunButton, bool CanRun, string? RunDisabledReason, bool CanOpenInClaude,
     bool Urgent, IReadOnlyList<ItemDetail> Details, string? RunInfo, string? ResultText,
     IReadOnlyList<RowActionButton> Actions, RowMode Mode, string? Statement, string? ConfirmLabel, bool ConfirmEnabled,
-    string? Warning, string? Message, string RepoDisplay);
+    string? Warning, string? Message, string RepoDisplay)
+{
+    public string? MutedBy { get; init; }
+    public string? SnoozeText { get; init; }
+    public string? Number { get; init; }
+}
 
 public enum RowMode { Collapsed, Expanded, Confirming, Sending, Done, Failed }
 
@@ -16,7 +21,13 @@ public sealed record RowUiState(RowMode Mode, ItemAction? Action = null, ActionP
 
 public sealed record RowActionButton(ItemAction Action, string Label, bool Enabled, string? DisabledReason);
 
-public sealed record InboxSection(string Title, IReadOnlyList<InboxRow> Rows);
+public sealed record InboxSection(string Title, IReadOnlyList<InboxRow> Rows)
+{
+    public string Id { get; init; } = Title;
+    public bool Collapsible { get; init; }
+    public bool Expanded { get; init; } = true;
+    public int Count { get; init; } = Rows.Count;
+}
 
 public static class InboxPresenter
 {
@@ -26,6 +37,8 @@ public static class InboxPresenter
         (ItemKind.ReviewRequested, "Review requests"),
         (ItemKind.MyPrCiFailing, "My PRs — failing"),
         (ItemKind.MyPrNeedsResponse, "My PRs — needs response"),
+        (ItemKind.MyPrReadyToMerge, "My PRs — ready to merge"),
+        (ItemKind.MyPrWaiting, "Waiting on others"),
     ];
 
     public static IReadOnlyList<InboxSection> Build(
@@ -45,7 +58,57 @@ public static class InboxPresenter
                 .OrderByDescending(e => e.Item.UpdatedAt)
                 .Select(e => Row(e, runOf(e.Item.Key), decide(e.Item), whyCannotRun, now, actionsFor, uiState?.Invoke(e.Item.Key), repoDisplay))
                 .ToList();
-            if (rows.Count > 0) sections.Add(new InboxSection(title, rows));
+            if (rows.Count > 0) sections.Add(new InboxSection(title, rows)
+            {
+                Id = kind == ItemKind.MyPrWaiting ? "waiting" : kind.ToString(),
+                Collapsible = kind == ItemKind.MyPrWaiting,
+            });
+        }
+        return sections;
+    }
+
+    public static IReadOnlyList<InboxSection> Build(
+        InboxView view,
+        Func<string, AgentRun?> runOf,
+        Func<InboxItem, AgentDecision> decide,
+        Func<InboxItem, AgentDecision, string?> whyCannotRun,
+        DateTimeOffset now,
+        Func<InboxItem, IReadOnlyList<ItemAction>>? actionsFor,
+        Func<string, RowUiState?>? uiState,
+        Func<string, string>? repoDisplay,
+        bool waitingExpanded,
+        bool snoozedExpanded)
+    {
+        InboxRow RowOf(InboxEntry e) =>
+            Row(e, runOf(e.Item.Key), decide(e.Item), whyCannotRun, now, actionsFor, uiState?.Invoke(e.Item.Key), repoDisplay);
+
+        var sections = new List<InboxSection>();
+        foreach (var (kind, title) in Order)
+        {
+            if (kind == ItemKind.MyPrWaiting) continue;
+            var rows = view.Active.Where(v => v.Entry.Item.Kind == kind)
+                .OrderByDescending(v => v.Entry.Item.UpdatedAt)
+                .Select(v => RowOf(v.Entry) with { MutedBy = v.MutedBy })
+                .ToList();
+            if (rows.Count > 0) sections.Add(new InboxSection(title, rows) { Id = kind.ToString() });
+        }
+        if (view.Waiting.Count > 0)
+        {
+            var rows = waitingExpanded
+                ? view.Waiting.OrderByDescending(v => v.Entry.Item.UpdatedAt).Select(v => RowOf(v.Entry) with { MutedBy = v.MutedBy }).ToList()
+                : [];
+            sections.Add(new InboxSection("Waiting on others", rows)
+            { Id = "waiting", Collapsible = true, Expanded = waitingExpanded, Count = view.Waiting.Count });
+        }
+        if (view.Snoozed.Count > 0)
+        {
+            var rows = snoozedExpanded
+                ? view.Snoozed.OrderByDescending(s => s.Entry.Item.UpdatedAt)
+                    .Select(s => RowOf(s.Entry) with { SnoozeText = Snoozes.Remaining(s.Snooze, now), Actions = [], RunButton = null, CanRun = false })
+                    .ToList()
+                : [];
+            sections.Add(new InboxSection("Snoozed", rows)
+            { Id = "snoozed", Collapsible = true, Expanded = snoozedExpanded, Count = view.Snoozed.Count });
         }
         return sections;
     }
@@ -78,10 +141,19 @@ public static class InboxPresenter
             Badge(run), Tooltip(run),
             button, button is not null && reason is null, reason,
             run is { State: AgentState.Ready or AgentState.Failed or AgentState.Outdated, SessionId: not null, WorktreePath: not null },
-            i.Kind is ItemKind.ApprovalPending or ItemKind.MyPrCiFailing, i.Details ?? [],
+            i.Kind is ItemKind.ApprovalPending or ItemKind.MyPrCiFailing, WithPr(i),
             run is null ? null : RunInfo(run), run?.ResultText,
             actions, mode, preview?.Statement, preview?.ConfirmLabel, confirmEnabled, preview?.Warning, message,
-            repoDisplay?.Invoke(i.Repo) ?? i.Repo);
+            repoDisplay?.Invoke(i.Repo) ?? i.Repo)
+        { Number = i.Number is { } n ? $"#{n}" : null };
+    }
+
+    static IReadOnlyList<ItemDetail> WithPr(InboxItem i)
+    {
+        var details = i.Details ?? [];
+        if (i.Number is not { } n || details.Any(d => d.Label == "PR")) return details;
+        var at = details.ToList().FindIndex(d => d.Label == "Repo") + 1;
+        return [.. details.Take(at), new ItemDetail("PR", $"#{n}"), .. details.Skip(at)];
     }
 
     static string RunInfo(AgentRun run)
@@ -96,8 +168,8 @@ public static class InboxPresenter
 
     public static string LabelFor(string? profileName) => profileName switch
     {
-        "peer-review" => "Pre-review",
-        "pr-shepherd" => "Shepherd",
+        "review" or "peer-review" => "Pre-review",
+        "diagnose-ci" or "pr-shepherd" => "Diagnose",
         _ => $"Run {profileName}",
     };
 

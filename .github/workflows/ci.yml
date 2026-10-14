@@ -1,0 +1,65 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+    inputs:
+      ref:
+        description: Ref to test (default is the triggering commit)
+        required: false
+        type: string
+        default: ""
+    secrets:
+      LEAK_TERMS:
+        required: false
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+permissions:
+  contents: read
+env:
+  VELOPACK_VERSION: "1.2.161"
+defaults:
+  run:
+    shell: pwsh
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore GhNotify.slnx
+      - name: Build (warnings are errors)
+        run: dotnet build GhNotify.slnx -c Release --no-restore -warnaserror
+      - name: Format
+        run: dotnet format GhNotify.slnx --verify-no-changes --no-restore
+      - name: Test with coverage
+        run: dotnet test GhNotify.slnx -c Release --no-build --collect:"XPlat Code Coverage" --results-directory artifacts/coverage
+      - name: Coverage floor
+        run: ./build/check-coverage.ps1 -Results artifacts/coverage
+      - name: Leak scan
+        env:
+          LEAK_TERMS: ${{ secrets.LEAK_TERMS }}
+        run: ./build/leak-scan.ps1
+      - name: Velopack package and vpk versions match
+        run: |
+          $m = Select-String -Path src/GhNotify.App/GhNotify.App.csproj -Pattern '<PackageReference Include="Velopack" Version="([^"]+)"'
+          if (-not $m) { Write-Host "::error::Velopack PackageReference not found in GhNotify.App.csproj"; exit 1 }
+          $pkg = $m.Matches[0].Groups[1].Value
+          if ($pkg -ne $env:VELOPACK_VERSION) {
+            Write-Host "::error::Velopack package $pkg != VELOPACK_VERSION $env:VELOPACK_VERSION (ci.yml, release.yml): bump them together"
+            exit 1
+          }
+      - name: Install vpk
+        run: dotnet tool install -g vpk --version $env:VELOPACK_VERSION
+      - name: Install / upgrade / uninstall test
+        run: |
+          ./build/pack.ps1 -Version 0.0.1-ci -OutDir artifacts/old
+          ./build/pack.ps1 -Version 0.0.2-ci -OutDir artifacts/new
+          ./build/test-install.ps1 -OldSetup artifacts/old/GhNotify-win-Setup.exe -NewFeed artifacts/new

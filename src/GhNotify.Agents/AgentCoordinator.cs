@@ -4,7 +4,8 @@ using GhNotify.Core;
 namespace GhNotify.Agents;
 
 public sealed record AgentDeps(
-    ILocalRepoIndex Repos, IWorktreeManager Worktrees, IClaudeRunner Claude, ISkillLocator Skills, Func<bool> ClaudeAvailable);
+    ILocalRepoIndex Repos, IWorktreeManager Worktrees, IClaudeRunner Claude, ISkillLocator Skills, Func<bool> ClaudeAvailable,
+    ICommandRunner Commands, Func<string, bool>? CommandExists = null);
 
 public sealed class AgentCoordinator : IDisposable
 {
@@ -44,16 +45,27 @@ public sealed class AgentCoordinator : IDisposable
     public string? WhyCannotRun(InboxItem item, AgentDecision decision)
     {
         if (decision.Profile is not { } profile) return "No agent profile for this item";
+        if (profile.Command is { Count: > 0 } cmd)
+        {
+            if (!(_d.CommandExists ?? (n => CommandResolver.Find(n) is not null))(cmd[0])) return $"'{cmd[0]}' not found on PATH";
+            if (profile.NeedsWorktree && WhyNoWorktree(item) is { } why) return why;
+            return null;
+        }
         if (!_d.ClaudeAvailable()) return "claude CLI not found on PATH";
         string? clone = null;
         if (profile.NeedsWorktree)
         {
-            if (item.CloneUrl is null || item.SourceRef is null) return "This item has no branch to check out";
-            clone = _d.Repos.FindClone(item.CloneUrl);
-            if (clone is null) return "No local clone under repoRoots";
+            if (WhyNoWorktree(item) is { } why) return why;
+            clone = _d.Repos.FindClone(item.CloneUrl!);
         }
         if (profile.RequiresSkill is { } skill && !_d.Skills.IsInstalled(skill, clone)) return $"Skill /{skill} not installed";
         return null;
+    }
+
+    string? WhyNoWorktree(InboxItem item)
+    {
+        if (item.CloneUrl is null || item.SourceRef is null) return "This item has no branch to check out";
+        return _d.Repos.FindClone(item.CloneUrl) is null ? "No local clone under repoRoots" : null;
     }
 
     public bool TryStart(InboxItem item, AgentDecision decision, bool manual)
@@ -72,7 +84,9 @@ public sealed class AgentCoordinator : IDisposable
                 Profile = decision.ProfileName!,
                 State = AgentState.Queued,
                 HeadSha = item.HeadSha,
-                ClonePath = profile.NeedsWorktree ? _d.Repos.FindClone(item.CloneUrl!) : null,
+                Kind = profile.Command is not null ? AgentRunKind.Command : AgentRunKind.Claude,
+                ClonePath = profile.NeedsWorktree ? _d.Repos.FindClone(item.CloneUrl!)
+                    : profile.Command is not null && item.CloneUrl is { } u ? _d.Repos.FindClone(u) : null,
                 LastOpenedAt = existing?.LastOpenedAt,
             };
             _currentHead[item.Key] = item.HeadSha;
@@ -113,19 +127,27 @@ public sealed class AgentCoordinator : IDisposable
             Update(item.Key, r => r with { State = AgentState.Running, StartedAt = Now });
             var tag = ItemTag.For(item.Key);
             string cwd;
+            var owns = true;
             if (profile.NeedsWorktree)
             {
                 cwd = await _d.Worktrees.CreateAsync(clone!, item.SourceRef!, tag, ct);
+            }
+            else if (profile.Command is not null && clone is not null)
+            {
+                cwd = clone;
+                owns = false;
             }
             else
             {
                 cwd = Path.Combine(_scratch, tag);
                 Directory.CreateDirectory(cwd);
             }
-            Update(item.Key, r => r with { WorktreePath = cwd });
+            Update(item.Key, r => r with { WorktreePath = cwd, OwnsWorkingDir = owns });
             var cfg = _config();
-            var o = await _d.Claude.RunAsync(cwd, PromptTemplate.Fill(profile.Prompt, item), profile, cfg.AgentAllowedTools,
-                TimeSpan.FromMinutes(cfg.AgentTimeoutMinutes), ct);
+            var o = profile.Command is { } cmd
+                ? await _d.Commands.RunAsync(cwd, cmd, item, TimeSpan.FromMinutes(cfg.AgentTimeoutMinutes), ct)
+                : await _d.Claude.RunAsync(cwd, PromptTemplate.Fill(profile.Prompt, item), profile, cfg.AgentAllowedTools,
+                    TimeSpan.FromMinutes(cfg.AgentTimeoutMinutes), ct);
             Update(item.Key, r => r with
             {
                 State = !o.Success ? AgentState.Failed
@@ -196,7 +218,7 @@ public sealed class AgentCoordinator : IDisposable
             }
             try
             {
-                if (r.WorktreePath is { } wt)
+                if (r.WorktreePath is { } wt && r.OwnsWorkingDir)
                 {
                     if (r.ClonePath is { } clone) await _d.Worktrees.RemoveAsync(clone, wt, ItemTag.For(r.Key), ct);
                     else if (Directory.Exists(wt)) Directory.Delete(wt, recursive: true);

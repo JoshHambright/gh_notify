@@ -53,4 +53,81 @@ public class AdoPullRequestsTests
         var items = await AdoPullRequests.FetchAsync(new AdoClient(new HttpClient(Http()), new FakeTokenProvider()), "contoso", Core, Ctx, true, default);
         Assert.Contains(items, i => i.Number == 105);
     }
+
+    static string MyPr(string mergeStatus = "succeeded", bool draft = false, string reviewers = "") => $$"""
+        { "pullRequestId": 200, "title": "Mine", "isDraft": {{(draft ? "true" : "false")}}, "mergeStatus": "{{mergeStatus}}",
+          "creationDate": "2026-10-13T09:00:00Z", "createdBy": { "id": "me-id", "displayName": "Me" },
+          "repository": { "id": "repo-1", "name": "api", "project": { "id": "proj-1", "name": "Core Platform" } },
+          "sourceRefName": "refs/heads/mine", "lastMergeSourceCommit": { "commitId": "s200" },
+          "reviewers": [ { "id": "me-id", "vote": 0 }{{reviewers}} ] }
+        """;
+
+    static async Task<IReadOnlyList<InboxItem>> FetchMine(string pr, string evaluations, bool includeDrafts = true)
+    {
+        var http = new FakeHttpHandler()
+            .On("/Core%20Platform/_apis/git/pullrequests?", $$"""{ "value": [ {{pr}} ] }""")
+            .On("/Core%20Platform/_apis/policy/evaluations?", evaluations)
+            .On("/Core%20Platform/_apis/git/repositories/repo-1/pullRequests/200/threads", """{ "value": [] }""");
+        return await AdoPullRequests.FetchAsync(new AdoClient(new HttpClient(http), new FakeTokenProvider()), "contoso", Core, Ctx, includeDrafts, default);
+    }
+
+    const string Reviewer = """, { "id": "bob-id", "vote": 10 }""";
+    const string PoliciesPassing = """
+        { "value": [ { "status": "approved", "configuration": { "isBlocking": true, "type": { "id": "0609b952-1397-4640-95ec-e00a01b2c241" } } },
+                     { "status": "notApplicable", "configuration": { "isBlocking": true, "type": { "id": "x" } } },
+                     { "status": "queued", "configuration": { "isBlocking": false, "type": { "id": "x" } } } ] }
+        """;
+
+    [Fact]
+    public async Task Own_pr_with_passing_policies_is_ready_to_merge()
+    {
+        var item = Assert.Single(await FetchMine(MyPr(reviewers: Reviewer), PoliciesPassing));
+        Assert.Equal(ItemKind.MyPrReadyToMerge, item.Kind);
+        Assert.StartsWith("ado:ready:", item.Key);
+        Assert.Equal("Approved · policies passing", item.Detail);
+    }
+
+    [Fact]
+    public async Task Own_pr_with_queued_blocking_policy_is_waiting()
+    {
+        const string evals = """{ "value": [ { "status": "queued", "configuration": { "isBlocking": true, "type": { "id": "x" } } } ] }""";
+        var item = Assert.Single(await FetchMine(MyPr(reviewers: Reviewer), evals));
+        Assert.Equal(ItemKind.MyPrWaiting, item.Kind);
+        Assert.StartsWith("ado:waiting:", item.Key);
+        Assert.Equal("Waiting on policies", item.Detail);
+    }
+
+    [Fact]
+    public async Task Own_pr_waits_on_required_reviewers()
+    {
+        const string two = """, { "id": "a-id", "vote": 0, "isRequired": true }, { "id": "b-id", "vote": 0, "isRequired": true }""";
+        var item = Assert.Single(await FetchMine(MyPr(reviewers: two), PoliciesPassing));
+        Assert.Equal(ItemKind.MyPrWaiting, item.Kind);
+        Assert.Equal("Waiting on 2 reviewers", item.Detail);
+    }
+
+    [Fact]
+    public async Task Own_pr_with_conflicts_is_waiting()
+    {
+        var item = Assert.Single(await FetchMine(MyPr(mergeStatus: "conflicts", reviewers: Reviewer), PoliciesPassing));
+        Assert.Equal(ItemKind.MyPrWaiting, item.Kind);
+        Assert.Equal("Merge conflicts", item.Detail);
+    }
+
+    [Fact]
+    public async Task Own_draft_pr_is_waiting_only_when_drafts_included()
+    {
+        Assert.Empty(await FetchMine(MyPr(draft: true), PoliciesPassing, includeDrafts: false));
+        var item = Assert.Single(await FetchMine(MyPr(draft: true), PoliciesPassing, includeDrafts: true));
+        Assert.Equal(ItemKind.MyPrWaiting, item.Kind);
+        Assert.Equal("Draft", item.Detail);
+    }
+
+    [Fact]
+    public async Task Failing_build_policy_is_never_also_ready_or_waiting()
+    {
+        const string evals = """{ "value": [ { "status": "rejected", "configuration": { "isBlocking": true, "type": { "id": "0609b952-1397-4640-95ec-e00a01b2c241" } } } ] }""";
+        var item = Assert.Single(await FetchMine(MyPr(reviewers: Reviewer), evals));
+        Assert.Equal(ItemKind.MyPrCiFailing, item.Kind);
+    }
 }

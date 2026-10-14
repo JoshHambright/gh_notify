@@ -24,6 +24,37 @@ public class InboxPresenterTests
             (_, _) => null, now ?? Now, ActionText.DefaultActions, _ => ui)[0].Rows[0];
 
     [Fact]
+    public void Sections_come_in_order_with_ids_and_counts()
+    {
+        var sections = Build([
+            E("w1", ItemKind.MyPrWaiting, TimeSpan.FromHours(1)), E("w2", ItemKind.MyPrWaiting, TimeSpan.FromHours(2)),
+            E("r", ItemKind.MyPrReadyToMerge, TimeSpan.FromHours(1)), E("n", ItemKind.MyPrNeedsResponse, TimeSpan.FromHours(1)),
+            E("f", ItemKind.MyPrCiFailing, TimeSpan.FromHours(1)), E("q", ItemKind.ReviewRequested, TimeSpan.FromHours(1)),
+            E("a", ItemKind.ApprovalPending, TimeSpan.FromHours(1))]);
+        Assert.Equal(["Approvals", "Review requests", "My PRs — failing", "My PRs — needs response", "My PRs — ready to merge", "Waiting on others"],
+            sections.Select(s => s.Title));
+        var waiting = sections[^1];
+        Assert.Equal("waiting", waiting.Id);
+        Assert.True(waiting.Collapsible);
+        Assert.Equal(2, waiting.Count);
+        Assert.All(sections.Take(5), s => Assert.False(s.Collapsible));
+        Assert.All(sections.Take(5), s => Assert.Equal(s.Rows.Count, s.Count));
+        Assert.Equal("ApprovalPending", sections[0].Id);
+        Assert.Equal("MyPrReadyToMerge", sections[4].Id);
+    }
+
+    [Fact]
+    public void New_kinds_are_not_urgent_and_have_no_actions()
+    {
+        foreach (var kind in new[] { ItemKind.MyPrReadyToMerge, ItemKind.MyPrWaiting })
+        {
+            var r = Row(It(kind));
+            Assert.False(r.Urgent);
+            Assert.Empty(r.Actions);
+        }
+    }
+
+    [Fact]
     public void Urgent_details_and_actions()
     {
         var r = Row(It(ItemKind.ApprovalPending));
@@ -102,9 +133,9 @@ public class InboxPresenterTests
     {
         var run = new AgentRun { Key = "k1", Profile = "pr-shepherd", State = AgentState.Ready, CostUsd = 0.23m, DurationSeconds = 125, ResultText = "full" };
         var r = Row(It(ItemKind.MyPrCiFailing), run: run);
-        Assert.Equal("Shepherd · ready · $0.23 · 2m 05s", r.RunInfo);
+        Assert.Equal("Diagnose · ready · $0.23 · 2m 05s", r.RunInfo);
         Assert.Equal("full", r.ResultText);
-        Assert.Equal("Shepherd · ready", Row(It(ItemKind.MyPrCiFailing), run: run with { CostUsd = null, DurationSeconds = null }).RunInfo);
+        Assert.Equal("Diagnose · ready", Row(It(ItemKind.MyPrCiFailing), run: run with { CostUsd = null, DurationSeconds = null }).RunInfo);
     }
 
     [Fact]
@@ -139,7 +170,7 @@ public class InboxPresenterTests
     {
         var entries = new[] { E("x", ItemKind.ReviewRequested, TimeSpan.Zero) };
         Assert.Equal("Pre-review", Build(entries)[0].Rows[0].RunButton);
-        Assert.Equal("Shepherd", Build(entries, decide: _ => Button("pr-shepherd"))[0].Rows[0].RunButton);
+        Assert.Equal("Diagnose", Build(entries, decide: _ => Button("pr-shepherd"))[0].Rows[0].RunButton);
         Assert.Equal("Run deploy-check", Build(entries, decide: _ => Button("deploy-check"))[0].Rows[0].RunButton);
         Assert.Null(Build(entries, decide: _ => new AgentDecision(AgentMode.None, null, null))[0].Rows[0].RunButton);
 
@@ -183,5 +214,79 @@ public class InboxPresenterTests
         var formatted = InboxPresenter.Build(entries, _ => null, _ => Button(), (_, _) => null, Now, repoDisplay: r => "x/" + r)[0].Rows[0];
         Assert.Equal("x/acme/api", formatted.RepoDisplay);
         Assert.Equal("acme/api", formatted.Repo);
+    }
+
+    static IReadOnlyList<InboxSection> BuildView(InboxView view, bool waitingExpanded, bool snoozedExpanded) =>
+        InboxPresenter.Build(view, _ => null, _ => Button(), (_, _) => null, Now, ActionText.DefaultActions, null, null, waitingExpanded, snoozedExpanded);
+
+    [Fact]
+    public void View_build_marks_muted_rows_and_builds_waiting_and_snoozed_sections()
+    {
+        var view = InboxView.Compose(
+            [E("m", ItemKind.ReviewRequested, TimeSpan.FromHours(1)), E("w", ItemKind.MyPrWaiting, TimeSpan.FromHours(2)), E("s", ItemKind.ReviewRequested, TimeSpan.FromHours(3))],
+            new FiltersConfig { Mute = ["acme"] }, [], [new Snooze("s", Now.AddMinutes(30), false)], Now);
+
+        var sections = BuildView(view, waitingExpanded: false, snoozedExpanded: true);
+
+        Assert.Equal("acme", sections[0].Rows.Single().MutedBy);
+        var waiting = sections.Single(s => s.Id == "waiting");
+        Assert.True(waiting.Collapsible);
+        Assert.False(waiting.Expanded);
+        Assert.Equal(1, waiting.Count);
+        Assert.Empty(waiting.Rows);
+        var snoozed = sections.Single(s => s.Id == "snoozed");
+        Assert.Equal("Snoozed", snoozed.Title);
+        Assert.True(snoozed.Expanded);
+        var row = Assert.Single(snoozed.Rows);
+        Assert.Equal("30m left", row.SnoozeText);
+        Assert.Empty(row.Actions);
+        Assert.Null(row.RunButton);
+        Assert.Same(snoozed, sections[^1]);
+    }
+
+    [Fact]
+    public void Empty_waiting_and_snoozed_sections_are_omitted()
+    {
+        var view = InboxView.Compose([E("a", ItemKind.ReviewRequested, TimeSpan.FromHours(1))], new FiltersConfig(), [], [], Now);
+        Assert.Equal(["Review requests"], BuildView(view, true, true).Select(s => s.Title));
+    }
+
+    [Theory]
+    [InlineData("review", "Pre-review")]
+    [InlineData("peer-review", "Pre-review")]
+    [InlineData("diagnose-ci", "Diagnose")]
+    [InlineData("pr-shepherd", "Diagnose")]
+    [InlineData("triage", "Run triage")]
+    public void LabelFor_names_profiles(string profile, string label) => Assert.Equal(label, InboxPresenter.LabelFor(profile));
+
+    [Fact]
+    public void Number_is_hash_prefixed_when_set_and_null_otherwise()
+    {
+        Assert.Equal("#57", Row(It(ItemKind.ReviewRequested) with { Number = 57 }).Number);
+        Assert.Null(Row(It(ItemKind.ApprovalPending)).Number);
+    }
+
+    [Fact]
+    public void Details_get_one_PR_row_right_after_Repo()
+    {
+        var item = It(ItemKind.ReviewRequested) with
+        {
+            Number = 57,
+            Details = [new ItemDetail("Repo", "acme/api"), new ItemDetail("Author", "alice")],
+        };
+        Assert.Equal(["Repo", "PR", "Author"], Row(item).Details.Select(d => d.Label));
+        Assert.Equal("#57", Row(item).Details[1].Value);
+    }
+
+    [Fact]
+    public void Provider_supplied_PR_row_is_not_duplicated_and_no_number_adds_nothing()
+    {
+        var withPr = It(ItemKind.ReviewRequested) with
+        {
+            Number = 57,
+            Details = [new ItemDetail("Repo", "acme/api"), new ItemDetail("PR", "#57 (draft)")],
+        };
+        Assert.Single(Row(withPr).Details, d => d.Label == "PR");
+        Assert.DoesNotContain(Row(It(ItemKind.ApprovalPending)).Details, d => d.Label == "PR");
     }
 }
