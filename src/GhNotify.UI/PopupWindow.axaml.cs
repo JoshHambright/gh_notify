@@ -294,18 +294,22 @@ public partial class PopupWindow : Window
 
     // ----- row handlers -----
 
-    static string TagKey(object? sender) => (string)((Control)sender!).Tag!;
+    /// <summary>Runs the action with the control's row key; a control whose row was just removed (no key) does nothing.</summary>
+    static void WithKey(object? sender, Action<string> action)
+    {
+        if (RowKey(sender) is { } key) action(key);
+    }
 
     void OnTitleClick(object? sender, PointerReleasedEventArgs e)
     {
         if (e.InitialPressMouseButton == MouseButton.Left && ((Control)sender!).Tag is string url) _host.OpenUrl(url);
     }
 
-    void OnToggle(object? sender, RoutedEventArgs e) => _host.ToggleExpand(TagKey(sender));
+    void OnToggle(object? sender, RoutedEventArgs e) => WithKey(sender, _host.ToggleExpand);
 
-    void OnRunAgent(object? sender, RoutedEventArgs e) => _host.RunAgent(TagKey(sender));
+    void OnRunAgent(object? sender, RoutedEventArgs e) => WithKey(sender, _host.RunAgent);
 
-    void OnOpenInClaude(object? sender, RoutedEventArgs e) => _host.OpenInClaude(TagKey(sender));
+    void OnOpenInClaude(object? sender, RoutedEventArgs e) => WithKey(sender, _host.OpenInClaude);
 
     void OnAction(object? sender, RoutedEventArgs e)
     {
@@ -319,11 +323,11 @@ public partial class PopupWindow : Window
         }
     }
 
-    void OnCancel(object? sender, RoutedEventArgs e) => _host.CancelAction(TagKey(sender));
+    void OnCancel(object? sender, RoutedEventArgs e) => WithKey(sender, _host.CancelAction);
 
     void OnRowMenu(object? sender, RoutedEventArgs e)
     {
-        if (RowMenuFor((Control)sender!, TagKey(sender)) is { } menu) ShowMenu(menu, (Control)sender!);
+        if (RowKey(sender) is { } key && RowMenuFor((Control)sender!, key) is { } menu) ShowMenu(menu, (Control)sender!);
     }
 
     /// <summary>The row's snooze / mute menu, or null when the row is no longer shown.</summary>
@@ -357,9 +361,9 @@ public partial class PopupWindow : Window
         return item;
     }
 
-    void OnUnsnooze(object? sender, RoutedEventArgs e) => _host.Unsnooze(TagKey(sender));
+    void OnUnsnooze(object? sender, RoutedEventArgs e) => WithKey(sender, _host.Unsnooze);
 
-    void OnToggleSection(object? sender, RoutedEventArgs e) => _host.ToggleSection(TagKey(sender));
+    void OnToggleSection(object? sender, RoutedEventArgs e) => WithKey(sender, _host.ToggleSection);
 
     void OnCopy(object? sender, RoutedEventArgs e)
     {
@@ -444,7 +448,7 @@ public partial class PopupWindow : Window
 
     void OnConfirm(object? sender, RoutedEventArgs e)
     {
-        var key = TagKey(sender);
+        if (RowKey(sender) is not { } key) return;
         // A pointer click only counts once the pointer moved onto the enabled button (see ConfirmPointerGuard); keyboard is fine.
         if (_pointerInput && !Guard(key).IsArmed) return;
         _ = _host.ConfirmActionAsync(key, InputFor(key));
@@ -494,18 +498,32 @@ public partial class PopupWindow : Window
         return new ScreenPoint(p.X, p.Y);
     }
 
-    void OnConfirmPointerEntered(object? sender, PointerEventArgs e) =>
-        Guard(TagKey(sender)).Entered(ScreenPos(sender, e), ((Button)sender!).IsEnabled);
+    // A confirm button loses its key (Tag) when its row is removed or recycled, for example right after the action
+    // completes, while the pointer can still be over it. Pointer events for such a button are ignored: an exception
+    // here is thrown inside Avalonia's pointer-over tracking and repeats on every later mouse move, freezing the popup.
+    static string? RowKey(object? sender) => (sender as Control)?.Tag as string;
 
-    void OnConfirmPointerMoved(object? sender, PointerEventArgs e) =>
-        Guard(TagKey(sender)).Moved(ScreenPos(sender, e), ((Button)sender!).IsEnabled);
+    void OnConfirmPointerEntered(object? sender, PointerEventArgs e)
+    {
+        if (RowKey(sender) is { } key) Guard(key).Entered(ScreenPos(sender, e), ((Button)sender!).IsEnabled);
+    }
 
-    void OnConfirmPointerExited(object? sender, PointerEventArgs e) => Guard(TagKey(sender)).Left();
+    void OnConfirmPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (RowKey(sender) is { } key) Guard(key).Moved(ScreenPos(sender, e), ((Button)sender!).IsEnabled);
+    }
+
+    void OnConfirmPointerExited(object? sender, PointerEventArgs e)
+    {
+        if (RowKey(sender) is { } key) Guard(key).Left();
+    }
 
     void OnConfirmPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         // Swallow an unarmed press so no click is raised: it must start on a confirm button the pointer really moved onto.
-        if (e.GetCurrentPoint((Control)sender!).Properties.IsLeftButtonPressed && !Guard(TagKey(sender)).IsArmed) e.Handled = true;
+        // A button with no key belongs to no live row, so its press is always swallowed.
+        if (e.GetCurrentPoint((Control)sender!).Properties.IsLeftButtonPressed &&
+            (RowKey(sender) is not { } key || !Guard(key).IsArmed)) e.Handled = true;
     }
 
     void OnCommentLoaded(object? sender, RoutedEventArgs e)

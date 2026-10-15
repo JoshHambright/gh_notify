@@ -114,6 +114,30 @@ public class PopupConfirmTests
     }
 
     [AvaloniaFact]
+    public async Task A_confirm_button_that_loses_its_row_under_the_pointer_does_not_break_input()
+    {
+        // Regression: after an action completed, the row was recycled under the pointer (Tag became null), and the
+        // pointer-exited handler threw on every later mouse move, freezing the popup.
+        using var h = await OpenApproveAsync();
+        await h.WaitGuardAsync();
+        var confirm = h.ConfirmButton(Key);
+        h.Hover(confirm);
+        confirm.Tag = null;
+
+        var away = h.Center(h.All<TextBlock>(h.Card(Key)).First(t => t.Name == "StatementText"));
+        h.Window.MouseMove(away);
+        h.Window.MouseMove(h.Center(confirm));
+        h.Window.MouseDown(h.Center(confirm), MouseButton.Left);
+        h.Window.MouseUp(h.Center(confirm), MouseButton.Left);
+        h.Window.MouseMove(away);
+        h.Pump();
+
+        Assert.Equal(0, Confirms(h));
+        h.Click(h.Button("Cancel", h.Card(Key))); // the rest of the popup still takes clicks
+        Assert.Contains($"cancel {Key}", h.Host.Calls);
+    }
+
+    [AvaloniaFact]
     public async Task A_press_dragged_onto_confirm_does_not_fire()
     {
         using var h = await OpenApproveAsync();
