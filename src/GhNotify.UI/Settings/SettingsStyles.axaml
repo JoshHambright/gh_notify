@@ -1,0 +1,202 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Settings-only control styles. Colours come from the shared Brush.* theme tokens (Themes/). -->
+
+  <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="{DynamicResource Brush.Muted}" /></Style>
+  <Style Selector="TextBlock.err"><Setter Property="Foreground" Value="{DynamicResource Brush.Red}" /></Style>
+  <Style Selector="TextBlock.small"><Setter Property="FontSize" Value="12" /></Style>
+  <Style Selector="TextBlock.section">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Section}" />
+  </Style>
+  <Style Selector="TextBlock.keyword">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Muted}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="0,0,8,0" />
+  </Style>
+  <Style Selector="TextBlock.field">
+    <Setter Property="Width" Value="180" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <Style Selector="Path.ebars">
+    <Setter Property="Data" Value="M4.5,1.5 L13,1.5 M3,5 L11.5,5 M1.5,8.5 L10,8.5" />
+    <Setter Property="Stroke" Value="{DynamicResource Brush.Section}" />
+    <Setter Property="StrokeThickness" Value="2" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="10" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Border.card">
+    <Setter Property="Background" Value="{DynamicResource Brush.Raised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Padding" Value="14,10" />
+    <Setter Property="Margin" Value="0,0,0,10" />
+  </Style>
+  <Style Selector="Border.chipborder">
+    <Setter Property="Background" Value="{DynamicResource Brush.Raised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="13" />
+    <Setter Property="Padding" Value="12,2,4,2" />
+    <Setter Property="Margin" Value="0,0,8,8" />
+  </Style>
+  <Style Selector="Border.segments">
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="13" />
+    <Setter Property="Padding" Value="2" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+
+  <Style Selector="TextBox.pill">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="7,4" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="ComboBox.pill">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Button.pill">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="13" />
+    <Setter Property="Padding" Value="14,5" />
+  </Style>
+  <Style Selector="Button.pill.primary">
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Red}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Red}" />
+  </Style>
+  <Style Selector="Button.pill.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Red}" />
+    <Setter Property="Opacity" Value="0.88" />
+  </Style>
+  <Style Selector="Button.icon">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Muted}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Width" Value="26" />
+    <Setter Property="Height" Value="26" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="CornerRadius" Value="6" />
+  </Style>
+  <Style Selector="Button.icon.tiny">
+    <Setter Property="Width" Value="20" />
+    <Setter Property="Height" Value="20" />
+    <Setter Property="FontSize" Value="10" />
+  </Style>
+  <Style Selector="Button.link">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Red}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="0,2" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+  <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Red}" />
+    <Setter Property="Opacity" Value="0.75" />
+  </Style>
+  <Style Selector="Button.small">
+    <Setter Property="Padding" Value="9,2" />
+    <Setter Property="Margin" Value="0,0,6,6" />
+  </Style>
+
+  <!-- Segmented control: a Border.segments around a horizontal panel of RadioButton.segment. -->
+  <Style Selector="RadioButton.segment">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Muted}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="Bd" Background="Transparent" CornerRadius="11" Padding="10,3">
+          <ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="RadioButton.segment:pointerover"><Setter Property="Foreground" Value="{DynamicResource Brush.Text}" /></Style>
+  <Style Selector="RadioButton.segment:checked">
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="FontWeight" Value="Medium" />
+  </Style>
+  <Style Selector="RadioButton.segment:checked /template/ Border#Bd"><Setter Property="Background" Value="{DynamicResource Brush.Red}" /></Style>
+
+  <!-- Toggle chip (day of week, profile). -->
+  <Style Selector="ToggleButton.chip, RadioButton.chip">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Margin" Value="0,0,8,8" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="Bd" Background="{DynamicResource Brush.Raised}" BorderBrush="{DynamicResource Brush.Hairline}"
+                BorderThickness="1" CornerRadius="13" Padding="12,4">
+          <ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="ToggleButton.chip:pointerover /template/ Border#Bd, RadioButton.chip:pointerover /template/ Border#Bd">
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Muted}" />
+  </Style>
+  <Style Selector="ToggleButton.chip:checked /template/ Border#Bd, RadioButton.chip:checked /template/ Border#Bd">
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Red}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.RedTint}" />
+  </Style>
+
+  <!-- Left nav entry. -->
+  <Style Selector="RadioButton.nav">
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Muted}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="Bd" Background="Transparent" BorderBrush="Transparent" BorderThickness="3,0,0,0" Padding="19,9,18,9">
+          <ContentPresenter Content="{TemplateBinding Content}" VerticalAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="RadioButton.nav:pointerover, RadioButton.nav:focus-visible"><Setter Property="Foreground" Value="{DynamicResource Brush.Text}" /></Style>
+  <Style Selector="RadioButton.nav:checked">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+    <Setter Property="FontWeight" Value="Medium" />
+  </Style>
+  <Style Selector="RadioButton.nav:checked /template/ Border#Bd">
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Red}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Hairline}" />
+  </Style>
+
+  <Style Selector="Ellipse.navdot">
+    <Setter Property="Width" Value="7" />
+    <Setter Property="Height" Value="7" />
+    <Setter Property="Fill" Value="{DynamicResource Brush.Red}" />
+    <Setter Property="HorizontalAlignment" Value="Right" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+</Styles>

@@ -7,12 +7,14 @@ Every release follows the same pipeline: a design spec (`docs/superpowers/specs/
 | Release | Theme | Status |
 |---|---|---|
 | v1.0–v1.2 | Inbox, toasts, approvals, agents, installer, settings, mute/snooze | ✅ Shipped |
-| **v1.3** | Clear work from the tray | 🟡 In progress |
-| **v2.0** | macOS (cross-platform UI) | ⚪ Planned, [#1](https://github.com/JoshHambright/gh_notify/issues/1) |
-| **v2.1** | Broader inbox and smarter alerts | ⚪ Planned |
-| **v2.2** | Agent hand-off and insights | ⚪ Planned |
+| **v1.3** | Clear work from the tray | ✅ Shipped |
+| **v2.0** | Cross-platform UI (Avalonia), Windows first | 🟡 In review, dogfooding ([spec](superpowers/specs/2026-10-14-gh-notify-v2.0-design.md), [#9](https://github.com/JoshHambright/gh_notify/pull/9)) |
+| **v2.0.x** | Hide, not just mute | ⚪ Next |
+| **v2.1** | macOS | ⚪ Planned, [#1](https://github.com/JoshHambright/gh_notify/issues/1) |
+| **v2.2** | Broader inbox and smarter alerts | ⚪ Planned |
+| **v2.3** | Agent hand-off and insights | ⚪ Planned |
 
-Not planned for now: code signing, and Teams/Slack notifications. Revisit them after v2.2. Workflow profiles and hooks can already post to chat tools today.
+Not planned for now: code signing, and Teams/Slack notifications. Revisit them after v2.3. Workflow profiles and hooks can already post to chat tools today.
 
 ---
 
@@ -31,26 +33,54 @@ Not planned for now: code signing, and Teams/Slack notifications. Revisit them a
 **Risks:** branch-protection rules (required reviews, merge queue) differ per repo, so the preview must report GitHub's merge blockers rather than predict them. The global hotkey can clash with other apps, so registration failure is surfaced in Settings.
 **Exit criteria:** merge, re-run and batch approval work end to end on GitHub and ADO; every action has unit tests for preview/execute token mismatches and stale results; the popup is fully usable without a mouse.
 
-## v2.0: macOS
+## v2.0: Cross-platform UI, Windows first
 
-**Goal:** the same app on Windows and macOS from one codebase.
+**Goal:** the same app on a UI that can run on macOS, shipped to Windows first with no regressions.
+
+- Port the WPF popup, settings window (six pages), menus and themes to **Avalonia**, keeping the same layout, copy and safety rules.
+- Move Windows-only behaviour into `GhNotify.Platform.Windows`, behind interfaces: toasts, hotkey, startup, sounds, theme detection, shell.
+- Add headless UI tests (Avalonia.Headless) for the keyboard, search, batch and confirm-guard flows.
+- Add a Linux CI job that proves the UI is platform-neutral.
+- Users get v2.0 as a normal auto-update from v1.3. CI adds a v1.3 → v2.0 upgrade test.
+
+**Exit criteria:** the parity checklist is ticked, screenshots match, and the build has been dogfooded for a few days before release.
+
+## v2.0.x: Hide, not just mute
+
+**Goal:** an org, project or repo you don't care about disappears completely, and stays gone until you turn it back on in Settings. Today the row menu only offers Mute and Snooze. Muted items stay in the list as dimmed rows. In daily use they pile up, push useful items out of view and make the popup noisy.
+
+| Change | What it does |
+|---|---|
+| **Hide from the row menu** | The ⋯ menu gains **Hide repo**, **Hide org** and (for ADO) **Hide project**. Each writes a `filters.hide` pattern. A hidden item gets no row, no badge count, no toast, no sound and no auto-agent. A hide is permanent; it has no expiry. |
+| **Undo right away** | After a hide, the footer briefly shows "Hidden acme/legacy · Undo", so a slip costs one click. |
+| **Turn it back on in Settings** | Settings → Filters lists every hide pattern with how many current items it hides, and an **Unhide** button for each. The footer menu also lists hidden patterns, next to the active mutes. |
+| **Muted rows stop crowding the list** | Muted items move into a **Muted (n)** section that starts collapsed, like Waiting and Snoozed, instead of being mixed in with live rows as dimmed rows. |
+| **Clear wording** | Each menu item says what it does: **Snooze** brings the item back later; **Mute** stays visible but quiet; **Hide** removes it until you unhide it in Settings. |
+
+**Builds on:** `filters.hide`, which already works and is editable in Settings → Filters; the row-menu mute flow (pattern building per provider) and the footer mutes menu; `InboxSections`.
+**Risks:** a hide pattern that is too broad, such as a whole org, can hide something urgent. Mitigations: the Undo link, the per-pattern count in Settings, and the hidden count in the popup footer ("3 hidden"). Hiding never touches the item on GitHub or ADO.
+**Exit criteria:** hide and unhide work for repo, org and ADO project from the popup and from Settings; a hidden item never toasts or counts; muted items sit in a collapsed section; the headless UI tests cover hide, undo, unhide and the muted section.
+
+## v2.1: macOS
+
+**Goal:** the v2.0 app on macOS. There is no Mac on hand, so CI does the verification and a borrowed or cloud Mac runs the final smoke test.
 
 | Area | Plan |
 |---|---|
-| **UI** | Port the WPF popup, settings window (six pages) and menus to **Avalonia**. Windows moves to the Avalonia build too, so there is one UI. Themes become Avalonia styles with the same light/dark tokens. |
-| **Tray** | Avalonia `TrayIcon`, which becomes the menu-bar item on macOS (template image, calm → red). |
+| **Tray** | Avalonia `TrayIcon` as the menu-bar item (template image, calm → red). |
 | **Notifications** | Windows keeps toasts. macOS uses `UNUserNotificationCenter` through a small native shim, with action buttons where supported. |
 | **Sounds** | `afplay` on macOS; the built-in wavs are reused. |
 | **Startup** | A Run key on Windows; a LaunchAgent plist on macOS. |
 | **Auth** | `gh auth token` and `az` work on both. Any stored secrets go to Keychain on macOS. |
-| **Install/update** | Velopack on both: `.dmg`/`.pkg` for macOS (Apple Silicon and Intel) and `Setup.exe` for Windows. Separate release channels per OS. |
-| **CI** | Add a `macos-latest` job: build, test and pack; install test where feasible. |
+| **Install/update** | Velopack `.pkg` for macOS (Apple Silicon and Intel), ad-hoc signed; `Setup.exe` for Windows. Separate release channels per OS. Developer ID and notarization come later. |
+| **Hotkey** | Carbon `RegisterEventHotKey` through `GhNotify.Platform.Mac`. |
+| **CI** | Add a `macos-latest` job: build, headless UI tests and pack. |
 
-**Builds on:** Core, GitHub, ADO and Agents are already platform-neutral .NET. Only `GhNotify.App` is Windows-specific.
-**Risks:** unsigned macOS apps meet Gatekeeper, so the docs must explain the right-click → Open first run (signing remains out of scope). Notification permissions need a bundled `.app`. UI parity has to be checked screen by screen.
-**Exit criteria:** feature parity with v1.3 on both OSes, with no Windows regressions (the same screenshots and the same tests). A macOS install, upgrade and uninstall have been verified.
+**Builds on:** v2.0 platform interfaces; Core, GitHub, ADO and Agents are already platform-neutral.
+**Risks:** ad-hoc signed apps need a one-time "Open Anyway" in System Settings → Privacy & Security, which the docs must explain. Notification permissions need a bundled `.app`. UI parity has to be checked screen by screen.
+**Exit criteria:** feature parity with Windows; a macOS install, upgrade and uninstall have been verified on a real Mac.
 
-## v2.1: Broader inbox and smarter alerts
+## v2.2: Broader inbox and smarter alerts
 
 **Goal:** more of what's waiting on you shows up, and the alerts get smarter about timing.
 
@@ -65,7 +95,7 @@ Not planned for now: code signing, and Teams/Slack notifications. Revisit them a
 **Builds on:** the source → reconcile → NotificationPlanner pipeline, WorkHours, Snoozes and RulesEngine.
 **Risks:** GraphQL rate limits as the number of queries grows, so polling should be batched per host. Mention noise needs sensible defaults (off for repos you don't watch).
 
-## v2.2: Agent hand-off and insights
+## v2.3: Agent hand-off and insights
 
 **Goal:** agent output turns into your action faster; spending stays bounded; you can see how your queue trends.
 

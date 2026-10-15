@@ -4,6 +4,8 @@
 param(
     [Parameter(Mandatory)][string]$OldSetup,
     [Parameter(Mandatory)][string]$NewFeed,
+    # Optional: a feed with a version above the latest published release. Enables the "published release -> new" upgrade step.
+    [string]$ReleaseUpgradeFeed,
     [switch]$Force
 )
 $ErrorActionPreference = 'Stop'
@@ -132,6 +134,74 @@ try {
     if (-not (Test-Path $config)) { Fail "temp config.json was deleted" }
 
     Write-Host "install/upgrade/uninstall: PASS ($old -> $new)"
+
+    if ($ReleaseUpgradeFeed) {
+        Step "4. upgrade from the latest published release (v1.3 -> v2.0 path)"
+        $dl = Join-Path $tmp 'release'
+        New-Item -ItemType Directory -Force $dl | Out-Null
+        if ($env:GITHUB_TOKEN -and -not $env:GH_TOKEN) { $env:GH_TOKEN = $env:GITHUB_TOKEN }
+        $repo = if ($env:GITHUB_REPOSITORY) { @('--repo', $env:GITHUB_REPOSITORY) } else { @() }
+        # Skip only when there is no release or it has no Setup asset; any other gh failure (auth, network) fails the step.
+        # (Under workflow_call from release.yml the "latest" release is the new, asset-less one, so this skips there; release.yml has its own previous-release test.)
+        $ghOut = & gh release download --pattern 'GhNotify-win-Setup.exe' --dir $dl @repo 2>&1 | Out-String
+        $ghExit = $LASTEXITCODE
+        $relSetup = Join-Path $dl 'GhNotify-win-Setup.exe'
+        $noRelease = $ghExit -ne 0 -and $ghOut -match '(?i)release not found|no assets match|no release|no assets'
+        if ($ghExit -ne 0 -and -not $noRelease) {
+            Write-Host "::error::gh release download failed: $($ghOut.Trim())"
+            Fail "gh release download failed (not a missing release); refusing to skip the release upgrade step"
+        }
+        if ($noRelease -or -not (Test-Path $relSetup)) {
+            Write-Host "::notice::no published release with GhNotify-win-Setup.exe found; skipping the release upgrade step"
+        }
+        else {
+            $upgradePkg = Get-ChildItem $ReleaseUpgradeFeed -Filter '*-full.nupkg' |
+                Where-Object { Parse-PkgVersion $_ } |
+                Sort-Object { Parse-PkgVersion $_ } -Descending | Select-Object -First 1
+            if (-not $upgradePkg) { Fail "no GhNotify-<version>-full.nupkg found in $ReleaseUpgradeFeed" }
+
+            # v1.3-shaped user data: a config and a state file in the (env-redirected) config and data dirs.
+            $state = Join-Path $env:GHNOTIFY_DATA_DIR 'state.json'
+            # The app rewrites state.json at startup (full schema), so the file is not hashed; a seeded mute must survive instead.
+            Set-Content $state '{ "mutes": [ { "pattern": "gh:contoso/legacy", "until": null } ] }' -NoNewline
+            $configHash = (Get-FileHash $config).Hash
+
+            & $relSetup --silent | Out-Null
+            Wait-Until { Test-Path $exe } 60 "stable exe $exe after installing the published release"
+            Get-Process GhNotify -ErrorAction SilentlyContinue | Stop-Process -Force
+            $published = Version-Of
+            Start-Check
+            Assert-Sentinels "by the published release install"
+
+            & $updateExe apply --package $upgradePkg.FullName --norestart --silent | Out-Null
+            if ($LASTEXITCODE -ne 0) { Fail "Update.exe apply exited $LASTEXITCODE (published release -> new)" }
+            Wait-Until { $v = Read-Version; $v -and $v -ne $published } 60 "version to change from published $published"
+            Get-Process GhNotify -ErrorAction SilentlyContinue | Stop-Process -Force
+            $upgraded = Version-Of
+            if ($upgraded -ne "$($upgradePkg.Name -replace '^GhNotify-(.+)-full\.nupkg$', '$1')") { Fail "upgraded version is $upgraded, expected the packed version ($($upgradePkg.Name))" }
+
+            # The new build must run and report its version (--version; WinExe output is best effort, the file version is authoritative).
+            $vOut = Join-Path $tmp 'version.txt'
+            $vp = Start-Process $exe -ArgumentList '--version' -PassThru -Wait -RedirectStandardOutput $vOut -ErrorAction SilentlyContinue
+            $reported = if (Test-Path $vOut) { (Get-Content $vOut -Raw) + '' } else { '' }
+            if ($reported.Trim() -and $reported -notmatch [regex]::Escape($upgraded)) { Fail "--version printed '$($reported.Trim())', expected $upgraded" }
+
+            if ((Get-FileHash $config).Hash -ne $configHash) { Fail "config.json changed across the release upgrade" }
+            if (-not (Test-Path $state)) { Fail "state.json missing after the release upgrade" }
+            $run = (Get-ItemProperty $runKey -Name GhNotify -ErrorAction SilentlyContinue).GhNotify
+            if ($run -ne "`"$exe`"") { Fail "Run key wrong after the release upgrade: '$run'" }
+            if (-not (Test-Path $shortcut)) { Fail "Start-menu shortcut missing after the release upgrade" }
+            Assert-Sentinels "by the release upgrade"
+            Start-Check
+            if (-not (Test-Path $state)) { Fail "state.json missing after the upgraded app ran" }
+            try { $stateJson = Get-Content $state -Raw | ConvertFrom-Json } catch { Fail "state.json no longer parses after the upgraded app ran: $_" }
+            if (-not (@($stateJson.mutes) | Where-Object { $_.pattern -eq 'gh:contoso/legacy' })) { Fail "seeded mute gh:contoso/legacy was lost across the release upgrade" }
+
+            & $updateExe --uninstall --silent | Out-Null
+            Wait-Until { -not (Test-Path $installRoot) } 30 "install root $installRoot to be removed"
+            Write-Host "published release upgrade: PASS ($published -> $upgraded)"
+        }
+    }
 }
 finally {
     foreach ($s in $sentinels.Keys) { Remove-Item $s -Force -ErrorAction SilentlyContinue }

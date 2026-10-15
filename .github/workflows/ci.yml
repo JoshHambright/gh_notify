@@ -24,6 +24,22 @@ defaults:
   run:
     shell: pwsh
 jobs:
+  # GhNotify.UI must never touch Windows APIs: build it (and the Core projects it uses) and run its headless tests on Linux.
+  ui-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore tests/GhNotify.UI.Tests/GhNotify.UI.Tests.csproj
+      - name: Build UI and Core (warnings are errors)
+        run: dotnet build tests/GhNotify.UI.Tests/GhNotify.UI.Tests.csproj -c Release --no-restore -warnaserror
+      - name: UI tests (headless)
+        run: dotnet test tests/GhNotify.UI.Tests/GhNotify.UI.Tests.csproj -c Release --no-build
   build:
     runs-on: windows-latest
     steps:
@@ -58,8 +74,13 @@ jobs:
           }
       - name: Install vpk
         run: dotnet tool install -g vpk --version $env:VELOPACK_VERSION
-      - name: Install / upgrade / uninstall test
+      - name: Install / upgrade / uninstall test (includes published release -> new upgrade)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./build/pack.ps1 -Version 0.0.1-ci -OutDir artifacts/old
           ./build/pack.ps1 -Version 0.0.2-ci -OutDir artifacts/new
-          ./build/test-install.ps1 -OldSetup artifacts/old/GhNotify-win-Setup.exe -NewFeed artifacts/new
+          # Must sort above the latest published release so the release -> new step is an upgrade.
+          ./build/pack.ps1 -Version 99.0.0-ci -OutDir artifacts/release-upgrade
+          ./build/test-install.ps1 -OldSetup artifacts/old/GhNotify-win-Setup.exe -NewFeed artifacts/new -ReleaseUpgradeFeed artifacts/release-upgrade

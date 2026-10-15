@@ -1,0 +1,89 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="GhNotify.UI.SettingsWindow"
+        Title="gh_notify settings"
+        Width="880" Height="620" MinWidth="760" MinHeight="520"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Brush.Surface}" Foreground="{DynamicResource Brush.Text}"
+        FontSize="13"
+        KeyDown="OnKeyDown">
+  <Window.Styles>
+    <StyleInclude Source="avares://GhNotify.UI/Settings/SettingsStyles.axaml" />
+  </Window.Styles>
+
+  <Grid x:Name="Root" Background="{DynamicResource Brush.Surface}" ColumnDefinitions="200,*" RowDefinitions="*,56">
+    <!-- Nav -->
+    <Border Grid.RowSpan="2" Background="{DynamicResource Brush.Header}" BorderBrush="{DynamicResource Brush.Hairline}"
+            BorderThickness="0,0,1,0" ClipToBounds="True">
+      <Grid>
+        <!-- The red quarter-circle in the corner: a 180 px disc centred on the nav's bottom-right corner. -->
+        <Canvas HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="0" Height="0">
+          <Ellipse Width="180" Height="180" Canvas.Left="-90" Canvas.Top="-90" Fill="{DynamicResource Brush.Red}" Opacity="0.9" />
+        </Canvas>
+        <StackPanel Margin="0,22,0,0">
+          <TextBlock Text="G H _ N O T I F Y" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource Brush.Eyebrow}" Margin="22,0,22,2" />
+          <TextBlock Text="Settings" FontWeight="Black" FontSize="22" Margin="22,0,22,20" />
+          <RadioButton x:Name="NavGeneral" Classes="nav" Tag="General">
+            <Grid><TextBlock Text="General" /><Ellipse x:Name="DotGeneral" Classes="navdot" IsVisible="False" /></Grid>
+          </RadioButton>
+          <RadioButton x:Name="NavSources" Classes="nav" Tag="Sources">
+            <Grid><TextBlock Text="Sources" /><Ellipse x:Name="DotSources" Classes="navdot" IsVisible="False" /></Grid>
+          </RadioButton>
+          <RadioButton x:Name="NavNotifications" Classes="nav" Tag="Notifications">
+            <Grid><TextBlock Text="Notifications" /><Ellipse x:Name="DotNotifications" Classes="navdot" IsVisible="False" /></Grid>
+          </RadioButton>
+          <RadioButton x:Name="NavFilters" Classes="nav" Tag="Filters">
+            <Grid><TextBlock Text="Filters" /><Ellipse x:Name="DotFilters" Classes="navdot" IsVisible="False" /></Grid>
+          </RadioButton>
+          <RadioButton x:Name="NavWorkflows" Classes="nav" Tag="Workflows">
+            <Grid><TextBlock Text="Workflows" /><Ellipse x:Name="DotWorkflows" Classes="navdot" IsVisible="False" /></Grid>
+          </RadioButton>
+          <RadioButton x:Name="NavAdvanced" Classes="nav" Tag="Advanced">
+            <Grid><TextBlock Text="Advanced" /><Ellipse x:Name="DotAdvanced" Classes="navdot" IsVisible="False" /></Grid>
+          </RadioButton>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Page -->
+    <DockPanel Grid.Column="1">
+      <!-- config.json is broken on disk: say what is being edited and that Save will ask first. -->
+      <Border x:Name="ConfigErrorBar" DockPanel.Dock="Top" Background="{DynamicResource Brush.RedTint}" BorderBrush="{DynamicResource Brush.Red}"
+              BorderThickness="0,0,0,1" Padding="28,10" IsVisible="False">
+        <TextBlock x:Name="ConfigErrorText" TextWrapping="Wrap" FontSize="12" />
+      </Border>
+      <ScrollViewer x:Name="PageScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ContentControl x:Name="PageHost" Margin="28,22,28,22" Focusable="False" />
+      </ScrollViewer>
+    </DockPanel>
+
+    <!-- Bottom bar -->
+    <Border Grid.Row="1" Grid.Column="1" Background="{DynamicResource Brush.Header}" BorderBrush="{DynamicResource Brush.Hairline}"
+            BorderThickness="0,1,0,0" Padding="20,0">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+          <Button x:Name="CancelButton" Content="Cancel" Classes="pill" FontSize="14" Padding="18,6" Click="OnCancel" />
+          <Button x:Name="SaveButton" Content="Save" Classes="pill primary" FontSize="14" Padding="20,6" Click="OnSave" />
+        </StackPanel>
+        <Grid Margin="0,0,16,0" VerticalAlignment="Center">
+          <TextBlock x:Name="StatusText" Classes="muted" FontSize="13" VerticalAlignment="Center" TextWrapping="Wrap" />
+          <StackPanel x:Name="DiscardBar" Orientation="Horizontal" IsVisible="False" Spacing="12">
+            <TextBlock Text="Discard changes?" VerticalAlignment="Center" />
+            <Button Content="Discard" Classes="link" Click="OnDiscard" />
+            <Button Content="Keep editing" Classes="link" Click="OnKeepEditing" />
+          </StackPanel>
+          <StackPanel x:Name="ConflictBar" Orientation="Horizontal" IsVisible="False" Spacing="12">
+            <TextBlock Text="config.json changed outside Settings —" VerticalAlignment="Center" />
+            <Button Content="Reload" Classes="link" Click="OnReload" />
+            <Button Content="Overwrite" Classes="link" Click="OnOverwrite" />
+          </StackPanel>
+          <DockPanel x:Name="CommentsBar" IsVisible="False">
+            <Button DockPanel.Dock="Right" Content="Save anyway" Classes="link" Margin="12,0,0,0" Click="OnSaveAnyway" />
+            <TextBlock VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap"
+                       Text="Saving rewrites config.json and drops comments. A backup is kept as config.json.bak." />
+          </DockPanel>
+        </Grid>
+      </DockPanel>
+    </Border>
+  </Grid>
+</Window>

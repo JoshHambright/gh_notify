@@ -2,20 +2,27 @@ using System.Diagnostics;
 
 namespace GhNotify.Core;
 
-/// <summary>Resolves a command on PATH (.exe/.cmd/.bat) and builds a ProcessStartInfo; .cmd/.bat run via cmd.exe.</summary>
+/// <summary>
+/// Resolves a command on PATH and builds a ProcessStartInfo. On Windows it tries .exe/.cmd/.bat and runs .cmd/.bat via cmd.exe;
+/// elsewhere it uses the name as is (no extensions) and runs .sh scripts through /bin/sh.
+/// </summary>
 public static class CommandResolver
 {
-    public static string? Find(string name)
+    public static string? Find(string name) =>
+        Find(name, Environment.GetEnvironmentVariable("PATH"), File.Exists, OperatingSystem.IsWindows());
+
+    /// <summary>The testable core: <paramref name="path"/> is the PATH value, <paramref name="exists"/> a file-exists probe.</summary>
+    public static string? Find(string name, string? path, Func<string, bool> exists, bool windows)
     {
-        if (Path.IsPathRooted(name)) return File.Exists(name) ? name : null;
-        string[] exts = Path.HasExtension(name) ? [""] : [".exe", ".cmd", ".bat"];
-        var dirs = (Environment.GetEnvironmentVariable("PATH") ?? "")
-            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (Path.IsPathRooted(name)) return exists(name) ? name : null;
+        string[] exts = windows && !Path.HasExtension(name) ? [".exe", ".cmd", ".bat"] : [""];
+        var separator = windows ? ';' : ':';
+        var dirs = (path ?? "").Split(separator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         foreach (var dir in dirs)
             foreach (var ext in exts)
             {
                 var candidate = Path.Combine(dir.Trim('"'), name + ext);
-                if (File.Exists(candidate)) return candidate;
+                if (exists(candidate)) return candidate;
             }
         return null;
     }
@@ -23,8 +30,14 @@ public static class CommandResolver
     public static ProcessStartInfo CreateStartInfo(string name, IReadOnlyList<string> args)
     {
         var path = Find(name) ?? throw new FileNotFoundException($"'{name}' was not found on PATH", name);
+        return CreateStartInfoFor(path, args, OperatingSystem.IsWindows());
+    }
+
+    /// <summary>Builds the start info for an already resolved <paramref name="path"/>.</summary>
+    public static ProcessStartInfo CreateStartInfoFor(string path, IReadOnlyList<string> args, bool windows)
+    {
         var ext = Path.GetExtension(path);
-        if (ext.Equals(".cmd", StringComparison.OrdinalIgnoreCase) || ext.Equals(".bat", StringComparison.OrdinalIgnoreCase))
+        if (windows && (ext.Equals(".cmd", StringComparison.OrdinalIgnoreCase) || ext.Equals(".bat", StringComparison.OrdinalIgnoreCase)))
         {
             // cmd /s /c "<whole line>": /s strips only the outer quotes, so quoted paths and args survive.
             foreach (var a in args)
@@ -35,6 +48,13 @@ public static class CommandResolver
             // Inside double quotes cmd treats & | < > ^ literally.
             var line = string.Join(' ', new[] { path }.Concat(args).Select(s => "\"" + s + "\""));
             return new ProcessStartInfo("cmd.exe") { Arguments = $"/d /s /c \"{line}\"" };
+        }
+        if (!windows && ext.Equals(".sh", StringComparison.OrdinalIgnoreCase))
+        {
+            var sh = new ProcessStartInfo("/bin/sh");
+            sh.ArgumentList.Add(path);
+            foreach (var a in args) sh.ArgumentList.Add(a);
+            return sh;
         }
         var psi = new ProcessStartInfo(path);
         foreach (var a in args) psi.ArgumentList.Add(a);
