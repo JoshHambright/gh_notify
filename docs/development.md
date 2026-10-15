@@ -93,8 +93,9 @@ To re-run the packaging for an existing release, use Actions → Release → Run
 
 Notes:
 
-- The release PR itself gets no CI run (pull requests created with `GITHUB_TOKEN` don't trigger workflows). Merging it
-  triggers CI on `main` and the release.
+- The release PR itself gets no CI run. It only changes `CHANGELOG.md`, `.release-please-manifest.json` and `version.txt`,
+  which `ci.yml` ignores on pull requests (GitHub would otherwise hold each run for manual approval, because the PR is pushed with
+  `GITHUB_TOKEN`). Merging it triggers CI on `main` and the release.
 - Until the Release workflow finishes (CI gates, pack and upgrade test; typically 15–30 minutes), the release exists without update files.
 - If the publish job fails, recover with Actions → Release → Run workflow and the tag.
 - Dependency bumps (`chore:`) don't cut releases.
