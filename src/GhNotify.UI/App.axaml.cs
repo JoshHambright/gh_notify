@@ -173,51 +173,76 @@ public partial class App : Application
         var (count, unhealthy) = _controller.TrayState();
         var scale = _popup?.Screens.Primary?.Scaling ?? 1.0;
         var size = TraySizes.FirstOrDefault(s => s >= 16 * scale, TraySizes[^1]);
-        using (var bmp = TrayIconRenderer.Render(size, BadgeText.For(count), unhealthy))
+        var iconKey = (size, BadgeText.For(count), unhealthy);
+        if (iconKey != _trayIconKey)
+        {
+            _trayIconKey = iconKey;
+            using var bmp = TrayIconRenderer.Render(size, iconKey.Item2, unhealthy);
             _tray.Icon = new WindowIcon(new MemoryStream(TrayIconRenderer.ToPng(bmp)));
+        }
         var problem = _controller.TrayProblem();
         var tip = count == 0 ? "gh_notify — nothing waiting" : $"gh_notify — {count} waiting";
         if (problem is not null) tip += "\n" + (problem.Length > 80 ? problem[..79] + "…" : problem);
         tip += "\nv" + (_options?.Version ?? "dev");
-        _tray.ToolTipText = tip;
-        _tray.Menu = BuildTrayMenu(_controller);
+        if (_tray.ToolTipText != tip) _tray.ToolTipText = tip;
+        _trayMenu ??= new TrayMenu(this, _controller);
+        _trayMenu.Update(_controller.Update);
+        if (_tray.Menu != _trayMenu.Menu) _tray.Menu = _trayMenu.Menu;
     }
 
-    /// <summary>Open, Settings, Check for updates, Restart to update (only when one is ready), Quit.</summary>
-    NativeMenu BuildTrayMenu(AppController controller)
+    TrayMenu? _trayMenu;
+    (int, string?, bool)? _trayIconKey;
+
+    /// <summary>
+    /// The right-click menu: Open, Settings, Check for updates, Restart to update (only when one is ready), Quit.
+    /// Built once and updated in place, so a refresh never replaces (and closes) a menu the user has open.
+    /// </summary>
+    internal sealed class TrayMenu
     {
-        var menu = new NativeMenu();
-        var update = controller.Update;
+        readonly NativeMenuItem _check;
+        readonly NativeMenuItem _restart;
 
-        var open = new NativeMenuItem("Open");
-        open.Click += (_, _) => { if (!_popup!.IsVisible) _popup.ShowNearTray(); };
-        menu.Add(open);
+        public NativeMenu Menu { get; } = new();
 
-        var settings = new NativeMenuItem("Settings…");
-        settings.Click += (_, _) => OpenSettings();
-        menu.Add(settings);
-
-        var (header, enabled, _) = UpdateUi.CheckItem(update);
-        var check = new NativeMenuItem(header) { IsEnabled = enabled };
-        check.Click += (_, _) => _ = controller.CheckForUpdatesAsync();
-        menu.Add(check);
-
-        if (UpdateUi.RestartItem(update) is { } restartText)
+        public TrayMenu(App app, AppController controller)
         {
-            var restart = new NativeMenuItem(restartText);
+            var open = new NativeMenuItem("Open");
+            open.Click += (_, _) => { if (!app._popup!.IsVisible) app._popup.ShowNearTray(); };
+            Menu.Add(open);
+
+            var settings = new NativeMenuItem("Settings…");
+            settings.Click += (_, _) => app.OpenSettings();
+            Menu.Add(settings);
+
+            _check = new NativeMenuItem();
+            _check.Click += (_, _) => _ = controller.CheckForUpdatesAsync();
+            Menu.Add(_check);
+
+            _restart = new NativeMenuItem();
             // The tray has no inline confirm: a restart that would interrupt running agents is refused here and offered in the popup.
-            restart.Click += (_, _) =>
+            _restart.Click += (_, _) =>
             {
-                if (controller.RestartToUpdate(confirmed: false) == RestartDecision.NeedsConfirm) _popup!.ShowNearTray();
+                if (controller.RestartToUpdate(confirmed: false) == RestartDecision.NeedsConfirm) app._popup!.ShowNearTray();
             };
-            menu.Add(restart);
+
+            Menu.Add(new NativeMenuItemSeparator());
+            var quit = new NativeMenuItem("Quit");
+            quit.Click += (_, _) => controller.Quit();
+            Menu.Add(quit);
         }
 
-        menu.Add(new NativeMenuItemSeparator());
-        var quit = new NativeMenuItem("Quit");
-        quit.Click += (_, _) => controller.Quit();
-        menu.Add(quit);
-        return menu;
+        public void Update(UpdateStatus update)
+        {
+            var (header, enabled, _) = UpdateUi.CheckItem(update);
+            if (_check.Header != header) _check.Header = header;
+            if (_check.IsEnabled != enabled) _check.IsEnabled = enabled;
+
+            var restartText = UpdateUi.RestartItem(update);
+            var shown = Menu.Items.Contains(_restart);
+            if (restartText is null) { if (shown) Menu.Items.Remove(_restart); return; }
+            if (_restart.Header != restartText) _restart.Header = restartText;
+            if (!shown) Menu.Items.Insert(Menu.Items.IndexOf(_check) + 1, _restart);
+        }
     }
 
     void WatchConfig(string configFile)

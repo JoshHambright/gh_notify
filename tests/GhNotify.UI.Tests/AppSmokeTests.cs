@@ -26,6 +26,18 @@ public class AppSmokeTests
     }
 
     [AvaloniaFact]
+    public void A_refresh_keeps_the_same_tray_menu_so_an_open_menu_is_not_replaced()
+    {
+        var app = StartedApp();
+        var menu = app.Tray!.Menu;
+        var icon = app.Tray.Icon;
+        app.Controller!.RaiseChanged();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.Same(menu, app.Tray.Menu);
+        Assert.Same(icon, app.Tray.Icon);
+    }
+
+    [AvaloniaFact]
     public void The_popup_toggles_from_the_tray_click()
     {
         var app = StartedApp();
