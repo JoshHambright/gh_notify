@@ -16,6 +16,10 @@ public sealed class AppState
     public bool SnoozedExpanded { get; set; }
     /// <summary>The settings window has warned once that saving drops comments from config.json.</summary>
     public bool CommentsWarningShown { get; set; }
+    /// <summary>The installed version that last started (null before v2.0 or on a fresh install).</summary>
+    public string? LastRunVersion { get; set; }
+    /// <summary>The version whose "What's new" footer link is waiting to be opened or dismissed.</summary>
+    public string? WhatsNewVersion { get; set; }
 }
 
 public sealed class StateStore(string path)

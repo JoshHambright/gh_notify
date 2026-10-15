@@ -174,7 +174,7 @@ public partial class PopupWindow : Window
         var update = _host.Update;
         var agents = _host.RunningAgents;
         if (update.Phase != UpdatePhase.Ready || agents == 0) _confirmingRestart = false;
-        var signature = UpdateUi.FooterSignature(statusText, sources, update, _confirmingRestart, agents);
+        var signature = UpdateUi.FooterSignature(statusText, sources, update, _confirmingRestart, agents, _host.WhatsNewVersion);
         if (signature == _footerSignature) return;
         _footerSignature = signature;
         var inlines = FooterText.Inlines ??= new InlineCollection();
@@ -190,7 +190,11 @@ public partial class PopupWindow : Window
         var status = _host.Update;
         var agents = _host.RunningAgents;
         if (status.Phase != UpdatePhase.Ready || agents == 0) _confirmingRestart = false;
-        if (UpdateUi.FooterLink(status) is not { } text) return;
+        if (UpdateUi.FooterLink(status) is not { } text)
+        {
+            AddWhatsNewLink(inlines);
+            return;
+        }
         inlines.Add(new Run(" · "));
         if (!_confirmingRestart)
         {
@@ -205,6 +209,18 @@ public partial class PopupWindow : Window
             _confirmingRestart = false;
             RenderFooter();
         }));
+    }
+
+    /// <summary>"Updated to vX · What's new" after an update, with ✕ to dismiss; both clear it for good.</summary>
+    void AddWhatsNewLink(InlineCollection inlines)
+    {
+        if (_host.WhatsNewVersion is not { } version) return;
+        inlines.Add(new Run(" · "));
+        inlines.Add(UpdateLink(UpdateUi.WhatsNewLink(version), _host.OpenWhatsNew));
+        inlines.Add(new Run(" "));
+        var dismiss = UpdateLink("✕", _host.DismissWhatsNew);
+        if (dismiss.Child is Button b) ToolTip.SetTip(b, "Dismiss");
+        inlines.Add(dismiss);
     }
 
     /// <summary>A red text link in the footer (a flat button, so it is keyboard-reachable too).</summary>

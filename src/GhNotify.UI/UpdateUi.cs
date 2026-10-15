@@ -27,9 +27,15 @@ public static class UpdateUi
     };
 
     /// <summary>Everything the footer shows; equal signatures mean the footer need not be rebuilt (a rebuild between mouse-down and mouse-up swallows a click).</summary>
-    public static string FooterSignature(string statusText, IEnumerable<SourceStatus> sources, UpdateStatus update, bool confirming, int runningAgents) =>
+    public static string FooterSignature(string statusText, IEnumerable<SourceStatus> sources, UpdateStatus update, bool confirming, int runningAgents,
+        string? whatsNew = null) =>
         string.Join("|", [statusText, .. sources.Select(s => $"{s.Name}:{s.Healthy}:{s.Problem}"),
-            update.Phase.ToString(), update.ReadyVersion ?? "", confirming.ToString(), runningAgents.ToString()]);
+            update.Phase.ToString(), update.ReadyVersion ?? "", confirming.ToString(), runningAgents.ToString(), whatsNew ?? ""]);
+
+    /// <summary>The footer link after an update (shown while no newer update is ready to restart into).</summary>
+    public static string WhatsNewLink(string version) => $"Updated to v{version} · What's new";
+
+    public const string WhatsNewItem = "What's new";
 
     /// <summary>"Restart to update (vX)" when an update is ready, otherwise null.</summary>
     public static string? RestartItem(UpdateStatus s) =>

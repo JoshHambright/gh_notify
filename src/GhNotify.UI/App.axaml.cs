@@ -194,7 +194,7 @@ public partial class App : Application
     (int, string?, bool)? _trayIconKey;
 
     /// <summary>
-    /// The right-click menu: Open, Settings, Check for updates, Restart to update (only when one is ready), Quit.
+    /// The right-click menu: Open, Settings, What's new, Check for updates, Restart to update (only when one is ready), Quit.
     /// Built once and updated in place, so a refresh never replaces (and closes) a menu the user has open.
     /// </summary>
     internal sealed class TrayMenu
@@ -213,6 +213,10 @@ public partial class App : Application
             var settings = new NativeMenuItem("Settings…");
             settings.Click += (_, _) => app.OpenSettings();
             Menu.Add(settings);
+
+            var whatsNew = new NativeMenuItem(UpdateUi.WhatsNewItem);
+            whatsNew.Click += (_, _) => controller.OpenWhatsNew();
+            Menu.Add(whatsNew);
 
             _check = new NativeMenuItem();
             _check.Click += (_, _) => _ = controller.CheckForUpdatesAsync();

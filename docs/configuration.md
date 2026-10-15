@@ -65,7 +65,7 @@ For tests and development, `GHNOTIFY_CONFIG_DIR` and `GHNOTIFY_DATA_DIR` overrid
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `mergeMethod` | string? | `null` | Preferred merge method: `squash`, `merge` or `rebase`. Used when the repo allows it; otherwise squash, merge, rebase, whichever is allowed first. `null` = repo default. See [actions.md](actions.md#merge). |
+| `mergeMethod` | string? | `null` | Preferred merge method: `squash`, `merge` or `rebase`. Used when the repo allows it; otherwise squash, merge, rebase, whichever is allowed first. `null` = no preference (squash, merge, rebase, whichever is allowed first). See [actions.md](actions.md#merge). |
 
 ## `display`
 

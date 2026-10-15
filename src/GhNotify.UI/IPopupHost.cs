@@ -65,6 +65,12 @@ public interface IPopupHost
     /// <summary>Applies the downloaded update and shuts down, unless agents are running and <paramref name="confirmed"/> is false.</summary>
     RestartDecision RestartToUpdate(bool confirmed);
     Task CheckForUpdatesAsync();
+    /// <summary>The version whose "Updated to vX · What's new" footer link is showing, or null.</summary>
+    string? WhatsNewVersion { get; }
+    /// <summary>Opens the running version's release notes and clears the footer link.</summary>
+    void OpenWhatsNew();
+    /// <summary>Clears the footer link without opening anything.</summary>
+    void DismissWhatsNew();
 }
 
 /// <summary>A mute shown in the popup's active-mutes list. <paramref name="Remaining"/> is display text ("forever", "45m left").</summary>

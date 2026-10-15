@@ -82,6 +82,9 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         _waitingExpanded = state.WaitingExpanded;
         _snoozedExpanded = state.SnoozedExpanded;
         _commentsWarningShown = state.CommentsWarningShown;
+        _lastRunVersion = state.LastRunVersion;
+        _whatsNewVersion = state.WhatsNewVersion;
+        _usedBefore = state.Snapshot.Count > 0 || state.AgentRuns.Count > 0 || state.Mutes.Count > 0 || state.Snoozes.Count > 0;
         _reconciler = new Reconciler(state.Snapshot.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<InboxItem>)kv.Value));
 
         var runner = new ProcessRunner();
@@ -125,6 +128,16 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
 
     public void Start()
     {
+        // Only an installed build announces "What's new"; a dev build leaves the remembered versions alone.
+        if (_updates is not null && Update.Phase != UpdatePhase.DevBuild)
+        {
+            var (announce, lastRun) = WhatsNew.OnStart(_lastRunVersion, _whatsNewVersion, Version, _usedBefore);
+            if (announce != _whatsNewVersion || lastRun != _lastRunVersion)
+            {
+                (_whatsNewVersion, _lastRunVersion) = (announce, lastRun);
+                Save();
+            }
+        }
         HandleDiff(_reconciler.RetireWhere(IsDisabledSource));
         _ = _poller.RunAsync(() => TimeSpan.FromSeconds(_config.Current.PollSeconds), _cts.Token);
     }
@@ -612,6 +625,27 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
 
     public void OpenSettings() => SettingsRequested?.Invoke();
 
+    string? _lastRunVersion;
+    string? _whatsNewVersion;
+    readonly bool _usedBefore;
+
+    public string? WhatsNewVersion => _whatsNewVersion;
+
+    /// <summary>Opens this version's release notes (tray menu or footer link) and clears the footer link.</summary>
+    public void OpenWhatsNew()
+    {
+        OpenUrl(WhatsNew.UrlFor(Version));
+        DismissWhatsNew();
+    }
+
+    public void DismissWhatsNew()
+    {
+        if (_whatsNewVersion is null) return;
+        _whatsNewVersion = null;
+        Save();
+        Changed?.Invoke();
+    }
+
     // ----- ISettingsHost -----
 
     public AppConfig CurrentConfig => _config.Current;
@@ -709,6 +743,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
                         WaitingExpanded = _waitingExpanded,
                         SnoozedExpanded = _snoozedExpanded,
                         CommentsWarningShown = _commentsWarningShown,
+                        LastRunVersion = _lastRunVersion,
+                        WhatsNewVersion = _whatsNewVersion,
                     };
                 }
                 _stateStore.Save(state);
