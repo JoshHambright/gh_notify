@@ -101,7 +101,21 @@ jobs:
             }
           }
           $notes = (($notes -split "`r?`n") | Where-Object { $_ -notmatch '^\s*Co-Authored-By:' }) -join "`n"
-          Set-Content artifacts/notes.md $notes.Trim()
+          Set-Content artifacts/changelog.md $notes.Trim()
+          # Hand-written docs/releases/<tag>.md on top, the changelog under "All changes" (see build/release-notes.ps1).
+          # No notes, no publish. Notes merged to main after the tag still count: add them, then re-run this workflow.
+          $file = "docs/releases/$tag.md"
+          if (-not (Test-Path $file)) {
+            git fetch -q origin main
+            git show "origin/main:$file" > $file 2>$null
+            if ($LASTEXITCODE -or -not (Get-Item $file -ErrorAction SilentlyContinue).Length) {
+              Remove-Item $file -ErrorAction SilentlyContinue
+              Write-Host "::error::$file is missing. Copy docs/releases/TEMPLATE.md to $file, merge it to main, then re-run Actions -> Release with tag $tag."
+              exit 1
+            }
+            $global:LASTEXITCODE = 0
+          }
+          ./build/release-notes.ps1 -Tag $tag -Changelog artifacts/changelog.md -Out artifacts/notes.md
       - name: Pack
         run: |
           $p = @{ Version = '${{ steps.v.outputs.version }}'; OutDir = 'artifacts/new'; ReleaseNotes = 'artifacts/notes.md' }
@@ -112,7 +126,7 @@ jobs:
         run: ./build/test-install.ps1 -OldSetup "${{ steps.prev.outputs.setup }}" -NewFeed artifacts/new
       # SIGNING: sign artifacts/new/* here once a certificate or Trusted Signing account exists.
       # Release notes travel inside the package (vpk pack --releaseNotes); --merge adds the assets to the
-      # release-please release without replacing its body.
+      # release-please release without replacing its body. The next step then sets the body to the full notes.
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -120,3 +134,10 @@ jobs:
         run: >
           vpk upload github --repoUrl "https://github.com/$env:GITHUB_REPOSITORY" --token "$env:GH_TOKEN"
           --outputDir artifacts/new --merge --publish --tag "$env:TAG"
+      - name: Release page notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          gh release edit $env:TAG --repo "$env:GITHUB_REPOSITORY" --notes-file artifacts/notes.md
+          if ($LASTEXITCODE) { Write-Host "::error::could not set the release notes on $env:TAG"; exit 1 }

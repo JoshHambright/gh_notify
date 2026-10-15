@@ -340,4 +340,18 @@ public sealed class SampleHost : IPopupHost
         Calls.Add("check-updates");
         return Task.CompletedTask;
     }
+
+    public string? WhatsNewVersion { get; set; }
+
+    public void OpenWhatsNew()
+    {
+        Calls.Add("whats-new");
+        DismissWhatsNew();
+    }
+
+    public void DismissWhatsNew()
+    {
+        WhatsNewVersion = null;
+        Changed?.Invoke();
+    }
 }

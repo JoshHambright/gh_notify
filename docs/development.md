@@ -80,11 +80,13 @@ configured by `release-please-config.json` and `.release-please-manifest.json`).
 1. Merge work to `main` with conventional commit messages.
 2. release-please keeps a pull request titled `chore(main): release X.Y.Z` open. It bumps `version.txt`, updates
    `CHANGELOG.md` and proposes the next version from the `feat:`/`fix:` commits since the last release.
-3. Merging that PR creates the `vX.Y.Z` tag and GitHub release (with the changelog as its notes). The same workflow then
+3. Write the release notes (see [Release notes](#release-notes) below) and merge them to `main`. The release PR shows a red
+   `release-notes` status until `docs/releases/vX.Y.Z.md` exists.
+4. Merging the release PR creates the `vX.Y.Z` tag and GitHub release. The same workflow then
    calls `.github/workflows/release.yml`, which runs the CI gates, publishes self-contained `win-x64`, downloads the previous
    release (for delta packages), packs with `vpk` (`build/pack.ps1`), runs the install test against the real previous
    release, then merges `GhNotify-win-Setup.exe`, the full and delta packages and `releases.win.json` into that release a few
-   minutes later.
+   minutes later, and replaces the release body with the full notes.
 
 To re-run the packaging for an existing release, use Actions → Release → Run workflow and enter the tag (for example
 `v1.2.0`).
@@ -102,6 +104,33 @@ be on, or release-please cannot open its PR.
 
 Installed apps pick the new release up within `updates.checkHours`. Signing is not set up yet; the release workflow marks
 where it goes.
+
+### Release notes
+
+Every release has hand-written notes in `docs/releases/vX.Y.Z.md`. Copy `docs/releases/TEMPLATE.md`, ideally in the feature PR
+that does the work. Use the version release-please will cut: `feat!` gives the next major, `feat` the next minor, and only
+`fix` the next patch. The template has these sections:
+- one or two sentences in user terms, and a screenshot
+- Highlights
+- New, Changed, Fixed
+- Upgrade notes (new config keys and defaults, or "Nothing to do")
+- Learn more
+
+Write links relative to `docs/releases/`, for example `../actions.md#merge`, `../images/popup-dark.png` or `../../README.md`. They work
+when the file is browsed on GitHub, and `build/release-notes.ps1` rewrites them to the release tag. That way the release page
+links to the docs as they were at that version, and images point at the raw files.
+
+`build/release-notes.ps1` assembles each release from three parts:
+1. **Release page:** the notes file goes on top, followed by "All changes", which is release-please's changelog.
+2. **Update package:** the same text is packed with `vpk --releaseNotes`.
+3. **In the app:** after an update, the popup footer shows "Updated to vX · What's new" once, and the tray menu has a
+   permanent **What's new** item. Both open `https://github.com/JoshHambright/gh_notify/releases/tag/vX`.
+
+The gates:
+- `release-please.yml` sets the `release-notes` status on the release PR.
+- `release.yml` won't publish without the file. If a release was tagged without notes, merge them to `main` and re-run
+  Actions → Release with the tag; the workflow reads the notes from `main`.
+- `./build/release-notes.ps1 -Check` runs the same check locally, against `.release-please-manifest.json`.
 
 ## Project layout
 

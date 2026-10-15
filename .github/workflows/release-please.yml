@@ -14,6 +14,7 @@ jobs:
       release_created: ${{ steps.rp.outputs.release_created }}
       tag_name: ${{ steps.rp.outputs.tag_name }}
       version: ${{ steps.rp.outputs.version }}
+      pr: ${{ steps.rp.outputs.pr }}
     steps:
       - id: rp
         uses: googleapis/release-please-action@v5
@@ -21,6 +22,35 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           token: ${{ secrets.GITHUB_TOKEN }}
+  release-notes-status:
+    # The release PR gets no CI (it is opened with GITHUB_TOKEN), so check for docs/releases/v<version>.md here and
+    # put a release-notes status on the PR: red until the notes are merged to main. The release won't publish without them.
+    needs: release-please
+    if: needs.release-please.outputs.pr != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+      - name: Release notes status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $sha = git rev-parse HEAD
+          ./build/release-notes.ps1 -Check
+          $ok = $LASTEXITCODE -eq 0
+          $global:LASTEXITCODE = 0
+          $version = (Get-Content .release-please-manifest.json -Raw | ConvertFrom-Json).'.'
+          $state = if ($ok) { 'success' } else { 'failure' }
+          $desc = if ($ok) { "docs/releases/v$version.md found" } else { "add docs/releases/v$version.md (from TEMPLATE.md) to main" }
+          gh api "repos/$env:GITHUB_REPOSITORY/statuses/$sha" -f state=$state -f context=release-notes -f description=$desc | Out-Null
+          if (-not $ok) { exit 1 }
   publish:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'

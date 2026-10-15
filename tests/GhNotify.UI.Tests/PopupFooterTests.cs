@@ -45,6 +45,41 @@ public class PopupFooterTests
         Assert.DoesNotContain("Restart", FooterString(h));
     }
 
+    static void AfterUpdate(SampleHost s)
+    {
+        s.Update = new UpdateStatus(UpdatePhase.Idle, "2.0.0", null, null, null);
+        s.WhatsNewVersion = "2.0.0";
+    }
+
+    [AvaloniaFact]
+    public void After_an_update_the_footer_links_to_whats_new_and_opening_it_clears_the_link()
+    {
+        using var h = new PopupHarness(AfterUpdate);
+        Assert.EndsWith(" · Updated to v2.0.0 · What's new ✕", FooterString(h));
+        h.Click(h.Button("Updated to v2.0.0 · What's new"));
+        Assert.Contains("whats-new", h.Host.Calls);
+        h.Pump();
+        Assert.DoesNotContain("What's new", FooterString(h));
+    }
+
+    [AvaloniaFact]
+    public void The_whats_new_link_can_be_dismissed_without_opening_it()
+    {
+        using var h = new PopupHarness(AfterUpdate);
+        h.Click(h.Button("✕", Footer(h)));
+        h.Pump();
+        Assert.DoesNotContain("whats-new", h.Host.Calls);
+        Assert.DoesNotContain("What's new", FooterString(h));
+    }
+
+    [AvaloniaFact]
+    public void A_ready_update_takes_the_footer_over_the_whats_new_link()
+    {
+        using var h = new PopupHarness(s => s.WhatsNewVersion = "1.2.0");
+        Assert.EndsWith(" · Update ready · v1.2.1 · Restart", FooterString(h));
+        Assert.DoesNotContain("What's new", FooterString(h));
+    }
+
     [AvaloniaFact]
     public void Restart_with_nothing_running_restarts_straight_away()
     {
