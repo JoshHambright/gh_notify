@@ -21,55 +21,40 @@ You don't need a GitHub or Azure DevOps account, Xcode or an IDE. The tests use 
 Run these in Terminal:
 
 ```sh
-# 1. Get the code
 git clone https://github.com/JoshHambright/gh_notify.git
 cd gh_notify
 git checkout feat/v2.0
-
-# 2. Record your setup
-sw_vers; uname -m; dotnet --info > dotnet-info.txt
-
-# 3. Build the shared UI and its tests (warnings count as errors, same as CI)
-dotnet build tests/GhNotify.UI.Tests/GhNotify.UI.Tests.csproj -c Release -warnaserror
-
-# 4. Run the UI tests headless (no windows appear)
-dotnet test tests/GhNotify.UI.Tests/GhNotify.UI.Tests.csproj -c Release --no-build \
-  --logger "trx;LogFileName=ui.trx" --results-directory test-results
-
-# 5. Run the core logic tests (provider rules, config, actions)
-dotnet test tests/GhNotify.Tests/GhNotify.Tests.csproj -c Release \
-  --logger "trx;LogFileName=core.trx" --results-directory test-results
-
-# 6. Render the screenshots on macOS
-mkdir -p mac-screenshots
-GHNOTIFY_SCREENSHOTS="$PWD/mac-screenshots" \
-  dotnet test tests/GhNotify.UI.Tests/GhNotify.UI.Tests.csproj -c Release --no-build \
-  --filter "Category=Screenshots"
-ls mac-screenshots
+./build/mac-test.sh
 ```
 
-If a step fails, **keep going with the next one**. Don't try to fix the code. The failure is what we want to see.
+The script runs every check in order and keeps going if one fails. Please don't try to fix any failures: the failure itself is what we want to see. The steps are:
 
-### What to look at
+1. Build the shared UI with warnings treated as errors, the same as CI.
+2. Run the UI tests headless. No windows appear.
+3. Run the core logic tests.
+4. Render the screenshots on macOS.
 
-1. **Steps 3 and 4:** these should pass with zero errors and zero failed tests. Linux CI already runs them, so a failure on macOS is a real macOS finding.
-2. **Step 5:** some of these tests may assume Windows paths. Failures here help us scope v2.1, so just report them.
-3. **Step 6:** open the PNGs in `mac-screenshots/` and compare them with the Windows ones in `docs/images/` (same file names). Look for:
+The whole run takes a few minutes. At the end the script stops and asks you to review the screenshots:
+
+1. Open `mac-test-<time>/screenshots/`.
+2. Compare each image with the file of the same name in `docs/images/`, which are the Windows versions. Look for:
    - text that is cut off, overlaps or wraps differently
    - a wrong or fallback font (it should match the Windows images, not Helvetica or Times)
-   - missing icons or glyphs, such as ⋯, chevrons or the empty boxes shown for unknown characters
+   - missing icons or glyphs, such as ⋯, chevrons or empty boxes
    - colours that differ between light and dark
-   - anything that looks blurry. The images are rendered at 2×.
+   - anything that looks blurry
+3. Write what you see in `mac-test-<time>/notes.md`.
+4. Press Enter.
 
 ### What to send back
 
-- The output of step 2 (`sw_vers`, `uname -m`) and `dotnet-info.txt`
-- The `test-results/` folder, zipped
-- The `mac-screenshots/` folder, zipped
-- The full terminal output of any step that failed. Copy and paste it; a screenshot isn't enough.
-- A few lines on anything that looked off in the screenshots
+Send back the one file `mac-test-<time>.zip` from the repo folder. It contains:
+- `summary.json`: your macOS version, chip, .NET version, the exit code of each step, and test counts with the names of any failed tests.
+- `logs/`: the full output of each step. Your home folder is shown as `~` in the logs.
+- `test-results/`: the raw test results.
+- `screenshots/` and your `notes.md`.
 
-Everything here uses placeholder names only (contoso, fabrikam, alice, bob), so it's safe to share.
+The UI build and UI tests should pass with no failures. Linux CI already runs them, so any failure there is specific to macOS. Some core tests may assume Windows paths; those failures help us scope v2.1. Everything uses placeholder names only (contoso, fabrikam, alice, bob), so the zip is safe to share.
 
 ## Round 2: install and smoke test (when v2.1 is ready)
 

@@ -484,3 +484,7 @@ $RECYCLE.BIN/
 
 # Build output
 artifacts/
+
+# macOS tester output (build/mac-test.sh)
+mac-test-*/
+mac-test-*.zip
