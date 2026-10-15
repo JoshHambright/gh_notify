@@ -183,6 +183,16 @@ public sealed class SampleHost : IPopupHost
     public bool SnoozedExpanded { get; set; } = true;
     /// <summary>The Muted section is expanded (the live app starts it collapsed; previews show the muted row).</summary>
     public bool MutedExpanded { get; set; } = true;
+    public double PopupWidth { get; set; } = PopupSize.DefaultWidth;
+    public double TextScale { get; set; } = 1.0;
+
+    public void SetPopupWidth(double width)
+    {
+        Calls.Add($"width {width}");
+        PopupWidth = PopupSize.ClampWidth(width);
+        Changed?.Invoke();
+    }
+
     /// <summary>Every command the popup sent, as short strings ("toggle gh:ci:acme/api#57", "confirm … comment=hi"). Tests assert on it.</summary>
     public List<string> Calls { get; } = [];
     /// <summary>Per-item previews returned by <see cref="BeginActionAsync"/> (an allowed preview naming the action when none is set).</summary>
@@ -194,7 +204,7 @@ public sealed class SampleHost : IPopupHost
     {
         var searching = !string.IsNullOrWhiteSpace(query);
         var sections = InboxPresenter.Build(View(), k => _runs.GetValueOrDefault(k), Decide, (_, _) => null, Clock(),
-            ActionText.DefaultActions, k => States.GetValueOrDefault(k), r => RepoNames.Display(r, null, 34),
+            ActionText.DefaultActions, k => States.GetValueOrDefault(k), r => RepoNames.Display(r, null, PopupSize.RepoChars(34, PopupWidth)),
             waitingExpanded: WaitingExpanded || searching, snoozedExpanded: SnoozedExpanded || searching, mutedExpanded: MutedExpanded || searching);
         sections = InboxFilter.Apply(sections, query);
         return searching ? sections.Select(s => s.BatchButtons ? s with { BatchButtons = false } : s).ToList() : sections;

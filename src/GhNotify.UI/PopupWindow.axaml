@@ -226,7 +226,8 @@
     </Style>
   </Window.Styles>
 
-  <!-- Frame: includes the shadow margin. -->
+  <!-- Scaler: the text size (Settings → General) scales everything at once. Frame: includes the shadow margin. -->
+  <LayoutTransformControl x:Name="Scaler">
   <Grid x:Name="Frame">
     <Border Margin="8" CornerRadius="12" Background="{DynamicResource Brush.Surface}" BoxShadow="0 3 18 0 #59000000" />
     <Border x:Name="Outer" Margin="8" CornerRadius="12" Background="{DynamicResource Brush.Surface}" ClipToBounds="True">
@@ -336,5 +337,9 @@
         <Rectangle Width="5" HorizontalAlignment="Left" Fill="{DynamicResource Brush.EdgeStrip}" IsHitTestVisible="False" />
       </Grid>
     </Border>
+    <!-- Drag the left edge to widen the popup (it stays anchored bottom-right); double-click resets it. -->
+    <Border x:Name="ResizeGrip" Width="10" HorizontalAlignment="Left" Margin="2,20" Background="Transparent" Cursor="SizeWestEast"
+            ToolTip.Tip="Drag to resize · double-click to reset" ToolTip.ShowDelay="900" />
   </Grid>
+  </LayoutTransformControl>
 </Window>

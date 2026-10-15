@@ -275,11 +275,15 @@ public class SettingsWindowTests
         var w = Open(host);
         var general = (GeneralPage)w.Page(SettingsPage.General);
         general.ThemeDark.IsChecked = true;
+        Assert.Equal(["90%", "100%", "115%", "130%"], general.TextSizes.Select(r => (string?)r.Content));
+        Assert.True(general.TextSizes[1].IsChecked);
+        general.TextSizes[2].IsChecked = true;
         w.Revalidate();
         Assert.True(w.CanSave);
         Assert.False(w.Draft.IsDirty);
         w.Save();
         Assert.Equal(GhNotify.Core.ThemeMode.Dark, host.ThemeMode);
+        Assert.Equal(1.15, host.TextScale);
     }
 
     [AvaloniaFact]

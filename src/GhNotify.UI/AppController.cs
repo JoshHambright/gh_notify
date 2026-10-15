@@ -39,6 +39,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     bool _snoozedExpanded;
     bool _mutedExpanded;
     string? _justHidden;
+    double _popupWidth;
+    double _textScale;
     bool _commentsWarningShown;
     readonly SkillLocator _skills = new(SkillLocator.DefaultClaudeHome);
 
@@ -87,6 +89,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         _commentsWarningShown = state.CommentsWarningShown;
         _lastRunVersion = state.LastRunVersion;
         _whatsNewVersion = state.WhatsNewVersion;
+        _popupWidth = PopupSize.ClampWidth(state.PopupWidth ?? PopupSize.DefaultWidth);
+        _textScale = PopupSize.NormalizeScale(state.TextScale);
         _usedBefore = state.Snapshot.Count > 0 || state.AgentRuns.Count > 0 || state.Mutes.Count > 0 || state.Snoozes.Count > 0;
         _reconciler = new Reconciler(state.Snapshot.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<InboxItem>)kv.Value));
 
@@ -352,7 +356,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         }
         return InboxPresenter.Build(CurrentView(), _agents.Get, i => RulesEngine.Decide(i, cfg), _agents.WhyCannotRun,
             DateTimeOffset.Now, _actions.ActionsFor, k => _rowStates.GetValueOrDefault(k),
-            r => RepoNames.Display(r, cfg.Display.RepoAliases, cfg.Display.MaxRepoChars), waitingExpanded, snoozedExpanded, mutedExpanded);
+            r => RepoNames.Display(r, cfg.Display.RepoAliases, PopupSize.RepoChars(cfg.Display.MaxRepoChars, _popupWidth)), waitingExpanded, snoozedExpanded, mutedExpanded);
     }
 
     public IReadOnlyList<SourceStatus> Sources() => _reconciler.Statuses;
@@ -780,6 +784,27 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         Changed?.Invoke();
     }
 
+    public double PopupWidth => _popupWidth;
+    public double TextScale => _textScale;
+
+    public void SetPopupWidth(double width)
+    {
+        width = PopupSize.ClampWidth(width);
+        if (width == _popupWidth) return;
+        _popupWidth = width;
+        Save();
+        Changed?.Invoke(); // longer repo names fit
+    }
+
+    public void SetTextScale(double scale)
+    {
+        scale = PopupSize.NormalizeScale(scale);
+        if (scale == _textScale) return;
+        _textScale = scale;
+        Save();
+        Changed?.Invoke();
+    }
+
     public void PlaySound(string sound) => _platform.Sound.Play(sound);
 
     public bool CommentsWarningShown
@@ -820,6 +845,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
                         CommentsWarningShown = _commentsWarningShown,
                         LastRunVersion = _lastRunVersion,
                         WhatsNewVersion = _whatsNewVersion,
+                        PopupWidth = _popupWidth == PopupSize.DefaultWidth ? null : _popupWidth,
+                        TextScale = _textScale,
                     };
                 }
                 _stateStore.Save(state);

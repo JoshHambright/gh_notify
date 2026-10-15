@@ -65,6 +65,7 @@ public partial class PopupWindow : Window
         Activated += OnActivated;
         Deactivated += OnDeactivated;
         SizeChanged += (_, _) => { if (IsVisible) PlaceBottomRight(); };
+        InitResizeGrip();
     }
 
     public IPopupHost Host => _host;
@@ -134,6 +135,7 @@ public partial class PopupWindow : Window
         Dispatcher.UIThread.Post(() => ApplySelection(scrollIntoView: false), DispatcherPriority.Loaded);
         CountText.Text = _host.HeaderCount.ToString();
         RenderConfigError();
+        ApplySize();
         ThemeButton.SetValue(ToolTip.TipProperty, $"Theme: {_host.ThemeMode}");
         RenderFooter();
 

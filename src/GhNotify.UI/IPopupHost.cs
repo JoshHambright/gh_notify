@@ -17,6 +17,11 @@ public interface IPopupHost
     DateTimeOffset? LastPolledAt { get; }
     bool IsRefreshing { get; }
     ThemeMode ThemeMode { get; }
+    /// <summary>The popup width, unscaled (<see cref="PopupSize"/>); the window is PopupWidth × TextScale wide.</summary>
+    double PopupWidth { get; }
+    double TextScale { get; }
+    /// <summary>Saves the width dragged from the popup's left edge (clamped; the default resets it).</summary>
+    void SetPopupWidth(double width);
     event Action? Changed;
     void OpenUrl(string url);
     void RunAgent(string key);

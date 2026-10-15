@@ -72,12 +72,14 @@ For tests and development, `GHNOTIFY_CONFIG_DIR` and `GHNOTIFY_DATA_DIR` overrid
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `repoAliases` | object | `{}` | Prefix → short name, applied to repo names in the popup. |
-| `maxRepoChars` | int | `34` | Longer repo names are shortened in the middle, keeping the repo segment. At least 12. |
+| `maxRepoChars` | int | `34` | Longer repo names are shortened in the middle, keeping the repo segment. At least 12. Applies at the default popup width; a wider popup allows about one more character per 6 px. |
 
 `display.repoAliases` shortens repo names in the popup. A key is an org (`"contoso-engineering"`) or an org/project prefix
 (`"contoso-engineering/platform"`). The longest matching prefix is replaced by the value. A name still longer than
 `display.maxRepoChars` is shortened in the middle, for example `contoso-engi…/checkout-service-api`. The full name is in the
 tooltip and in the expanded details.
+
+The popup width and text size are not in config.json. Drag the popup's left edge to widen it (double-click the edge to reset), and pick the text size in Settings › General. Both are saved per machine in state.json, like the theme.
 
 ## `updates`
 

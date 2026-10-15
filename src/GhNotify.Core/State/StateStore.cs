@@ -22,6 +22,10 @@ public sealed class AppState
     public string? LastRunVersion { get; set; }
     /// <summary>The version whose "What's new" footer link is waiting to be opened or dismissed.</summary>
     public string? WhatsNewVersion { get; set; }
+    /// <summary>The popup width dragged from its left edge, unscaled (null = the default).</summary>
+    public double? PopupWidth { get; set; }
+    /// <summary>The popup text size (Settings → General): one of <see cref="PopupSize.TextScales"/>.</summary>
+    public double TextScale { get; set; } = 1.0;
 }
 
 public sealed class StateStore(string path)

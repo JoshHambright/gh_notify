@@ -30,6 +30,9 @@ public interface ISettingsHost
     bool StartWithWindows { get; set; }
     ThemeMode ThemeMode { get; }
     void SetThemeMode(ThemeMode mode);
+    /// <summary>The popup text size, one of <see cref="PopupSize.TextScales"/> (saved in state.json, like the theme).</summary>
+    double TextScale { get; }
+    void SetTextScale(double scale);
     bool CommentsWarningShown { get; set; }
     void OpenPath(string path);
     /// <summary>Plays a sound setting ("builtin:chime" or a .wav path) for the Notifications page test button.</summary>
