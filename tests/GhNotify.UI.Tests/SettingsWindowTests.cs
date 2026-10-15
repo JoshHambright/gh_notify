@@ -593,7 +593,7 @@ public class SettingsWindowTests
         Assert.Equal(["builtin:alarm"], host.PlayedSounds);
         var down = Find<Button>(page).First(b => b.Content as string == "↓");
         down.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Assert.Equal(@"C:\sounds\ding.wav", w.Draft.Config.Notifications.Sounds[0].Sound);
+        Assert.Equal(SampleSettingsHost.CustomSound, w.Draft.Config.Notifications.Sounds[0].Sound);
         w.Discard();
     }
 
@@ -604,8 +604,8 @@ public class SettingsWindowTests
         var row = new SoundRow(rule, () => { });
         row.SoundIndex = row.CustomIndex; // e.g. arrowing onto "Custom file…": the page opens the picker on commit, not here
         Assert.Equal("builtin:chime", rule.Sound);
-        row.SetCustomSound(@"C:\sounds\ding.wav");
-        Assert.Equal(@"C:\sounds\ding.wav", rule.Sound);
+        row.SetCustomSound(SampleSettingsHost.CustomSound);
+        Assert.Equal(SampleSettingsHost.CustomSound, rule.Sound);
     }
 
     // ----- workflows -----

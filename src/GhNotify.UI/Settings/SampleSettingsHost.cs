@@ -15,6 +15,9 @@ public sealed class SampleSettingsHost : ISettingsHost
 
     public SampleSettingsHost(ConfigStore? store = null) => _store = store;
 
+    /// <summary>An absolute .wav path for the sample custom sound; a Windows path is not absolute on Linux or macOS.</summary>
+    public static readonly string CustomSound = OperatingSystem.IsWindows() ? @"C:\sounds\ding.wav" : "/sounds/ding.wav";
+
     public static AppConfig Sample() => new()
     {
         GitHub = new GitHubConfig { WatchRepos = ["acme/api"] },
@@ -24,7 +27,7 @@ public sealed class SampleSettingsHost : ISettingsHost
             Sounds =
             [
                 new SoundRule { Match = new ItemMatch { Kind = ItemKind.ApprovalPending, Repo = "acme/*" }, Sound = "builtin:alarm", AlertOffHours = true },
-                new SoundRule { Match = new ItemMatch { Kind = ItemKind.ReviewRequested }, Sound = @"C:\sounds\ding.wav" },
+                new SoundRule { Match = new ItemMatch { Kind = ItemKind.ReviewRequested }, Sound = CustomSound },
             ],
         },
         Filters = new FiltersConfig { Mute = ["acme/legacy-*"], Hide = ["gh:fabrikam/sandbox"] },
