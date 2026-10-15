@@ -210,10 +210,25 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         var plan = NotificationPlanner.Plan(diff, woken, view, cfg, WorkHours.IsWithin(cfg.WorkHours, DateTime.Now));
         foreach (var t in plan.Toasts) _toasts.Apply(t);
         if (plan.Sound is { } sound) _runtime.Dispatcher.Post(() => _platform.Sound.Play(sound));
+        // Hidden items fire nothing: no toast or sound (the planner), no auto-agent (MaybeAutoRun) and no hooks.
+        bool Hidden(InboxItem i) => InboxView.IsHidden(i, cfg.Filters);
         foreach (var i in diff.InitialLoad) { _agents.OnItemAdded(i); MaybeAutoRun(i, cfg, view); }
-        foreach (var i in diff.Added) { _agents.OnItemAdded(i); _ = _hooks.DispatchAsync(HookEvent.ItemAdded, i); MaybeAutoRun(i, cfg, view); }
-        foreach (var c in diff.Changed) { _agents.OnItemChanged(c); _ = _hooks.DispatchAsync(HookEvent.ItemChanged, c.New); }
-        foreach (var r in diff.Removed) { _agents.OnItemRemoved(r); _ = _hooks.DispatchAsync(HookEvent.ItemRemoved, r); }
+        foreach (var i in diff.Added)
+        {
+            _agents.OnItemAdded(i);
+            if (!Hidden(i)) _ = _hooks.DispatchAsync(HookEvent.ItemAdded, i);
+            MaybeAutoRun(i, cfg, view);
+        }
+        foreach (var c in diff.Changed)
+        {
+            _agents.OnItemChanged(c);
+            if (!Hidden(c.New)) _ = _hooks.DispatchAsync(HookEvent.ItemChanged, c.New);
+        }
+        foreach (var r in diff.Removed)
+        {
+            _agents.OnItemRemoved(r);
+            if (!Hidden(r)) _ = _hooks.DispatchAsync(HookEvent.ItemRemoved, r);
+        }
         PruneRowStates(diff);
         _ = SweepAsync();
         Save();
@@ -239,8 +254,9 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         {
             run = _agents.Get(run.Key) ?? run; // RunChanged is a signal only; re-read the latest value (events may arrive out of order)
             // RunChanged also fires for later edits (opened, item removed); announce each finished run once.
+            // A run that finishes after its item was hidden is not announced (no toast, no AgentFinished hook).
             if (run.State is AgentState.Ready or AgentState.Failed && run.FinishedAt is { } finished &&
-                Find(run.Key) is { } item && TryMarkAnnounced(run.Key, finished))
+                Find(run.Key) is { } item && !InboxView.IsHidden(item, _config.Current.Filters) && TryMarkAnnounced(run.Key, finished))
             {
                 var label = InboxPresenter.LabelFor(run.Profile);
                 if (WorkHours.IsWithin(_config.Current.WorkHours, DateTime.Now))
@@ -578,9 +594,23 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     public void HideMatching(string key, MuteScope scope)
     {
         if (Find(key) is not { } item || MutePatterns.For(item, scope) is not { } pattern) return;
-        if (!EditMuteConfig(list => { if (!list.Contains(pattern, StringComparer.OrdinalIgnoreCase)) list.Add(pattern); }, FilterList.Hide)) return;
+        var added = false;
+        if (!EditMuteConfig(list =>
+            {
+                if (list.Contains(pattern, StringComparer.OrdinalIgnoreCase)) return;
+                list.Add(pattern);
+                added = true;
+            }, FilterList.Hide)) return;
         Log.Info($"hid {pattern}");
-        _justHidden = pattern;
+        // Undo only removes a pattern this click added, never one that was already in Settings.
+        if (added) _justHidden = pattern;
+        // Like a snooze: clear the hidden items' toasts from Action Center so none can be clicked through.
+        foreach (var e in _reconciler.Entries.Where(e => InboxView.IsHidden(e.Item, _config.Current.Filters)))
+        {
+            _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.For(e.Item.Key)));
+            _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.ForAgent(e.Item.Key)));
+            _rowStates.TryRemove(e.Item.Key, out _);
+        }
         Changed?.Invoke();
     }
 
@@ -588,6 +618,13 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
 
     public void Unhide(string pattern)
     {
+        // Already gone (removed in Settings meanwhile): nothing to save.
+        if (!_config.Current.Filters.Hide.Contains(pattern, StringComparer.OrdinalIgnoreCase))
+        {
+            _justHidden = null;
+            Changed?.Invoke();
+            return;
+        }
         if (!EditMuteConfig(list => list.RemoveAll(p => string.Equals(p, pattern, StringComparison.OrdinalIgnoreCase)), FilterList.Hide)) return;
         if (string.Equals(_justHidden, pattern, StringComparison.OrdinalIgnoreCase)) _justHidden = null;
         Changed?.Invoke();

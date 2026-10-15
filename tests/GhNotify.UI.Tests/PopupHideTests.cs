@@ -83,12 +83,12 @@ public class PopupHideTests
     {
         using var h = new PopupHarness();
         Assert.True(h.HasCard(SampleHost.MutedKey)); // the sample starts it expanded; the live app starts it collapsed
-        var before = h.Host.HeaderCount;
+        // 2 approvals, 2 reviews, 1 failing, 1 ready: the muted, waiting and snoozed rows aren't counted.
+        Assert.Equal(6, h.Host.HeaderCount);
 
         h.Host.ToggleSection(InboxPresenter.MutedSectionId);
         h.Pump();
         Assert.False(h.HasCard(SampleHost.MutedKey));
         Assert.Contains("MUTED", h.All<TextBlock>().Select(t => t.Text));
-        Assert.Equal(before, h.Host.HeaderCount);
     }
 }

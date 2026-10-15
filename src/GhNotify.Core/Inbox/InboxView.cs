@@ -51,6 +51,9 @@ public sealed class InboxView
         return new InboxView(active, waiting, sleeping, attention);
     }
 
+    /// <summary>True when a filters.hide pattern matches the item. Works for items no longer in the inbox (a removed item's hooks).</summary>
+    public static bool IsHidden(InboxItem item, FiltersConfig filters) => Parse(filters.Hide).Any(p => p.Matches(item));
+
     static List<FilterPattern> Parse(IEnumerable<string> patterns) =>
         patterns.Select(t => FilterPattern.TryParse(t, out var p, out _) ? p : null).OfType<FilterPattern>().ToList();
 }

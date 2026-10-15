@@ -12,6 +12,15 @@ public class InboxViewTests
         InboxView.Compose(entries, f ?? new FiltersConfig(), mutes ?? [], snoozes ?? [], Now);
 
     [Fact]
+    public void IsHidden_matches_hide_patterns_only_and_ignores_case_and_invalid_patterns()
+    {
+        var f = new FiltersConfig { Hide = ["GH:Acme", "bad//pattern"], Mute = ["contoso"] };
+        Assert.True(InboxView.IsHidden(E("a", "acme/api").Item, f));
+        Assert.False(InboxView.IsHidden(E("a", "acme/api", p: Provider.Ado).Item, f)); // gh: only
+        Assert.False(InboxView.IsHidden(E("c", "contoso/app").Item, f)); // muted is not hidden
+    }
+
+    [Fact]
     public void Sorts_entries_into_active_waiting_snoozed_and_hidden()
     {
         var v = V([E("a", "acme/api"), E("w", "acme/web", ItemKind.MyPrWaiting), E("s", "acme/svc"), E("h", "fabrikam/sandbox"), E("m", "acme/legacy-x")],
