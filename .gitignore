@@ -488,3 +488,6 @@ artifacts/
 # macOS tester output (build/mac-test.sh)
 mac-test-*/
 mac-test-*.zip
+
+# Hand-written release notes (the [Rr]eleases/ build-output rule above would hide them)
+!docs/releases/
