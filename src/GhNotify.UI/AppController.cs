@@ -258,9 +258,10 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         {
             run = _agents.Get(run.Key) ?? run; // RunChanged is a signal only; re-read the latest value (events may arrive out of order)
             // RunChanged also fires for later edits (opened, item removed); announce each finished run once.
-            // A run that finishes after its item was hidden is not announced (no toast, no AgentFinished hook).
+            // A run that finishes after its item was hidden is recorded as announced but not shown (no toast, no AgentFinished hook),
+            // so unhiding it later can't announce a stale completion.
             if (run.State is AgentState.Ready or AgentState.Failed && run.FinishedAt is { } finished &&
-                Find(run.Key) is { } item && !InboxView.IsHidden(item, _config.Current.Filters) && TryMarkAnnounced(run.Key, finished))
+                Find(run.Key) is { } item && TryMarkAnnounced(run.Key, finished) && !InboxView.IsHidden(item, _config.Current.Filters))
             {
                 var label = InboxPresenter.LabelFor(run.Profile);
                 if (WorkHours.IsWithin(_config.Current.WorkHours, DateTime.Now))
@@ -331,14 +332,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         var sections = InboxFilter.Apply(Present(searching), query);
         if (searching) sections = sections.Select(s => s.BatchButtons ? s with { BatchButtons = false } : s).ToList();
         if (!Batch.Active) return sections;
-        // While a batch is open or running, the Approvals rows can only be acted on through it.
-        return sections.Select(s => s.Id != BatchApproval.SectionId ? s : s with
-        {
-            Rows = s.Rows.Select(r => r with
-            {
-                Actions = r.Actions.Select(a => a with { Enabled = false, DisabledReason = BatchBusy }).ToList(),
-            }).ToList(),
-        }).ToList();
+        return BatchApproval.Lock(sections, key => Find(key)?.Kind == ItemKind.ApprovalPending, BatchBusy);
     }
 
     public const string BatchBusy = "Finish the batch first";
@@ -613,8 +607,13 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         {
             _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.For(e.Item.Key)));
             _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.ForAgent(e.Item.Key)));
-            _rowStates.TryRemove(e.Item.Key, out _);
+            // Keep Sending and Done: an action in flight must still finish into its own state (and Undo must not re-offer it).
+            if (_rowStates.TryGetValue(e.Item.Key, out var s) && s.Mode is not (RowMode.Sending or RowMode.Done))
+                _rowStates.TryRemove(KeyValuePair.Create(e.Item.Key, s));
         }
+        // An open batch must not go on to send items that are now hidden; a running one can't be stopped and finishes.
+        if (Batch.Phase is BatchPhase.Previewing or BatchPhase.Ready && Batch.Lines.Any(l => InboxView.IsHidden(l.Item, _config.Current.Filters)))
+            Batch.Close();
         Changed?.Invoke();
     }
 

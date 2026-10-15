@@ -24,6 +24,19 @@ public static class BatchApproval
     public static bool ShowsButtons(InboxSection section, Func<InboxRow, IReadOnlyList<ItemAction>> actionsFor) =>
         Eligible(section, actionsFor).Count >= MinItems;
 
+    /// <summary>
+    /// While a batch is open or running, approvals can only be acted on through it: their buttons are disabled with
+    /// <paramref name="reason"/>, in the Approvals section and wherever else an approval sits (the Muted section).
+    /// </summary>
+    public static IReadOnlyList<InboxSection> Lock(IReadOnlyList<InboxSection> sections, Func<string, bool> isApproval, string reason) =>
+        sections.Select(s => s with
+        {
+            Rows = s.Rows.Select(r => s.Id != SectionId && !isApproval(r.Key) ? r : r with
+            {
+                Actions = r.Actions.Select(a => a with { Enabled = false, DisabledReason = reason }).ToList(),
+            }).ToList(),
+        }).ToList();
+
     /// <summary>"Approve 3" / "Reject 3" — counts the checked items.</summary>
     public static string ConfirmLabel(ItemAction action, int checkedCount) =>
         $"{(action == ItemAction.Reject ? "Reject" : "Approve")} {checkedCount}";

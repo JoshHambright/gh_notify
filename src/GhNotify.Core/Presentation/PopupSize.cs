@@ -25,5 +25,5 @@ public static class PopupSize
 
     /// <summary>display.maxRepoChars is for the default width; a wider popup shows proportionally longer repo names.</summary>
     public static int RepoChars(int configured, double width) =>
-        configured + (int)Math.Max(0, (ClampWidth(width) - DefaultWidth) / RepoCharWidth);
+        (int)Math.Min(int.MaxValue, configured + (long)Math.Max(0, (ClampWidth(width) - DefaultWidth) / RepoCharWidth));
 }

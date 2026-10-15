@@ -34,5 +34,6 @@ public class PopupSizeTests
         Assert.Equal(34, PopupSize.RepoChars(34, PopupSize.DefaultWidth));
         Assert.Equal(34 + 20, PopupSize.RepoChars(34, PopupSize.DefaultWidth + 120));
         Assert.Equal(34, PopupSize.RepoChars(34, 100)); // narrower than the default is clamped
+        Assert.Equal(int.MaxValue, PopupSize.RepoChars(int.MaxValue, PopupSize.MaxWidth)); // display.maxRepoChars has no upper bound
     }
 }
