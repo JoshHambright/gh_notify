@@ -21,6 +21,18 @@ public class MuteConfigEditorTests : IDisposable
     static void Add(List<string> l) => l.Add("acme/*");
 
     [Fact]
+    public void The_hide_list_is_edited_without_touching_mutes()
+    {
+        var store = Load("{ \"filters\": { \"mute\": [\"gh:fabrikam\"] } }");
+        Assert.Equal(MuteSaveResult.Saved, MuteConfigEditor.TrySave(store, Add, commentsWarningShown: false, FilterList.Hide));
+        Assert.Equal(["acme/*"], store.Current.Filters.Hide);
+        Assert.Equal(["gh:fabrikam"], store.Current.Filters.Mute);
+        var reread = new ConfigStore(PathJ);
+        reread.Load();
+        Assert.Equal(["acme/*"], reread.Current.Filters.Hide);
+    }
+
+    [Fact]
     public void Normal_edit_is_saved_with_backup()
     {
         var store = Load("{ \"pollSeconds\": 60 }");

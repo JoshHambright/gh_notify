@@ -148,15 +148,41 @@ public sealed class SampleHost : IPopupHost
         SUMMARY: one test fixture uses the old section name; update it and CI goes green.
         """;
 
-    // One muted row (acme/legacy-billing) and one snoozed row (fabrikam/web); waiting on others collapsed, snoozed expanded.
-    InboxView View() => InboxView.Compose(Empty ? [] : _entries.Where(e => !HiddenKeys.Contains(e.Item.Key)).ToList(), new FiltersConfig { Mute = ["gh:acme/legacy-*"] }, [],
-        [new Snooze(SnoozedKey, _now.AddMinutes(130), false)], _now);
+    // One muted row (acme/legacy-billing) and one snoozed row (fabrikam/web); waiting on others collapsed, muted and snoozed expanded.
+    InboxView View() => InboxView.Compose(Empty ? [] : _entries.Where(e => !HiddenKeys.Contains(e.Item.Key)).ToList(),
+        new FiltersConfig { Mute = ["gh:acme/legacy-*"], Hide = HidePatterns }, [], [new Snooze(SnoozedKey, _now.AddMinutes(130), false)], _now);
+
+    /// <summary>filters.hide (empty to start); Hide from a row menu adds to it.</summary>
+    public List<string> HidePatterns { get; } = [];
+    public string? JustHidden { get; set; }
+
+    public void HideMatching(string key, MuteScope scope)
+    {
+        Calls.Add($"hide {key} {scope}");
+        if (_entries.FirstOrDefault(e => e.Item.Key == key)?.Item is not { } item || MutePatterns.For(item, scope) is not { } pattern) return;
+        if (!HidePatterns.Contains(pattern, StringComparer.OrdinalIgnoreCase)) HidePatterns.Add(pattern);
+        JustHidden = pattern;
+        Changed?.Invoke();
+    }
+
+    public void Unhide(string pattern)
+    {
+        Calls.Add("unhide " + pattern);
+        HidePatterns.RemoveAll(p => string.Equals(p, pattern, StringComparison.OrdinalIgnoreCase));
+        if (JustHidden == pattern) JustHidden = null;
+        Changed?.Invoke();
+    }
+
+    public IReadOnlyList<HiddenFilter> HiddenFilters() =>
+        HidePatterns.Select(p => new HiddenFilter(p, Math.Max(0, SettingsDraft.CountMatches(p, _entries.Select(e => e.Item).ToList())))).ToList();
 
     /// <summary>The clock the confirm guard reads; tests advance it to pass the 600 ms guard without sleeping.</summary>
     public Func<DateTimeOffset> Clock { get; set; } = () => DateTimeOffset.Now;
     /// <summary>"Waiting on others" is expanded (the popup's section toggle).</summary>
     public bool WaitingExpanded { get; set; }
     public bool SnoozedExpanded { get; set; } = true;
+    /// <summary>The Muted section is expanded (the live app starts it collapsed; previews show the muted row).</summary>
+    public bool MutedExpanded { get; set; } = true;
     /// <summary>Every command the popup sent, as short strings ("toggle gh:ci:acme/api#57", "confirm … comment=hi"). Tests assert on it.</summary>
     public List<string> Calls { get; } = [];
     /// <summary>Per-item previews returned by <see cref="BeginActionAsync"/> (an allowed preview naming the action when none is set).</summary>
@@ -169,7 +195,7 @@ public sealed class SampleHost : IPopupHost
         var searching = !string.IsNullOrWhiteSpace(query);
         var sections = InboxPresenter.Build(View(), k => _runs.GetValueOrDefault(k), Decide, (_, _) => null, Clock(),
             ActionText.DefaultActions, k => States.GetValueOrDefault(k), r => RepoNames.Display(r, null, 34),
-            waitingExpanded: WaitingExpanded || searching, snoozedExpanded: SnoozedExpanded || searching);
+            waitingExpanded: WaitingExpanded || searching, snoozedExpanded: SnoozedExpanded || searching, mutedExpanded: MutedExpanded || searching);
         sections = InboxFilter.Apply(sections, query);
         return searching ? sections.Select(s => s.BatchButtons ? s with { BatchButtons = false } : s).ToList() : sections;
     }
@@ -290,6 +316,7 @@ public sealed class SampleHost : IPopupHost
         foreach (var (key, s) in States.ToList())
             if (s.Mode == RowMode.Confirming) States[key] = RowStateMachine.Rearm(s, Clock());
         Batch.Rearm();
+        JustHidden = null;
     }
 
     public void CycleTheme()
@@ -324,6 +351,7 @@ public sealed class SampleHost : IPopupHost
         Calls.Add("section " + id);
         if (id == "waiting") WaitingExpanded = !WaitingExpanded;
         else if (id == "snoozed") SnoozedExpanded = !SnoozedExpanded;
+        else if (id == InboxPresenter.MutedSectionId) MutedExpanded = !MutedExpanded;
         Changed?.Invoke();
     }
 

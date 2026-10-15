@@ -37,6 +37,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     List<Snooze> _snoozes;
     bool _waitingExpanded;
     bool _snoozedExpanded;
+    bool _mutedExpanded;
+    string? _justHidden;
     bool _commentsWarningShown;
     readonly SkillLocator _skills = new(SkillLocator.DefaultClaudeHome);
 
@@ -81,6 +83,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         _snoozes = state.Snoozes.ToList();
         _waitingExpanded = state.WaitingExpanded;
         _snoozedExpanded = state.SnoozedExpanded;
+        _mutedExpanded = state.MutedExpanded;
         _commentsWarningShown = state.CommentsWarningShown;
         _lastRunVersion = state.LastRunVersion;
         _whatsNewVersion = state.WhatsNewVersion;
@@ -320,15 +323,20 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
 
     public const string BatchBusy = "Finish the batch first";
 
-    /// <summary>The presented sections; while searching, Waiting and Snoozed are built expanded so their rows can be matched.</summary>
+    /// <summary>The presented sections; while searching, Muted, Waiting and Snoozed are built expanded so their rows can be matched.</summary>
     IReadOnlyList<InboxSection> Present(bool expandAll)
     {
         var cfg = _config.Current;
-        bool waitingExpanded, snoozedExpanded;
-        lock (_filterGate) { waitingExpanded = _waitingExpanded || expandAll; snoozedExpanded = _snoozedExpanded || expandAll; }
+        bool waitingExpanded, snoozedExpanded, mutedExpanded;
+        lock (_filterGate)
+        {
+            waitingExpanded = _waitingExpanded || expandAll;
+            snoozedExpanded = _snoozedExpanded || expandAll;
+            mutedExpanded = _mutedExpanded || expandAll;
+        }
         return InboxPresenter.Build(CurrentView(), _agents.Get, i => RulesEngine.Decide(i, cfg), _agents.WhyCannotRun,
             DateTimeOffset.Now, _actions.ActionsFor, k => _rowStates.GetValueOrDefault(k),
-            r => RepoNames.Display(r, cfg.Display.RepoAliases, cfg.Display.MaxRepoChars), waitingExpanded, snoozedExpanded);
+            r => RepoNames.Display(r, cfg.Display.RepoAliases, cfg.Display.MaxRepoChars), waitingExpanded, snoozedExpanded, mutedExpanded);
     }
 
     public IReadOnlyList<SourceStatus> Sources() => _reconciler.Statuses;
@@ -346,6 +354,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         foreach (var (key, s) in _rowStates)
             if (s.Mode == RowMode.Confirming) _rowStates.TryUpdate(key, RowStateMachine.Rearm(s, now), s);
         Batch.Rearm();
+        _justHidden = null; // Undo is offered until the popup is closed and opened again.
     }
 
     public void CycleTheme()
@@ -565,14 +574,41 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         Changed?.Invoke();
     }
 
-    /// <summary>Applies an edit to filters.mute in config.json with the Settings guards; false (after a toast) when it was not saved.</summary>
-    bool EditMuteConfig(Action<List<string>> edit)
+    /// <summary>Adds a filters.hide pattern for the item's repo, project or org. The footer offers Undo until the popup is reopened.</summary>
+    public void HideMatching(string key, MuteScope scope)
     {
-        var result = MuteConfigEditor.TrySave(_config, edit, _commentsWarningShown);
+        if (Find(key) is not { } item || MutePatterns.For(item, scope) is not { } pattern) return;
+        if (!EditMuteConfig(list => { if (!list.Contains(pattern, StringComparer.OrdinalIgnoreCase)) list.Add(pattern); }, FilterList.Hide)) return;
+        Log.Info($"hid {pattern}");
+        _justHidden = pattern;
+        Changed?.Invoke();
+    }
+
+    public string? JustHidden => _justHidden;
+
+    public void Unhide(string pattern)
+    {
+        if (!EditMuteConfig(list => list.RemoveAll(p => string.Equals(p, pattern, StringComparison.OrdinalIgnoreCase)), FilterList.Hide)) return;
+        if (string.Equals(_justHidden, pattern, StringComparison.OrdinalIgnoreCase)) _justHidden = null;
+        Changed?.Invoke();
+    }
+
+    /// <summary>Every filters.hide pattern with how many current items it hides.</summary>
+    public IReadOnlyList<HiddenFilter> HiddenFilters()
+    {
+        var items = _reconciler.Entries.Select(e => e.Item).ToList();
+        return _config.Current.Filters.Hide.Select(p => new HiddenFilter(p, Math.Max(0, SettingsDraft.CountMatches(p, items)))).ToList();
+    }
+
+    /// <summary>Applies an edit to filters.mute (or filters.hide) in config.json with the Settings guards; false (after a toast) when it was not saved.</summary>
+    bool EditMuteConfig(Action<List<string>> edit, FilterList list = FilterList.Mute)
+    {
+        var result = MuteConfigEditor.TrySave(_config, edit, _commentsWarningShown, list);
         if (result == MuteSaveResult.Saved) return true;
+        var what = list == FilterList.Hide ? "hide" : "mute";
         var message = result == MuteSaveResult.CommentsNotAcknowledged
-            ? "Couldn't save mute: config.json has comments — use Settings to save it once"
-            : "Couldn't save mute: config.json changed or has an error. Fix it or use Settings.";
+            ? $"Couldn't save {what}: config.json has comments — use Settings to save it once"
+            : $"Couldn't save {what}: config.json changed or has an error. Fix it or use Settings.";
         _toasts.Apply(new ToastRequest(ToastAction.Show, ItemTag.For("mute-error"), "gh_notify", message));
         return false;
     }
@@ -583,6 +619,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         {
             if (id == "waiting") _waitingExpanded = !_waitingExpanded;
             else if (id == "snoozed") _snoozedExpanded = !_snoozedExpanded;
+            else if (id == InboxPresenter.MutedSectionId) _mutedExpanded = !_mutedExpanded;
             else return;
         }
         Save();
@@ -742,6 +779,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
                         Snoozes = _snoozes.ToList(),
                         WaitingExpanded = _waitingExpanded,
                         SnoozedExpanded = _snoozedExpanded,
+                        MutedExpanded = _mutedExpanded,
                         CommentsWarningShown = _commentsWarningShown,
                         LastRunVersion = _lastRunVersion,
                         WhatsNewVersion = _whatsNewVersion,

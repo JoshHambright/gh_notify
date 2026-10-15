@@ -65,10 +65,15 @@ See [docs/notifications.md](docs/notifications.md).
 
 ### Mute, hide and snooze
 
-**Mute** a repo, org or project (silent but still listed), **hide** it entirely, or **snooze** a single item until it changes.
-The row's **⋯** menu does timed mutes and snoozes in two clicks (**Snooze** › 1 hour, 4 hours, Until tomorrow, Next week, Until it changes; **Mute repo / org / project** › 1 hour, Until tomorrow, Forever). Active mutes are listed, with **Unmute**, in the popup's own **⋯** menu.
+**Snooze** a single item until later, **mute** a repo, org or project (quiet, tucked into a collapsed **Muted** section), or
+**hide** it entirely until you turn it back on. Everything is in the row's **⋯** menu:
+- **Snooze** › 1 hour, 4 hours, Until tomorrow, Next week, Until it changes
+- **Mute repo / org / project** › 1 hour, Until tomorrow, Forever
+- **Hide repo / org / project**: one click, with **Undo** in the footer
 
-![Popup with a muted row (dimmed, 🔇) and a snoozed item at the bottom](docs/images/filters.png)
+The popup's own **⋯** menu lists active mutes (**Unmute**) and hidden patterns (**Unhide**, with how many items each hides).
+
+![Popup with a muted row (🔇) and a snoozed item at the bottom](docs/images/filters.png)
 
 ### The settings window
 

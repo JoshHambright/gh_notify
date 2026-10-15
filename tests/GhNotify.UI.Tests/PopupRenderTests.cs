@@ -182,7 +182,7 @@ public class PopupRenderTests
     {
         using var h = new PopupHarness();
         var menu = h.Window.RowMenuFor(h.RowMenuButton(SampleHost.CiKey), SampleHost.CiKey)!;
-        Assert.Equal(["Snooze", "Mute repo", "Mute org"], menu.Items.OfType<MenuItem>().Select(i => i.Header).ToList());
+        Assert.Equal(["Snooze", "Mute repo", "Mute org", "Hide repo", "Hide org"], menu.Items.OfType<MenuItem>().Select(i => i.Header).ToList());
         var ado = h.Window.RowMenuFor(h.RowMenuButton(SampleHost.ReviewKey), SampleHost.ReviewKey)!;
         Assert.Contains("Mute project", ado.Items.OfType<MenuItem>().Select(i => i.Header));
 

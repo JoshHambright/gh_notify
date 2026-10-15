@@ -174,7 +174,7 @@ public partial class PopupWindow : Window
         var update = _host.Update;
         var agents = _host.RunningAgents;
         if (update.Phase != UpdatePhase.Ready || agents == 0) _confirmingRestart = false;
-        var signature = UpdateUi.FooterSignature(statusText, sources, update, _confirmingRestart, agents, _host.WhatsNewVersion);
+        var signature = UpdateUi.FooterSignature(statusText, sources, update, _confirmingRestart, agents, _host.WhatsNewVersion, _host.JustHidden);
         if (signature == _footerSignature) return;
         _footerSignature = signature;
         var inlines = FooterText.Inlines ??= new InlineCollection();
@@ -182,7 +182,16 @@ public partial class PopupWindow : Window
         inlines.Add(new Run(statusText));
         AddSource(inlines, "GitHub", sources.Where(s => s.Name == "GitHub").ToList());
         AddSource(inlines, "ADO", sources.Where(s => s.Name == "ADO" || s.Name.StartsWith("ADO:", StringComparison.Ordinal)).ToList());
+        AddUndoHide(inlines);
         AddUpdateLink(inlines);
+    }
+
+    /// <summary>"Hidden gh:acme/legacy · Undo" right after a hide, until the popup is reopened.</summary>
+    void AddUndoHide(InlineCollection inlines)
+    {
+        if (_host.JustHidden is not { } pattern) return;
+        inlines.Add(new Run(" · " + UpdateUi.HiddenNotice(pattern) + " "));
+        inlines.Add(UpdateLink(UpdateUi.Undo, () => _host.Unhide(pattern), bold: true));
     }
 
     void AddUpdateLink(InlineCollection inlines)
@@ -372,6 +381,7 @@ public partial class PopupWindow : Window
                     case RowMenuKind.Snooze: _host.SnoozeItem(key, cmd.Snooze!.Value); break;
                     case RowMenuKind.Mute: _host.Mute(key, cmd.Scope!.Value, cmd.Duration!.Value); break;
                     case RowMenuKind.Unsnooze: _host.Unsnooze(key); break;
+                    case RowMenuKind.Hide: _host.HideMatching(key, cmd.Scope!.Value); break;
                 }
             };
         return item;
@@ -440,6 +450,7 @@ public partial class PopupWindow : Window
         menu.Items.Add(startup);
         menu.Items.Add(logs);
         menu.Items.Add(MutedMenu());
+        menu.Items.Add(HiddenMenu());
         menu.Items.Add(new Separator());
         menu.Items.Add(quit);
         return menu;
@@ -456,6 +467,21 @@ public partial class PopupWindow : Window
             var unmute = new MenuItem { Header = $"Unmute {m.Pattern} · {m.Remaining}".Replace("_", "__") };
             unmute.Click += (_, _) => _host.Unmute(m.Pattern);
             item.Items.Add(unmute);
+        }
+        return item;
+    }
+
+    /// <summary>"Hidden (n)" with an Unhide entry per filters.hide pattern; a disabled "Nothing hidden" when there are none.</summary>
+    MenuItem HiddenMenu()
+    {
+        var hidden = _host.HiddenFilters();
+        if (hidden.Count == 0) return new MenuItem { Header = "Nothing hidden", IsEnabled = false };
+        var item = new MenuItem { Header = $"Hidden ({hidden.Count})" };
+        foreach (var h in hidden)
+        {
+            var unhide = new MenuItem { Header = UpdateUi.UnhideItem(h.Pattern, h.Items).Replace("_", "__") };
+            unhide.Click += (_, _) => _host.Unhide(h.Pattern);
+            item.Items.Add(unhide);
         }
         return item;
     }

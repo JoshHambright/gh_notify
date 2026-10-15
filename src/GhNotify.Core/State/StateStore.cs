@@ -14,6 +14,8 @@ public sealed class AppState
     public List<Snooze> Snoozes { get; set; } = [];
     public bool WaitingExpanded { get; set; }
     public bool SnoozedExpanded { get; set; }
+    /// <summary>The Muted section is expanded (it starts collapsed).</summary>
+    public bool MutedExpanded { get; set; }
     /// <summary>The settings window has warned once that saving drops comments from config.json.</summary>
     public bool CommentsWarningShown { get; set; }
     /// <summary>The installed version that last started (null before v2.0 or on a fresh install).</summary>
