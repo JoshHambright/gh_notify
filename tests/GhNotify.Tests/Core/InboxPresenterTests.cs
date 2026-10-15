@@ -216,9 +216,31 @@ public class InboxPresenterTests
         Assert.Equal("acme/api", formatted.Repo);
     }
 
-    static IReadOnlyList<InboxSection> BuildView(InboxView view, bool waitingExpanded, bool snoozedExpanded, bool mutedExpanded = false) =>
+    static IReadOnlyList<InboxSection> BuildView(InboxView view, bool waitingExpanded, bool snoozedExpanded, bool mutedExpanded = false,
+        IReadOnlySet<string>? collapsed = null) =>
         InboxPresenter.Build(view, _ => null, _ => Button(), (_, _) => null, Now, ActionText.DefaultActions, null, null,
-            waitingExpanded, snoozedExpanded, mutedExpanded);
+            waitingExpanded, snoozedExpanded, mutedExpanded, collapsed);
+
+    [Fact]
+    public void Every_section_can_collapse_and_a_collapsed_one_keeps_its_count_but_not_its_rows_or_batch_buttons()
+    {
+        var view = InboxView.Compose(
+            [E("a1", ItemKind.ApprovalPending, TimeSpan.FromHours(1)), E("a2", ItemKind.ApprovalPending, TimeSpan.FromHours(2)),
+             E("r", ItemKind.ReviewRequested, TimeSpan.FromHours(3))],
+            new FiltersConfig(), [], [], Now);
+
+        var open = BuildView(view, false, false);
+        Assert.All(open, s => Assert.True(s.Collapsible && s.Expanded));
+        Assert.True(open.Single(s => s.Id == BatchApproval.SectionId).BatchButtons);
+
+        var shut = BuildView(view, false, false, collapsed: new HashSet<string> { BatchApproval.SectionId });
+        var approvals = shut.Single(s => s.Id == BatchApproval.SectionId);
+        Assert.False(approvals.Expanded);
+        Assert.Empty(approvals.Rows);
+        Assert.Equal(2, approvals.Count);
+        Assert.False(approvals.BatchButtons);
+        Assert.Equal("r", shut.Single(s => s.Id == nameof(ItemKind.ReviewRequested)).Rows.Single().Key);
+    }
 
     static InboxEntry InRepo(string repo, InboxEntry e) => e with { Item = e.Item with { Repo = repo } };
 

@@ -16,6 +16,8 @@ public sealed class AppState
     public bool SnoozedExpanded { get; set; }
     /// <summary>The Muted section is expanded (it starts collapsed).</summary>
     public bool MutedExpanded { get; set; }
+    /// <summary>Ids of the item-kind sections (they start expanded) that the user collapsed.</summary>
+    public List<string> CollapsedSections { get; set; } = [];
     /// <summary>The settings window has warned once that saving drops comments from config.json.</summary>
     public bool CommentsWarningShown { get; set; }
     /// <summary>The installed version that last started (null before v2.0 or on a fresh install).</summary>

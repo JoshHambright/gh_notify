@@ -38,6 +38,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     bool _waitingExpanded;
     bool _snoozedExpanded;
     bool _mutedExpanded;
+    // The other sections (Approvals, Review requests, …) start expanded; these are the ones the user collapsed.
+    readonly HashSet<string> _collapsed;
     string? _justHidden;
     double _popupWidth;
     double _textScale;
@@ -86,6 +88,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         _waitingExpanded = state.WaitingExpanded;
         _snoozedExpanded = state.SnoozedExpanded;
         _mutedExpanded = state.MutedExpanded;
+        _collapsed = new HashSet<string>(state.CollapsedSections);
         _commentsWarningShown = state.CommentsWarningShown;
         _lastRunVersion = state.LastRunVersion;
         _whatsNewVersion = state.WhatsNewVersion;
@@ -342,15 +345,17 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     {
         var cfg = _config.Current;
         bool waitingExpanded, snoozedExpanded, mutedExpanded;
+        HashSet<string>? collapsed;
         lock (_filterGate)
         {
             waitingExpanded = _waitingExpanded || expandAll;
             snoozedExpanded = _snoozedExpanded || expandAll;
             mutedExpanded = _mutedExpanded || expandAll;
+            collapsed = expandAll ? null : new HashSet<string>(_collapsed);
         }
         return InboxPresenter.Build(CurrentView(), _agents.Get, i => RulesEngine.Decide(i, cfg), _agents.WhyCannotRun,
             DateTimeOffset.Now, _actions.ActionsFor, k => _rowStates.GetValueOrDefault(k),
-            r => RepoNames.Display(r, cfg.Display.RepoAliases, PopupSize.RepoChars(cfg.Display.MaxRepoChars, _popupWidth)), waitingExpanded, snoozedExpanded, mutedExpanded);
+            r => RepoNames.Display(r, cfg.Display.RepoAliases, PopupSize.RepoChars(cfg.Display.MaxRepoChars, _popupWidth)), waitingExpanded, snoozedExpanded, mutedExpanded, collapsed);
     }
 
     public IReadOnlyList<SourceStatus> Sources() => _reconciler.Statuses;
@@ -660,7 +665,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
             if (id == "waiting") _waitingExpanded = !_waitingExpanded;
             else if (id == "snoozed") _snoozedExpanded = !_snoozedExpanded;
             else if (id == InboxPresenter.MutedSectionId) _mutedExpanded = !_mutedExpanded;
-            else return;
+            else if (!_collapsed.Remove(id)) _collapsed.Add(id);
         }
         Save();
         Changed?.Invoke();
@@ -841,6 +846,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
                         WaitingExpanded = _waitingExpanded,
                         SnoozedExpanded = _snoozedExpanded,
                         MutedExpanded = _mutedExpanded,
+                        CollapsedSections = _collapsed.Order(StringComparer.Ordinal).ToList(),
                         CommentsWarningShown = _commentsWarningShown,
                         LastRunVersion = _lastRunVersion,
                         WhatsNewVersion = _whatsNewVersion,

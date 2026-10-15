@@ -107,5 +107,11 @@ public sealed class AppControllerHideTests : IDisposable
         // Searching opens it even when collapsed.
         _controller.ToggleSection(InboxPresenter.MutedSectionId);
         Assert.Contains("gh:review:acme/web#2", _controller.BuildSections("acme/web").SelectMany(s => s.Rows).Select(r => r.Key));
+
+        // Item-kind sections collapse too, and that is remembered; searching opens everything.
+        _controller.ToggleSection(nameof(ItemKind.ReviewRequested)); // Muted is collapsed again by now
+        Assert.Empty(Keys());
+        Assert.Equal([nameof(ItemKind.ReviewRequested)], new StateStore(Path.Combine(_root, "state.json")).Load().CollapsedSections);
+        Assert.Contains("gh:review:acme/api#1", _controller.BuildSections("acme/api").SelectMany(s => s.Rows).Select(r => r.Key));
     }
 }

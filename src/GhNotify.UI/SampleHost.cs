@@ -183,6 +183,8 @@ public sealed class SampleHost : IPopupHost
     public bool SnoozedExpanded { get; set; } = true;
     /// <summary>The Muted section is expanded (the live app starts it collapsed; previews show the muted row).</summary>
     public bool MutedExpanded { get; set; } = true;
+    /// <summary>Item-kind sections the user collapsed (they start expanded).</summary>
+    public HashSet<string> Collapsed { get; } = [];
     public double PopupWidth { get; set; } = PopupSize.DefaultWidth;
     public double TextScale { get; set; } = 1.0;
 
@@ -205,7 +207,7 @@ public sealed class SampleHost : IPopupHost
         var searching = !string.IsNullOrWhiteSpace(query);
         var sections = InboxPresenter.Build(View(), k => _runs.GetValueOrDefault(k), Decide, (_, _) => null, Clock(),
             ActionText.DefaultActions, k => States.GetValueOrDefault(k), r => RepoNames.Display(r, null, PopupSize.RepoChars(34, PopupWidth)),
-            waitingExpanded: WaitingExpanded || searching, snoozedExpanded: SnoozedExpanded || searching, mutedExpanded: MutedExpanded || searching);
+            waitingExpanded: WaitingExpanded || searching, snoozedExpanded: SnoozedExpanded || searching, mutedExpanded: MutedExpanded || searching, collapsed: searching ? null : Collapsed);
         sections = InboxFilter.Apply(sections, query);
         return searching ? sections.Select(s => s.BatchButtons ? s with { BatchButtons = false } : s).ToList() : sections;
     }
@@ -362,6 +364,7 @@ public sealed class SampleHost : IPopupHost
         if (id == "waiting") WaitingExpanded = !WaitingExpanded;
         else if (id == "snoozed") SnoozedExpanded = !SnoozedExpanded;
         else if (id == InboxPresenter.MutedSectionId) MutedExpanded = !MutedExpanded;
+        else if (!Collapsed.Remove(id)) Collapsed.Add(id);
         Changed?.Invoke();
     }
 

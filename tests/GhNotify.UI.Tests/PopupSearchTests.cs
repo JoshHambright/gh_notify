@@ -54,9 +54,9 @@ public class PopupSearchTests
         var count = h.All<TextBlock>().First(t => t.Name == "CountText").Text;
         Search(h, "#57");
         var texts = h.Texts(h.Window);
-        Assert.DoesNotContain("APPROVALS", texts);
-        Assert.DoesNotContain("REVIEW REQUESTS", texts);
-        Assert.Contains("MY PRS — FAILING", texts);
+        Assert.DoesNotContain(texts, t => t.StartsWith("APPROVALS", StringComparison.Ordinal));
+        Assert.DoesNotContain(texts, t => t.StartsWith("REVIEW REQUESTS", StringComparison.Ordinal));
+        Assert.Contains(texts, t => t.StartsWith("MY PRS — FAILING (", StringComparison.Ordinal));
         Assert.Equal(count, h.All<TextBlock>().First(t => t.Name == "CountText").Text);
     }
 

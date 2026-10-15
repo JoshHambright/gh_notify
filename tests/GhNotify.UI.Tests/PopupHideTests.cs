@@ -91,4 +91,23 @@ public class PopupHideTests
         Assert.False(h.HasCard(SampleHost.MutedKey));
         Assert.Contains("MUTED", h.All<TextBlock>().Select(t => t.Text));
     }
+
+    [AvaloniaFact]
+    public void Clicking_any_section_header_collapses_and_expands_it()
+    {
+        using var h = new PopupHarness();
+        Button Header(string id) => h.All<Button>().First(b => b.Tag as string == id);
+        Assert.True(h.HasCard(SampleHost.ApprovalKey));
+
+        h.Click(Header(BatchApproval.SectionId));
+        h.Pump();
+        Assert.Contains("section " + BatchApproval.SectionId, h.Host.Calls);
+        Assert.False(h.HasCard(SampleHost.ApprovalKey));
+        Assert.Null(h.TryButton("Approve all…")); // the batch needs the rows on screen
+        Assert.True(h.HasCard(SampleHost.CiKey)); // other sections are untouched
+
+        h.Click(Header(BatchApproval.SectionId));
+        h.Pump();
+        Assert.True(h.HasCard(SampleHost.ApprovalKey));
+    }
 }
