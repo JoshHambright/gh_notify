@@ -1,4 +1,4 @@
-param([string]$Out = (Join-Path $PSScriptRoot '..\src\GhNotify.App\Sounds'))
+param([string]$Out = (Join-Path $PSScriptRoot '..\src\GhNotify.Platform.Windows\Sounds'))
 $ErrorActionPreference = 'Stop'
 New-Item -ItemType Directory -Force $Out | Out-Null
 $rate = 44100
