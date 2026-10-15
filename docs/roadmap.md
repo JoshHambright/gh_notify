@@ -7,8 +7,9 @@ Every release follows the same pipeline: a design spec (`docs/superpowers/specs/
 | Release | Theme | Status |
 |---|---|---|
 | v1.0–v1.2 | Inbox, toasts, approvals, agents, installer, settings, mute/snooze | ✅ Shipped |
-| **v1.3** | Clear work from the tray | 🟡 In progress |
-| **v2.0** | Cross-platform UI (Avalonia), Windows first | 🟡 Designing ([spec](superpowers/specs/2026-10-14-gh-notify-v2.0-design.md)) |
+| **v1.3** | Clear work from the tray | ✅ Shipped |
+| **v2.0** | Cross-platform UI (Avalonia), Windows first | 🟡 In review, dogfooding ([spec](superpowers/specs/2026-10-14-gh-notify-v2.0-design.md), [#9](https://github.com/JoshHambright/gh_notify/pull/9)) |
+| **v2.0.x** | Hide, not just mute | ⚪ Next |
 | **v2.1** | macOS | ⚪ Planned, [#1](https://github.com/JoshHambright/gh_notify/issues/1) |
 | **v2.2** | Broader inbox and smarter alerts | ⚪ Planned |
 | **v2.3** | Agent hand-off and insights | ⚪ Planned |
@@ -43,6 +44,22 @@ Not planned for now: code signing, and Teams/Slack notifications. Revisit them a
 - Users get v2.0 as a normal auto-update from v1.3. CI adds a v1.3 → v2.0 upgrade test.
 
 **Exit criteria:** the parity checklist is ticked, screenshots match, and the build has been dogfooded for a few days before release.
+
+## v2.0.x: Hide, not just mute
+
+**Goal:** an org, project or repo you don't care about disappears completely, and stays gone until you turn it back on in Settings. Today the row menu only offers Mute and Snooze. Muted items stay in the list as dimmed rows. In daily use they pile up, push useful items out of view and make the popup noisy.
+
+| Change | What it does |
+|---|---|
+| **Hide from the row menu** | The ⋯ menu gains **Hide repo**, **Hide org** and (for ADO) **Hide project**. Each writes a `filters.hide` pattern. A hidden item gets no row, no badge count, no toast, no sound and no auto-agent. A hide is permanent; it has no expiry. |
+| **Undo right away** | After a hide, the footer briefly shows "Hidden acme/legacy · Undo", so a slip costs one click. |
+| **Turn it back on in Settings** | Settings → Filters lists every hide pattern with how many current items it hides, and an **Unhide** button for each. The footer menu also lists hidden patterns, next to the active mutes. |
+| **Muted rows stop crowding the list** | Muted items move into a **Muted (n)** section that starts collapsed, like Waiting and Snoozed, instead of being mixed in with live rows as dimmed rows. |
+| **Clear wording** | Each menu item says what it does: **Snooze** brings the item back later; **Mute** stays visible but quiet; **Hide** removes it until you unhide it in Settings. |
+
+**Builds on:** `filters.hide`, which already works and is editable in Settings → Filters; the row-menu mute flow (pattern building per provider) and the footer mutes menu; `InboxSections`.
+**Risks:** a hide pattern that is too broad, such as a whole org, can hide something urgent. Mitigations: the Undo link, the per-pattern count in Settings, and the hidden count in the popup footer ("3 hidden"). Hiding never touches the item on GitHub or ADO.
+**Exit criteria:** hide and unhide work for repo, org and ADO project from the popup and from Settings; a hidden item never toasts or counts; muted items sit in a collapsed section; the headless UI tests cover hide, undo, unhide and the muted section.
 
 ## v2.1: macOS
 
