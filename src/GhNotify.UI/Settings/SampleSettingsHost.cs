@@ -87,6 +87,7 @@ public sealed class SampleSettingsHost : ISettingsHost
         new(UpdatePhase.Idle, "1.2.0", null, null, new DateTimeOffset(2026, 10, 14, 9, 30, 0, TimeSpan.Zero));
     public Task CheckForUpdatesAsync() => Task.CompletedTask;
     public bool StartWithWindows { get; set; } = true;
+    public string? StartupProblem { get; set; }
     public ThemeMode ThemeMode { get; private set; } = ThemeMode.System;
     public void SetThemeMode(ThemeMode mode) => ThemeMode = mode;
     public double TextScale { get; private set; } = 1.0;

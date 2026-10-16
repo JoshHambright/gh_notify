@@ -491,3 +491,6 @@ mac-test-*.zip
 
 # Hand-written release notes (the [Rr]eleases/ build-output rule above would hide them)
 !docs/releases/
+
+# macOS shim build output (native/mac/build.sh)
+native/mac/out/

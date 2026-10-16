@@ -21,6 +21,7 @@ public sealed record AppOptions(
 public partial class App : Application
 {
     static readonly int[] TraySizes = [16, 20, 24, 32];
+    internal const int MacTrayPx = 44;
 
     readonly AppOptions? _options;
     readonly CancellationTokenSource _cts = new();
@@ -162,6 +163,7 @@ public partial class App : Application
     /// <summary>Left click on the tray icon.</summary>
     public void TogglePopup()
     {
+        if (UiPlatform.IsMac) Log.Info($"toggle popup (visible {_popup!.IsVisible})");
         if (_popup!.IsVisible) _popup.Hide();
         else if ((DateTime.UtcNow - _popup.LastHiddenByDeactivateUtc).TotalMilliseconds < 300) return; // the tray click itself deactivated the popup
         else _popup.ShowNearTray();
@@ -172,12 +174,17 @@ public partial class App : Application
         if (_tray is null || _controller is null) return;
         var (count, unhealthy) = _controller.TrayState();
         var scale = _popup?.Screens.Primary?.Scaling ?? 1.0;
-        var size = TraySizes.FirstOrDefault(s => s >= 16 * scale, TraySizes[^1]);
+        // macOS draws the status item at the menu-bar height (22 pt). The popup's screen scale is unknown until it is first shown,
+        // so a scale-derived size came out 16 px and was blown up on Retina: always render 44 px (22 pt at 2x); macOS scales down.
+        var size = UiPlatform.IsMac ? MacTrayPx : TraySizes.FirstOrDefault(s => s >= 16 * scale, TraySizes[^1]);
         var iconKey = (size, BadgeText.For(count), unhealthy);
         if (iconKey != _trayIconKey)
         {
             _trayIconKey = iconKey;
-            using var bmp = TrayIconRenderer.Render(size, iconKey.Item2, unhealthy);
+            // macOS: the calm icon is a template image, tinted by the menu bar; waiting and unhealthy keep their colours.
+            var template = UiPlatform.IsMac && iconKey.Item2 is null && !unhealthy;
+            using var bmp = template ? TrayIconRenderer.RenderTemplate(size) : TrayIconRenderer.Render(size, iconKey.Item2, unhealthy);
+            if (UiPlatform.IsMac) MacOSProperties.SetIsTemplateIcon(_tray, template);
             _tray.Icon = new WindowIcon(new MemoryStream(TrayIconRenderer.ToPng(bmp)));
         }
         var problem = _controller.TrayProblem();

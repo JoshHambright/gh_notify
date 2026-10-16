@@ -39,6 +39,7 @@ public partial class PopupWindow : Window
     int _selectedIndex;
     // Where the popup sits: the primary screen's work area, bottom-right (set when it is shown).
     PixelRect? _area;
+    double _areaScaling = 1;
 
     public PopupWindow() : this(new SampleHost()) { }
 
@@ -64,7 +65,7 @@ public partial class PopupWindow : Window
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel);
         Activated += OnActivated;
         Deactivated += OnDeactivated;
-        SizeChanged += (_, _) => { if (IsVisible) PlaceBottomRight(); };
+        SizeChanged += (_, _) => { if (IsVisible) PlaceNearTray(); };
         InitResizeGrip();
     }
 
@@ -274,7 +275,7 @@ public partial class PopupWindow : Window
 
     // ----- show / hide / placement -----
 
-    /// <summary>Shows the popup at the bottom-right of the primary screen's work area and re-arms any open confirm panel.</summary>
+    /// <summary>Shows the popup next to the tray in the primary screen's work area (see <see cref="PlaceNearTray"/>) and re-arms any open confirm panel.</summary>
     public void ShowNearTray()
     {
         _selectedKey = null; // opening selects the first row
@@ -284,25 +285,31 @@ public partial class PopupWindow : Window
         if (screen is not null)
         {
             _area = screen.WorkingArea;
-            MaxHeight = Math.Max(MinHeight, _area.Value.Height / screen.Scaling - 40);
+            _areaScaling = screen.Scaling > 0 ? screen.Scaling : 1;
+            MaxHeight = Math.Max(MinHeight, _area.Value.Height / _areaScaling - 40);
         }
         Render();
-        PlaceBottomRight();
+        PlaceNearTray();
         Show();
         Activate();
-        PlaceBottomRight();
+        PlaceNearTray();
+        if (UiPlatform.IsMac) Log.Info($"popup shown at {Position} in {_area} (screen scaling {_areaScaling}, render scaling {RenderScaling}), active {IsActive}");
     }
 
-    /// <summary>SizeToContent grows and shrinks the height (expanding a row); keep the popup anchored to the bottom of the work area.</summary>
-    void PlaceBottomRight()
+    /// <summary>SizeToContent grows and shrinks the height (expanding a row); keep the popup anchored next to the tray: the
+    /// bottom-right of the work area on Windows (taskbar), the top-right on macOS (under the menu bar).</summary>
+    void PlaceNearTray()
     {
         if (_area is not { } area) return;
-        var scale = RenderScaling > 0 ? RenderScaling : 1;
+        // Position and the work area are in the screen's units: pixels on Windows (scaling = DPI), points on macOS (scaling 1,
+        // although the window renders at 2x on Retina), so convert the size with the screen's scaling, not the window's.
+        var scale = _areaScaling;
         var height = Bounds.Height > 0 ? Bounds.Height : MinHeight;
-        Position = new PixelPoint(
-            area.Right - (int)Math.Round(Width * scale),
-            area.Bottom - (int)Math.Round(height * scale));
+        Position = TrayPlacement(area, (int)Math.Round(Width * scale), (int)Math.Round(height * scale), UiPlatform.IsMac);
     }
+
+    internal static PixelPoint TrayPlacement(PixelRect area, int width, int height, bool mac) =>
+        new(area.Right - width, mac ? area.Y : area.Bottom - height);
 
     void OnActivated(object? sender, EventArgs e)
     {
@@ -314,6 +321,7 @@ public partial class PopupWindow : Window
     {
         // A deactivation that arrives after the popup was hidden and shown again is stale (IsActive is already true again).
         if (!IsVisible || IsActive) return;
+        if (UiPlatform.IsMac) Log.Info("popup hidden: it lost focus");
         LastHiddenByDeactivateUtc = DateTime.UtcNow;
         _confirmTick.Stop();
         Hide();
@@ -424,7 +432,7 @@ public partial class PopupWindow : Window
         openConfig.Click += (_, _) => _host.OpenConfig();
         var startup = new MenuItem
         {
-            Header = "Start with Windows",
+            Header = UiPlatform.StartupLabel,
             ToggleType = MenuItemToggleType.CheckBox,
             IsChecked = _host.StartWithWindows,
         };

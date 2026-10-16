@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text;
 using GhNotify.Core;
 using GhNotify.UI;
 
@@ -28,7 +27,7 @@ public sealed class WinShell(IProcessRunner runner, Func<string, string?>? find 
     /// <summary>Windows Terminal when installed (<c>wt -d dir command...</c>), otherwise a PowerShell window.</summary>
     public void OpenTerminal(string workingDir, string command)
     {
-        var tokens = SplitCommand(command);
+        var tokens = CommandLine.Split(command);
         if (_find("wt") is not null)
         {
             runner.StartDetached(new ProcessSpec("wt", ["-d", workingDir, .. tokens]));
@@ -41,27 +40,5 @@ public sealed class WinShell(IProcessRunner runner, Func<string, string?>? find 
         runner.StartDetached(new ProcessSpec("powershell",
             ["-NoExit", "-Command", $"Set-Location -LiteralPath '{quotedDir}'; {invocation}"],
             WorkingDirectory: workingDir));
-    }
-
-    /// <summary>Splits a command line on spaces; a "double quoted" section is one token (quotes removed).</summary>
-    internal static List<string> SplitCommand(string command)
-    {
-        var tokens = new List<string>();
-        var current = new StringBuilder();
-        var quoted = false;
-        var any = false;
-        foreach (var c in command)
-        {
-            if (c == '"') { quoted = !quoted; any = true; }
-            else if (c == ' ' && !quoted)
-            {
-                if (any) tokens.Add(current.ToString());
-                current.Clear();
-                any = false;
-            }
-            else { current.Append(c); any = true; }
-        }
-        if (any) tokens.Add(current.ToString());
-        return tokens;
     }
 }

@@ -12,6 +12,8 @@ A small Windows tray app that shows everything on GitHub and Azure DevOps that's
 
 **[⬇ Download GhNotify-win-Setup.exe](https://github.com/JoshHambright/gh_notify/releases/latest/download/GhNotify-win-Setup.exe)** — Windows 10/11, per-user, no admin rights. Updates install themselves.
 
+**macOS 13 or later (Apple Silicon or Intel):** see [Install on macOS](docs/install-macos.md).
+
 1. Run the installer. Windows SmartScreen may say "Windows protected your PC" because the build isn't code-signed yet: click **More info → Run anyway**.
 2. Sign in to GitHub once: `gh auth login` (needs the [GitHub CLI](https://cli.github.com/)).
 3. Optional, for Azure DevOps: `az login` (needs the [Azure CLI](https://aka.ms/installazurecliwindows)).
@@ -138,6 +140,7 @@ Check Windows Focus Assist / Do Not Disturb. Also, toasts are off outside your w
 
 ## Docs
 
+- [Install on macOS](docs/install-macos.md): the .pkg, Open Anyway, notifications, uninstall
 - [Configuration](docs/configuration.md): every `config.json` key, type and default
 - [Workflows](docs/workflows.md): profiles, rules, command scripts, hooks
 - [Actions and keyboard](docs/actions.md): approvals, merge, re-run, batch approvals, shortcuts, search
@@ -145,7 +148,7 @@ Check Windows Focus Assist / Do Not Disturb. Also, toasts are off outside your w
 - [Security](docs/security.md): tokens, agent limits, approvals, updates
 - [Troubleshooting](docs/troubleshooting.md)
 - [Development](docs/development.md): build, test, quality gates, releases
-- [Roadmap](docs/roadmap.md): what is planned for v1.3, v2.0 (cross-platform UI), v2.1 (macOS), v2.2 and v2.3
+- [Roadmap](docs/roadmap.md): what shipped and what is planned for v2.2 and v2.3
 
 ## Build from source
 

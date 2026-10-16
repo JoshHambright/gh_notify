@@ -58,7 +58,7 @@ public class WinShellTests
     [Fact]
     public void Splits_command_lines_on_unquoted_spaces()
     {
-        Assert.Equal(["a", "b c", "d"], WinShell.SplitCommand("a \"b c\"  d"));
-        Assert.Empty(WinShell.SplitCommand(""));
+        Assert.Equal(["a", "b c", "d"], CommandLine.Split("a \"b c\"  d"));
+        Assert.Empty(CommandLine.Split(""));
     }
 }

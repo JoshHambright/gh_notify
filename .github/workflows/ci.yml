@@ -43,6 +43,56 @@ jobs:
         run: dotnet build tests/GhNotify.UI.Tests/GhNotify.UI.Tests.csproj -c Release --no-restore -warnaserror
       - name: UI tests (headless)
         run: dotnet test tests/GhNotify.UI.Tests/GhNotify.UI.Tests.csproj -c Release --no-build
+  # macOS: the Swift shim, the Mac projects and every platform-neutral test, then pack, install, update and uninstall. The packed
+  # .pkg is kept as an artifact for the Mac tester (build/mac-test.sh --round 2, docs/macos-testing.md).
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Swift shim (universal)
+        run: ./native/mac/build.sh
+        shell: bash
+      - name: Build (warnings are errors)
+        run: |
+          foreach ($p in 'tests/GhNotify.Tests', 'tests/GhNotify.UI.Tests', 'tests/GhNotify.Platform.Mac.Tests') {
+            dotnet build $p -c Release -warnaserror
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+      - name: Tests
+        run: |
+          $failed = 0
+          foreach ($p in 'tests/GhNotify.Tests', 'tests/GhNotify.UI.Tests', 'tests/GhNotify.Platform.Mac.Tests') {
+            dotnet test $p -c Release --no-build
+            if ($LASTEXITCODE) { $failed = 1 }
+          }
+          exit $failed
+      - name: Install vpk
+        run: dotnet tool install -g vpk --version $env:VELOPACK_VERSION
+      - name: Pack Apple Silicon (osx-arm64, two versions)
+        shell: bash
+        run: |
+          ./build/pack-mac.sh 0.0.1-ci artifacts/mac-old osx-arm64
+          ./build/pack-mac.sh 0.0.2-ci artifacts/mac-new osx-arm64
+      - name: Pack Intel (osx-x64; built here, not run)
+        shell: bash
+        run: ./build/pack-mac.sh 0.0.2-ci artifacts/mac-x64 osx-x64
+      - name: Install / update / uninstall test
+        shell: bash
+        run: ./build/test-install-mac.sh artifacts/mac-old artifacts/mac-new osx-arm64
+      - name: Keep the package for the Mac tester
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: gh_notify-macos-arm64
+          path: artifacts/mac-new/*.pkg
+          if-no-files-found: warn
+          retention-days: 14
   build:
     runs-on: windows-latest
     steps:

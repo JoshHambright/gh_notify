@@ -18,11 +18,11 @@ For tests and development, `GHNOTIFY_CONFIG_DIR` and `GHNOTIFY_DATA_DIR` overrid
 | `workHours` | object | see below | When toasts are allowed. |
 | `github` | object | see below | GitHub source. |
 | `ado` | object | see below | Azure DevOps source. |
-| `repoRoots` | string[] | `["C:\\dev"]` | Folders searched for local clones (agents run in a worktree of the clone). |
+| `repoRoots` | string[] | `["C:\\dev"]` (Windows), `["~/dev"]` (macOS) | Folders searched for local clones (agents run in a worktree of the clone). |
 | `maxConcurrentAgents` | int | `2` | Agent runs at once. At least 1. Needs a restart. |
 | `agentTimeoutMinutes` | int | `20` | Kill an agent or command run after this long. At least 1. |
 | `agentAllowedTools` | string[] | read-only set: `Read`, `Grep`, `Glob`, `gh pr view/diff/checks`, `gh run view`, `gh api`, `git`, read-only `az repos pr` / `az pipelines` verbs, `bash` | Tools Claude agents may use, on top of the profile's own. The always-on deny list is separate; see [security.md](security.md). |
-| `hotkey` | string | `"Win+Shift+G"` | Global hotkey that shows or hides the popup. Modifiers `Ctrl`, `Alt`, `Shift`, `Win` joined by `+`, then `A`–`Z`, `0`–`9` or `F1`–`F12`. Needs a modifier unless it is an `F` key. `""` turns it off. If another app owns it, Settings says so. |
+| `hotkey` | string | `"Win+Shift+G"` (Windows), `"Ctrl+Option+G"` (macOS) | Global hotkey that shows or hides the popup. Modifiers `Ctrl`, `Alt` (or `Option`), `Shift`, `Win` (or `Cmd`) joined by `+`, then `A`–`Z`, `0`–`9` or `F1`–`F12`. Needs a modifier unless it is an `F` key. `""` turns it off. If another app owns it, Settings says so. |
 | `actions` | object | see below | In-tray actions. |
 | `display` | object | see below | Popup display. |
 | `updates` | object | see below | Auto-update. |
@@ -73,6 +73,7 @@ For tests and development, `GHNOTIFY_CONFIG_DIR` and `GHNOTIFY_DATA_DIR` overrid
 |---|---|---|---|
 | `repoAliases` | object | `{}` | Prefix → short name, applied to repo names in the popup. |
 | `maxRepoChars` | int | `34` | Longer repo names are shortened in the middle, keeping the repo segment. At least 12. Applies at the default popup width; a wider popup allows about one more character per 6 px. |
+| `terminal` | string | `"terminal"` | macOS only. Where terminal actions (Open in Claude) open: `"terminal"` (Terminal.app), `"iterm"` (iTerm2), or the path of a command that gets the folder and the command line as its two arguments. Settings › Advanced. |
 
 `display.repoAliases` shortens repo names in the popup. A key is an org (`"contoso-engineering"`) or an org/project prefix
 (`"contoso-engineering/platform"`). The longest matching prefix is replaced by the value. A name still longer than

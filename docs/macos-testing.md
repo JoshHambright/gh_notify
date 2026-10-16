@@ -2,7 +2,7 @@
 
 Thanks for helping. gh_notify is a tray app that shows the GitHub and Azure DevOps items waiting on you. It is moving from a Windows-only UI to Avalonia so it can run on macOS.
 
-**Where things stand:** v2.0 (branch `feat/v2.0`) ports the UI to Avalonia, but the app's startup host is still Windows-only. The macOS host, menu-bar icon, notifications and `.pkg` installer come in v2.1. So there is **no app to launch on a Mac yet.** Round 1 checks that the shared UI builds, passes its tests and renders correctly on macOS. Round 2, the real install test, comes when v2.1 is ready.
+**Where things stand:** round 1 checks that the shared UI builds, passes its tests and renders correctly on macOS. Round 2 installs the v2.1 macOS app and walks through it.
 
 Each round takes about 15 minutes, plus download time.
 
@@ -23,7 +23,7 @@ Run these in Terminal:
 ```sh
 git clone https://github.com/JoshHambright/gh_notify.git
 cd gh_notify
-git checkout feat/v2.0
+git checkout main
 ./build/mac-test.sh
 ```
 
@@ -56,14 +56,47 @@ Send back the one file `mac-test-<time>.zip` from the repo folder. It contains:
 
 The UI build and UI tests should pass with no failures. Linux CI already runs them, so any failure there is specific to macOS. Some core tests may assume Windows paths; those failures help us scope v2.1. Everything uses placeholder names only (contoso, fabrikam, alice, bob), so the zip is safe to share.
 
-## Round 2: install and smoke test (when v2.1 is ready)
+## Round 2: install and walk through the app
 
-We'll send a `.pkg` and a short checklist covering:
+This round installs the real app and checks the parts only a Mac can show: the menu-bar icon, notifications, the hotkey and
+open at login. If `gh` is signed in (`gh auth login`), the inbox shows your real GitHub items, which are read only; without it the inbox
+is empty and a few questions don't apply. It takes about 15 minutes.
 
-- **Installing:** the app is ad-hoc signed, so macOS will block the first launch. You'll allow it once in System Settings → Privacy & Security → **Open Anyway**. We want to know exactly what you saw.
-- **Menu-bar icon:** it is calm when nothing is waiting and red with a count when something is. Clicking it opens the popup below the icon.
-- **Notification permission prompt:** the notifications appear and clicking one opens the right item.
-- **Sign-in:** reusing `gh auth login`, the global hotkey, sounds and start at login.
-- **Updates and uninstall:** updating to a newer build keeps your settings, and uninstalling cleans up.
+### Get the package
 
-That round needs a GitHub account with `gh` installed (`brew install gh`). We'll send exact steps then.
+1. Open the pull request we send you (for v2.1 that is [#16](https://github.com/JoshHambright/gh_notify/pull/16)) and click
+   **Checks**, then the **CI** run, then scroll to **Artifacts**. You need to be signed in to GitHub to download it.
+2. Download **gh_notify-macos-arm64** and unzip it. Inside is a `.pkg` file.
+
+### Steps
+
+In Terminal, from the repo folder. Until v2.1 is merged, the round 2 script lives on the `feat/v2.1` branch:
+
+```sh
+git fetch && git checkout feat/v2.1 && git pull
+./build/mac-test.sh --round 2 ~/Downloads/gh_notify-macos-arm64/GhNotify-osx-arm64-Setup.pkg
+```
+
+No artifact, or prefer to build it yourself? With the Xcode command line tools (`xcode-select --install`) and vpk
+(`dotnet tool install -g vpk --version 1.2.161`):
+
+```sh
+./build/pack-mac.sh 0.0.1-local out osx-arm64
+./build/mac-test.sh --round 2 out/GhNotify-osx-arm64-Setup.pkg
+```
+
+The script:
+1. installs the package (macOS asks for your password);
+2. starts gh_notify (with `open`, like Finder) with settings in a scratch folder, so a real gh_notify setup is never touched;
+3. shows a test notification after about 5 seconds, and opens a Terminal window after about 10;
+4. asks you 13 yes/no questions, one at a time, each with room for a note.
+
+The app is ad-hoc signed, not notarized. If macOS blocks it, open System Settings → Privacy & Security, click **Open Anyway**,
+and say so in the first answer, including the exact wording macOS used.
+
+### What to send back
+
+Send back the one file `mac-test-r2-<time>.zip` from the repo folder. It contains your answers, `summary.json` (macOS version,
+chip, app version and signature type) and the app's logs, with your home folder shown as `~`.
+
+gh_notify stays installed afterwards. The script prints how to remove it.

@@ -8,9 +8,9 @@ Every release follows the same pipeline: a design spec (`docs/superpowers/specs/
 |---|---|---|
 | v1.0–v1.2 | Inbox, toasts, approvals, agents, installer, settings, mute/snooze | ✅ Shipped |
 | **v1.3** | Clear work from the tray | ✅ Shipped |
-| **v2.0** | Cross-platform UI (Avalonia), Windows first | 🟡 In review, dogfooding ([spec](superpowers/specs/2026-10-14-gh-notify-v2.0-design.md), [#9](https://github.com/JoshHambright/gh_notify/pull/9)) |
-| **v2.0.x** | Hide, not just mute | 🟡 In review, ships with v2.0.0 |
-| **v2.1** | macOS | ⚪ Planned, [#1](https://github.com/JoshHambright/gh_notify/issues/1) |
+| **v2.0** | Cross-platform UI (Avalonia), Windows first | ✅ Shipped ([spec](superpowers/specs/2026-10-14-gh-notify-v2.0-design.md)) |
+| **v2.0.x** | Hide, not just mute | ✅ Shipped in v2.0.0 |
+| **v2.1** | macOS | 🟡 In progress ([spec](superpowers/specs/2026-10-16-gh-notify-v2.1-design.md), [#16](https://github.com/JoshHambright/gh_notify/pull/16), [#1](https://github.com/JoshHambright/gh_notify/issues/1)) |
 | **v2.2** | Broader inbox and smarter alerts | ⚪ Planned |
 | **v2.3** | Agent hand-off and insights | ⚪ Planned |
 
@@ -68,9 +68,9 @@ Not planned for now: code signing, and Teams/Slack notifications. Revisit them a
 | Area | Plan |
 |---|---|
 | **Tray** | Avalonia `TrayIcon` as the menu-bar item (template image, calm → red). |
-| **Notifications** | Windows keeps toasts. macOS uses `UNUserNotificationCenter` through a small native shim, with action buttons where supported. |
+| **Notifications** | Windows keeps toasts. macOS uses `UNUserNotificationCenter` through a small Swift shim. Click-to-open, like Windows toasts. |
 | **Sounds** | `afplay` on macOS; the built-in wavs are reused. |
-| **Startup** | A Run key on Windows; a LaunchAgent plist on macOS. |
+| **Startup** | A Run key on Windows; a Login Items entry (`SMAppService`) on macOS. |
 | **Auth** | `gh auth token` and `az` work on both. Any stored secrets go to Keychain on macOS. |
 | **Install/update** | Velopack `.pkg` for macOS (Apple Silicon and Intel), ad-hoc signed; `Setup.exe` for Windows. Separate release channels per OS. Developer ID and notarization come later. |
 | **Hotkey** | Carbon `RegisterEventHotKey` through `GhNotify.Platform.Mac`. |

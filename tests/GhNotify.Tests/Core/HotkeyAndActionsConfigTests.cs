@@ -15,7 +15,7 @@ public class HotkeyAndActionsConfigTests
     public void Defaults_are_win_shift_g_and_repo_default_merge_method()
     {
         var c = new AppConfig();
-        Assert.Equal("Win+Shift+G", c.Hotkey);
+        Assert.Equal(AppConfig.DefaultHotkey(OperatingSystem.IsMacOS()), c.Hotkey);
         Assert.Null(c.Actions.MergeMethod);
         Assert.Empty(ConfigValidator.Errors(c));
     }
@@ -27,7 +27,7 @@ public class HotkeyAndActionsConfigTests
         store.Load();
         Assert.Null(store.Error);
         Assert.Equal(90, store.Current.PollSeconds);
-        Assert.Equal("Win+Shift+G", store.Current.Hotkey);
+        Assert.Equal(AppConfig.DefaultHotkey(OperatingSystem.IsMacOS()), store.Current.Hotkey);
         Assert.Null(store.Current.Actions.MergeMethod);
     }
 
