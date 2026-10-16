@@ -51,6 +51,17 @@ jobs:
           $desc = if ($ok) { "docs/releases/v$version.md found" } else { "add docs/releases/v$version.md (from TEMPLATE.md) to main" }
           gh api "repos/$env:GITHUB_REPOSITORY/statuses/$sha" -f state=$state -f context=release-notes -f description=$desc | Out-Null
           if (-not $ok) { exit 1 }
+  codeql-release-pr:
+    # The main ruleset requires a CodeQL result on the release PR, which gets no pull_request runs (see codeql.yml).
+    needs: release-please
+    if: needs.release-please.outputs.pr != ''
+    permissions:
+      contents: read
+      security-events: write
+    uses: ./.github/workflows/codeql.yml
+    with:
+      branch: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+      pr: ${{ fromJSON(needs.release-please.outputs.pr).number }}
   publish:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
