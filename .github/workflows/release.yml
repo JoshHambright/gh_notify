@@ -141,3 +141,63 @@ jobs:
         run: |
           gh release edit $env:TAG --repo "$env:GITHUB_REPOSITORY" --notes-file artifacts/notes.md
           if ($LASTEXITCODE) { Write-Host "::error::could not set the release notes on $env:TAG"; exit 1 }
+  # macOS: after the Windows release is up, pack both Mac channels with the same notes and add them to the same release. The gates
+  # job already ran the macOS install / update / uninstall test on this commit. A failure here leaves Windows released; fix and
+  # re-run Actions -> Release with the tag (the Windows upload is idempotent with --merge).
+  release-mac:
+    needs: release
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Install vpk
+        run: dotnet tool install -g vpk --version $env:VELOPACK_VERSION
+      - name: Notes and previous macOS packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          New-Item -ItemType Directory -Force artifacts/mac-prev | Out-Null
+          # The Windows job set the release body to the full notes; the Mac packages carry the same text.
+          gh release view $env:TAG --repo "$env:GITHUB_REPOSITORY" --json body --jq .body > artifacts/notes.md
+          if ($LASTEXITCODE) { Write-Host "::error::could not read the notes of $env:TAG"; exit 1 }
+          $tags = @(gh release list --repo "$env:GITHUB_REPOSITORY" --exclude-drafts --limit 30 --json tagName --jq '.[].tagName')
+          foreach ($t in $tags) {
+            if (-not $t -or $t -eq $env:TAG) { continue }
+            $names = @(gh release view $t --repo "$env:GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+            if ($names | Where-Object { $_ -like 'releases.osx-*.json' }) {
+              gh release download $t --repo "$env:GITHUB_REPOSITORY" --dir artifacts/mac-prev --pattern '*osx-*' --clobber
+              Write-Host "previous macOS release: $t"
+              break
+            }
+          }
+      - name: Pack (osx-arm64, osx-x64)
+        shell: bash
+        run: ./build/pack-mac.sh "${TAG#v}" artifacts/mac --prev artifacts/mac-prev --notes artifacts/notes.md osx-arm64 osx-x64
+        env:
+          TAG: ${{ inputs.tag }}
+      - name: Each feed lists only its own channel
+        run: |
+          foreach ($rid in 'osx-arm64', 'osx-x64') {
+            $feed = "artifacts/mac/releases.$rid.json"
+            if (-not (Test-Path $feed)) { Write-Host "::error::$feed is missing"; exit 1 }
+            $other = if ($rid -eq 'osx-arm64') { 'osx-x64' } else { 'osx-arm64' }
+            $text = Get-Content $feed -Raw
+            if ($text -match [regex]::Escape($other) -or $text -match '-win-') { Write-Host "::error::$feed mentions another channel"; exit 1 }
+          }
+      # SIGNING: Developer ID signing and notarization go into build/pack-mac.sh (vpk --signAppIdentity / --notaryProfile).
+      - name: Add the macOS files to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          foreach ($rid in 'osx-arm64', 'osx-x64') {
+            vpk upload github --repoUrl "https://github.com/$env:GITHUB_REPOSITORY" --token "$env:GH_TOKEN" `
+              --outputDir artifacts/mac --channel $rid --merge --tag "$env:TAG"
+            if ($LASTEXITCODE) { Write-Host "::error::upload of $rid failed"; exit 1 }
+          }

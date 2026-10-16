@@ -1,0 +1,55 @@
+#!/bin/bash
+# Packs gh_notify for macOS with Velopack: one .pkg, portable zip and update feed per RID, each on its own channel
+# (osx-arm64, osx-x64) so Windows and the two Mac builds never see each other's updates.
+# Usage: build/pack-mac.sh <version> <outdir> [--prev <dir>] [--notes <file>] [rid...]   (default rids: osx-arm64 osx-x64)
+# Needs macOS with the .NET 10 SDK, the Xcode command line tools and vpk (dotnet tool install -g vpk).
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+VERSION="$1"; OUT="$2"; shift 2
+PREV=""; NOTES=""; RIDS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --prev) PREV="$2"; shift 2 ;;
+    --notes) NOTES="$2"; shift 2 ;;
+    *) RIDS+=("$1"); shift ;;
+  esac
+done
+[ ${#RIDS[@]} -eq 0 ] && RIDS=(osx-arm64 osx-x64)
+mkdir -p "$OUT"
+OUT="$(cd "$OUT" && pwd)"
+
+"$ROOT/native/mac/build.sh"
+
+for RID in "${RIDS[@]}"; do
+  PUB="$ROOT/artifacts/publish-mac/$VERSION/$RID"
+  rm -rf "$PUB"
+  dotnet publish "$ROOT/src/GhNotify.App.Mac" -c Release -r "$RID" --self-contained -p:Version="$VERSION" -o "$PUB"
+  test -f "$PUB/libGhNotifyMac.dylib" || { echo "::error::libGhNotifyMac.dylib missing from $PUB"; exit 1; }
+
+  # The app icon, rendered by the app itself (the same artwork as the Windows .ico).
+  ICONSET="$ROOT/artifacts/publish-mac/$VERSION/GhNotify.iconset"
+  rm -rf "$ICONSET"
+  if [ "$RID" = "osx-$( [ "$(uname -m)" = arm64 ] && echo arm64 || echo x64 )" ]; then
+    "$PUB/GhNotify" --write-iconset "$ICONSET"
+  else
+    # Can't run the other architecture's executable without Rosetta; render with dotnet run instead.
+    dotnet run --project "$ROOT/src/GhNotify.App.Mac" -c Release -- --write-iconset "$ICONSET"
+  fi
+  ICNS="$ROOT/artifacts/publish-mac/$VERSION/GhNotify.icns"
+  iconutil -c icns "$ICONSET" -o "$ICNS"
+
+  CHANNEL_OUT="$OUT"
+  if [ -n "$PREV" ] && [ -d "$PREV" ]; then
+    # Previous releases of this channel let vpk build delta packages.
+    find "$PREV" -maxdepth 1 -type f \( -name "*-$RID-*.nupkg" -o -name "*-$RID-full.nupkg" -o -name "releases.$RID.json" \) \
+      -exec cp {} "$CHANNEL_OUT/" \;
+  fi
+  NOTES_ARGS=()
+  [ -n "$NOTES" ] && [ -f "$NOTES" ] && NOTES_ARGS=(--releaseNotes "$NOTES")
+  # No --signAppIdentity: vpk signs ad-hoc. SIGNING: add --signAppIdentity / --signInstallIdentity / --notaryProfile here when a
+  # Developer ID exists.
+  vpk pack --packId GhNotify --packTitle gh_notify --packVersion "$VERSION" --packDir "$PUB" --mainExe GhNotify \
+    --icon "$ICNS" --bundleId com.joshhambright.ghnotify --channel "$RID" --runtime "$RID" --outputDir "$CHANNEL_OUT" \
+    ${NOTES_ARGS[@]+"${NOTES_ARGS[@]}"}
+done
+ls -la "$OUT"
