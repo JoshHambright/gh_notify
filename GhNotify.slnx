@@ -3,6 +3,7 @@
     <Project Path="src/GhNotify.Ado/GhNotify.Ado.csproj" />
     <Project Path="src/GhNotify.Agents/GhNotify.Agents.csproj" />
     <Project Path="src/GhNotify.App/GhNotify.App.csproj" />
+    <Project Path="src/GhNotify.App.Mac/GhNotify.App.Mac.csproj" />
     <Project Path="src/GhNotify.Core/GhNotify.Core.csproj" />
     <Project Path="src/GhNotify.GitHub/GhNotify.GitHub.csproj" />
     <Project Path="src/GhNotify.Platform.Mac/GhNotify.Platform.Mac.csproj" />

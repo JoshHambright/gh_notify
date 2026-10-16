@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\GhNotify.Platform.Mac\GhNotify.Platform.Mac.csproj" />
+    <ProjectReference Include="..\..\src\GhNotify.App.Mac\GhNotify.App.Mac.csproj" />
   </ItemGroup>
 
 </Project>
