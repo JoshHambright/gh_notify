@@ -150,7 +150,7 @@ public class PopupFooterTests
         var menu = h.Window.OpenMenu!;
         Assert.True(menu.IsOpen);
         var headers = menu.Items.Select(i => i is MenuItem m ? ((string?)m.Header)?.Replace("__", "_") : "-").ToList(); // "__" is how a literal underscore is written in a menu header
-        Assert.Equal(["Settings…", "gh_notify v1.2.0", "Check for updates", "Restart to update (v1.2.1)", "-", "Open config", "Start with Windows",
+        Assert.Equal(["Settings…", "gh_notify v1.2.0", "Check for updates", "Restart to update (v1.2.1)", "-", "Open config", UiPlatform.StartupLabel,
             "Open logs folder", "Muted (2)", "Nothing hidden", "-", "Quit"], headers);
     }
 
@@ -176,7 +176,7 @@ public class PopupFooterTests
         Assert.Contains("quit", h.Host.Calls);
         Assert.False(Item("gh_notify v1.2.0").IsEnabled);
 
-        var startup = Item("Start with Windows");
+        var startup = Item(UiPlatform.StartupLabel);
         Assert.False(h.Host.StartWithWindows);
         Click(startup);
         Assert.True(h.Host.StartWithWindows);

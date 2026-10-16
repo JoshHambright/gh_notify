@@ -12,7 +12,7 @@ public class GlobalHotkeyTests
         var hk = new GlobalHotkey(reg, () => toggles++, _ => { });
         hk.Apply("win+shift+g");
         Assert.Null(hk.Error);
-        Assert.Equal("Shift+Win+G", hk.Registered?.ToString()); // canonical modifier order
+        Assert.Equal(Os.Hotkey("Shift+Win+G"), hk.Registered?.ToString()); // canonical modifier order
         reg.Pressed!();
         Assert.Equal(1, toggles);
     }
@@ -41,7 +41,7 @@ public class GlobalHotkeyTests
         reg.Succeeds = true;
         hk.Apply("Ctrl+Alt+H");
         Assert.Null(hk.Error);
-        Assert.Equal("Ctrl+Alt+H", hk.Registered?.ToString());
+        Assert.Equal(Os.Hotkey("Ctrl+Alt+H"), hk.Registered?.ToString());
         Assert.Equal("unregister", reg.Calls[^2]); // released the old one first
     }
 

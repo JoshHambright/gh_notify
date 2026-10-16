@@ -430,8 +430,8 @@ public class SettingsWindowTests
         var w = Open(new SampleSettingsHost());
         var general = (GeneralPage)w.Page(SettingsPage.General);
         general.CaptureHotkey(Key.H, KeyModifiers.Control | KeyModifiers.Alt);
-        Assert.Equal("Ctrl+Alt+H", w.Draft.Config.Hotkey);
-        Assert.Equal("Ctrl+Alt+H", general.HotkeyBox.Text);
+        Assert.Equal(Os.Hotkey("Ctrl+Alt+H"), w.Draft.Config.Hotkey);
+        Assert.Equal(Os.Hotkey("Ctrl+Alt+H"), general.HotkeyBox.Text);
         Assert.False(general.HotkeyErrorText.IsVisible);
         general.CaptureHotkey(Key.D5, KeyModifiers.Meta | KeyModifiers.Shift);
         Assert.Equal("Shift+Win+5", w.Draft.Config.Hotkey);
@@ -474,14 +474,14 @@ public class SettingsWindowTests
         var down = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.K, KeyModifiers = KeyModifiers.Control | KeyModifiers.Alt };
         general.HotkeyBox.RaiseEvent(down);
         Assert.True(down.Handled);
-        Assert.Equal("Ctrl+Alt+K", w.Draft.Config.Hotkey);
+        Assert.Equal(Os.Hotkey("Ctrl+Alt+K"), w.Draft.Config.Hotkey);
         foreach (var key in new[] { Key.Tab, Key.Escape })
         {
             var other = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key };
             general.HotkeyBox.RaiseEvent(other);
-            Assert.Equal("Ctrl+Alt+K", w.Draft.Config.Hotkey); // never captured as a hotkey
+            Assert.Equal(Os.Hotkey("Ctrl+Alt+K"), w.Draft.Config.Hotkey); // never captured as a hotkey
         }
-        Assert.Equal("Ctrl+Alt+K", w.Draft.Config.Hotkey);
+        Assert.Equal(Os.Hotkey("Ctrl+Alt+K"), w.Draft.Config.Hotkey);
         w.Discard();
     }
 

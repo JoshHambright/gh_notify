@@ -37,3 +37,10 @@ sealed class OffUpdateClient : GhNotify.Core.IUpdateClient
     public Task DownloadAsync(GhNotify.Core.UpdateCandidate c, CancellationToken ct) => Task.CompletedTask;
     public void ApplyOnExit(GhNotify.Core.UpdateCandidate c) { }
 }
+
+/// <summary>Expected strings that differ by OS: hotkeys print Option/Cmd on macOS (<see cref="GhNotify.Core.Hotkey.ToString"/>).</summary>
+static class Os
+{
+    public static string Hotkey(string windowsForm) =>
+        GhNotify.Core.HotkeyParser.TryParse(windowsForm, out var h) ? h.ToString() : windowsForm;
+}
