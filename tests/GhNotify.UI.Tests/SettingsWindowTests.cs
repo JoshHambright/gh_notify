@@ -434,7 +434,7 @@ public class SettingsWindowTests
         Assert.Equal(Os.Hotkey("Ctrl+Alt+H"), general.HotkeyBox.Text);
         Assert.False(general.HotkeyErrorText.IsVisible);
         general.CaptureHotkey(Key.D5, KeyModifiers.Meta | KeyModifiers.Shift);
-        Assert.Equal("Shift+Win+5", w.Draft.Config.Hotkey);
+        Assert.Equal(Os.Hotkey("Shift+Win+5"), w.Draft.Config.Hotkey);
         w.Revalidate();
         Assert.True(w.CanSave);
 
