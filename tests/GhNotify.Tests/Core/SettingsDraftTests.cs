@@ -24,6 +24,7 @@ public class SettingsDraftTests
     [InlineData("updates.checkHours", SettingsPage.General)]
     [InlineData("ado.orgs[0]", SettingsPage.Sources)]
     [InlineData("display.maxRepoChars", SettingsPage.Sources)]
+    [InlineData("display.terminal", SettingsPage.Advanced)]
     [InlineData("notifications.sounds[1].sound", SettingsPage.Notifications)]
     [InlineData("filters.hide[0]", SettingsPage.Filters)]
     [InlineData("rules[2].profile", SettingsPage.Workflows)]

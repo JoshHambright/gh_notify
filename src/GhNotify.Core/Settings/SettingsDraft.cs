@@ -60,6 +60,7 @@ public sealed class SettingsDraft
 
     public static SettingsPage PageFor(string field)
     {
+        if (field == "display.terminal") return SettingsPage.Advanced; // its box is on Advanced (macOS only), not with the repo display
         var head = field.Split('.', '[')[0];
         return head switch
         {

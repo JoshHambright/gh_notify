@@ -76,7 +76,7 @@ PLIST
   # Ad-hoc signing of the whole bundle ("-" is codesign's ad-hoc identity; without it only the executable is signed and the bundle
   # does not verify). SIGNING: replace "-" with a Developer ID and add --signInstallIdentity / --notaryProfile when one exists.
   vpk pack --packId GhNotify --packTitle gh_notify --packVersion "$VERSION" --packDir "$PUB" --mainExe GhNotify \
-    --icon "$ICNS" --plist "$PLIST" --signAppIdentity "-" --bundleId com.joshhambright.ghnotify --channel "$RID" --runtime "$RID" --outputDir "$CHANNEL_OUT" \
+    --icon "$ICNS" --plist "$PLIST" --signAppIdentity "-" --channel "$RID" --runtime "$RID" --outputDir "$CHANNEL_OUT" \
     ${NOTES_ARGS[@]+"${NOTES_ARGS[@]}"}
 done
 ls -la "$OUT"
