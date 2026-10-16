@@ -21,6 +21,11 @@ public class AppSmokeTests
         Assert.NotNull(app.Tray);
         Assert.NotNull(app.Tray!.Icon);
         Assert.Equal("gh_notify — nothing waiting", app.Tray.ToolTipText!.Split('\n')[0]);
+        if (UiPlatform.IsMac)
+        {
+            Assert.Null(app.Tray.Menu); // a status-item menu would take the click that opens the popup
+            return;
+        }
         var items = app.Tray.Menu!.Items.OfType<NativeMenuItem>().Select(i => i.Header).ToList();
         Assert.Equal(["Open", "Settings…", "What's new", "Check for updates", "-", "Quit"], items);
     }
