@@ -40,6 +40,8 @@ jobs:
       - run: dotnet build GhNotify.slnx -c Release
       - uses: github/codeql-action/analyze@v4
         with:
+          # Fixed, so a run called from release-please.yml files its results under the same category as main's.
+          category: .github/workflows/codeql.yml:analyze
           # Called for the release PR: upload against the PR's head so the ruleset sees it. Empty means the triggering ref.
           ref: ${{ inputs.pr && format('refs/pull/{0}/head', inputs.pr) || '' }}
           sha: ${{ inputs.pr && steps.head.outputs.sha || '' }}
