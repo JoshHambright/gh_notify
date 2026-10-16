@@ -28,6 +28,8 @@ public interface ISettingsHost
     UpdateStatus UpdateStatus { get; }
     Task CheckForUpdatesAsync();
     bool StartWithWindows { get; set; }
+    /// <summary>See <see cref="IStartupService.Problem"/>.</summary>
+    string? StartupProblem => null;
     ThemeMode ThemeMode { get; }
     void SetThemeMode(ThemeMode mode);
     /// <summary>The popup text size, one of <see cref="PopupSize.TextScales"/> (saved in state.json, like the theme).</summary>

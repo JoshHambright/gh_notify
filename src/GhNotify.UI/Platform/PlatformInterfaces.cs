@@ -22,6 +22,8 @@ public interface IStartupService
 {
     bool IsEnabled { get; }
     void SetEnabled(bool enabled);
+    /// <summary>Why start-at-login is not in effect, for Settings to show (macOS: the login item needs approval); null when fine.</summary>
+    string? Problem => null;
 }
 
 public interface ISoundService

@@ -35,6 +35,20 @@ public static class TrayIconRenderer
     /// <summary>The tray icon: <paramref name="badge"/> is the count text (null = nothing waiting), <paramref name="attention"/> marks a source or config problem.</summary>
     public static SKBitmap Render(int sizePx, string? badge, bool attention) => Draw(sizePx, badge, attention, accent: false);
 
+    /// <summary>The calm macOS menu-bar icon: the merge glyph alone in black on transparent, for a template image that macOS tints
+    /// for light and dark menu bars. Waiting and unhealthy states use the full-colour <see cref="Render"/>.</summary>
+    public static SKBitmap RenderTemplate(int sizePx)
+    {
+        var bitmap = new SKBitmap(new SKImageInfo(sizePx, sizePx, SKColorType.Bgra8888, SKAlphaType.Premul));
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Transparent);
+        canvas.Scale(sizePx / 36f);
+        DrawGlyph(canvas, SKColors.Black);
+        using (var p = Fill(SKColors.Black)) canvas.DrawCircle(25, 9, 3.6f, p);
+        canvas.Flush();
+        return bitmap;
+    }
+
     /// <summary>The app mark (red sweep, no badge): .ico frames and the toast logo.</summary>
     public static SKBitmap RenderAccent(int sizePx) => Draw(sizePx, null, false, accent: true);
 
@@ -72,20 +86,7 @@ public static class TrayIconRenderer
         if (red) using (var p = Fill(Red)) canvas.DrawCircle(34, 2, 19, p);
         canvas.Restore();
 
-        // merge glyph
-        using (var p = Stroke(White, 2.6f, round: true))
-        {
-            canvas.DrawLine(11, 6.5f, 11, 25.5f, p);
-            using var curve = new SKPath();
-            curve.MoveTo(25, 10.5f);
-            curve.CubicTo(25, 17.5f, 11, 15.5f, 11, 23.5f);
-            canvas.DrawPath(curve, p);
-        }
-        using (var p = Fill(White))
-        {
-            canvas.DrawCircle(11, 6.5f, 3.2f, p);
-            canvas.DrawCircle(11, 27, 3.2f, p);
-        }
+        DrawGlyph(canvas, White);
         if (red)
         {
             using (var p = Fill(Red)) canvas.DrawCircle(25, 9, 3.6f, p);
@@ -110,5 +111,23 @@ public static class TrayIconRenderer
         }
         canvas.Flush();
         return bitmap;
+    }
+
+    /// <summary>The merge glyph: trunk, curve and two dots (the third dot is drawn by the caller).</summary>
+    static void DrawGlyph(SKCanvas canvas, SKColor color)
+    {
+        using (var p = Stroke(color, 2.6f, round: true))
+        {
+            canvas.DrawLine(11, 6.5f, 11, 25.5f, p);
+            using var curve = new SKPath();
+            curve.MoveTo(25, 10.5f);
+            curve.CubicTo(25, 17.5f, 11, 15.5f, 11, 23.5f);
+            canvas.DrawPath(curve, p);
+        }
+        using (var p = Fill(color))
+        {
+            canvas.DrawCircle(11, 6.5f, 3.2f, p);
+            canvas.DrawCircle(11, 27, 3.2f, p);
+        }
     }
 }

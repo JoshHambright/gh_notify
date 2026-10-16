@@ -47,7 +47,13 @@ public sealed class GeneralPage : SettingsPageBase
         _startWithWindows = SafeStartWithWindows(host);
         StartupCheck = new CheckBox { IsChecked = _startWithWindows, VerticalAlignment = VerticalAlignment.Center };
         StartupCheck.IsCheckedChanged += (_, _) => LocalChoice();
-        Body.Children.Add(Ui.Field("Start with Windows", StartupCheck));
+        Body.Children.Add(Ui.Field(UiPlatform.StartupLabel, StartupCheck));
+        if (SafeStartupProblem(host) is { } startupProblem)
+        {
+            StartupHint = Ui.Text(startupProblem, "muted", "small");
+            StartupHint.Margin = new Thickness(0, -6, 0, 10);
+            Body.Children.Add(StartupHint);
+        }
         _themeMode = host.ThemeMode;
         ThemeSystem = Ui.Segment("System", _themeMode is not (ThemeMode.Dark or ThemeMode.Light));
         ThemeDark = Ui.Segment("Dark", _themeMode == ThemeMode.Dark);
@@ -123,6 +129,7 @@ public sealed class GeneralPage : SettingsPageBase
     }
 
     internal CheckBox StartupCheck { get; }
+    internal TextBlock? StartupHint { get; }
     internal RadioButton ThemeSystem { get; }
     internal RadioButton ThemeDark { get; }
     internal RadioButton ThemeLight { get; }
@@ -208,6 +215,12 @@ public sealed class GeneralPage : SettingsPageBase
             : MergeRebase.IsChecked == true ? MergeMethod.Rebase
             : null;
         Changed();
+    }
+
+    static string? SafeStartupProblem(ISettingsHost host)
+    {
+        try { return host.StartupProblem; }
+        catch (Exception ex) { Log.Error("could not read the start-at-login status", ex); return null; }
     }
 
     static bool SafeStartWithWindows(ISettingsHost host)

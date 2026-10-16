@@ -177,7 +177,10 @@ public partial class App : Application
         if (iconKey != _trayIconKey)
         {
             _trayIconKey = iconKey;
-            using var bmp = TrayIconRenderer.Render(size, iconKey.Item2, unhealthy);
+            // macOS: the calm icon is a template image, tinted by the menu bar; waiting and unhealthy keep their colours.
+            var template = UiPlatform.IsMac && iconKey.Item2 is null && !unhealthy;
+            using var bmp = template ? TrayIconRenderer.RenderTemplate(size) : TrayIconRenderer.Render(size, iconKey.Item2, unhealthy);
+            if (UiPlatform.IsMac) MacOSProperties.SetIsTemplateIcon(_tray, template);
             _tray.Icon = new WindowIcon(new MemoryStream(TrayIconRenderer.ToPng(bmp)));
         }
         var problem = _controller.TrayProblem();

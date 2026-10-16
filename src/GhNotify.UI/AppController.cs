@@ -779,6 +779,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         set => _platform.Startup.SetEnabled(value);
     }
 
+    public string? StartupProblem => _platform.Startup.Problem;
+
     public void SetThemeMode(ThemeMode mode)
     {
         if (mode == _themeMode) return;
