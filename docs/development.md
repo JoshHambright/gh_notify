@@ -50,7 +50,7 @@ dependency, so never reference a Windows API from `GhNotify.UI` (put it behind a
 | Formatting | `dotnet format GhNotify.slnx --verify-no-changes` (drop the flag to fix) |
 | Leak scan | `pwsh build/leak-scan.ps1 -TermsFile <path>` |
 | Install / upgrade / uninstall | `build/test-install.ps1`, CI only (it installs real packages). Also upgrades from the latest published release's `GhNotify-win-Setup.exe` to the locally packed build and checks config, state, the Run key and the shortcut survive; skipped with a notice if no release exists |
-| CodeQL | `codeql.yml`, weekly and on PRs |
+| CodeQL | `codeql.yml`, weekly, on `main` and on every PR (required by the main ruleset) |
 | Dependency updates | Dependabot, weekly (NuGet and Actions) |
 
 ### Coverage floor
@@ -96,6 +96,8 @@ Notes:
 - The release PR itself gets no CI run. It only changes `CHANGELOG.md`, `.release-please-manifest.json` and `version.txt`,
   which `ci.yml` ignores on pull requests (GitHub would otherwise hold each run for manual approval, because the PR is pushed with
   `GITHUB_TOKEN`). Merging it triggers CI on `main` and the release.
+- The main ruleset requires a CodeQL result on every PR, so `codeql.yml` runs on all PRs, and `release-please.yml` calls it
+  for the release PR after each update (`codeql-release-pr`), uploading the results against the PR's head.
 - Until the Release workflow finishes (CI gates, pack and upgrade test; typically 15–30 minutes), the release exists without update files.
 - If the publish job fails, recover with Actions → Release → Run workflow and the tag.
 - Dependency bumps (`chore:`) don't cut releases.
