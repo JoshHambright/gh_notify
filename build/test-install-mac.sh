@@ -38,7 +38,10 @@ rm -rf "$CFG" "$DATA" "$LOGS"
 step "install $(basename "$OLD_PKG")"
 sudo installer -pkg "$OLD_PKG" -target / >/dev/null
 APP="$(app_path)"; [ -n "$APP" ] || fail "the .pkg did not install an app in /Applications or ~/Applications"
-echo "installed at $APP"
+echo "installed at $APP (owner: $(stat -f %Su "$APP"))"
+# `sudo installer` leaves the bundle owned by root, and Velopack then needs a password prompt to update it, which CI can't answer.
+# Give it to the CI user. Whether a double-click install leaves it user-owned is in tester round 2 (summary.json "owner").
+sudo chown -R "$(id -un)" "$APP"
 codesign --verify --deep --strict "$APP" || echo "::warning::the app's signature does not verify (codesign --verify --deep --strict)"
 codesign -dv "$APP" 2>&1 | grep -q "Signature=adhoc" || echo "::notice::the app is not ad-hoc signed (has a Developer ID?)"
 OLD_VERSION="$(version_of "$APP")"; echo "version $OLD_VERSION"

@@ -87,6 +87,7 @@ for f in "$OUT/logs/"*.log; do [ -f "$f" ] && sed -i '' "s|$HOME|~|g" "$f"; done
   echo "  \"utc\": \"$STAMP\","
   echo "  \"macos\": \"$(sw_vers -productVersion)\","
   echo "  \"arch\": \"$(uname -m)\","
+  echo "  \"owner\": \"$([ -n "${APP:-}" ] && stat -f %Su "$APP")\","
   echo "  \"signature\": \"$([ -n "${APP:-}" ] && codesign -dv "$APP" 2>&1 | grep -o 'Signature=[a-z]*' | head -1)\""
   echo "}"
 } > "$OUT/summary.json"
