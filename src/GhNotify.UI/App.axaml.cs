@@ -188,6 +188,9 @@ public partial class App : Application
         if (problem is not null) tip += "\n" + (problem.Length > 80 ? problem[..79] + "…" : problem);
         tip += "\nv" + (_options?.Version ?? "dev");
         if (_tray.ToolTipText != tip) _tray.ToolTipText = tip;
+        // macOS: a menu on the status item takes every click, so the icon would never open the popup. The popup's ⋯ menu has
+        // Settings, updates and Quit instead.
+        if (UiPlatform.IsMac) return;
         _trayMenu ??= new TrayMenu(this, _controller);
         _trayMenu.Update(_controller.Update);
         if (_tray.Menu != _trayMenu.Menu) _tray.Menu = _trayMenu.Menu;

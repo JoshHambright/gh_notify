@@ -28,6 +28,27 @@ public sealed class MacShell(IProcessRunner runner, Func<string> terminal) : ISh
             Log.Error("could not read display.terminal; using Terminal.app", ex);
             setting = DisplayConfig.DefaultTerminal;
         }
-        runner.StartDetached(TerminalCommand.Build(setting, workingDir, command));
+        var spec = TerminalCommand.Build(setting, workingDir, command);
+        if (spec.FileName != "osascript")
+        {
+            runner.StartDetached(spec); // a custom terminal command: it may keep running
+            return;
+        }
+        // osascript returns as soon as the terminal has the script; run it so a refusal (no Automation permission, iTerm missing)
+        // is logged instead of the click silently doing nothing.
+        runner.RunAsync(spec with { Timeout = TimeSpan.FromSeconds(30) }).ContinueWith(t =>
+        {
+            if (t.IsFaulted) Log.Error("could not open a terminal", t.Exception!.GetBaseException());
+            else if (t.Result.ExitCode != 0) Log.Error($"could not open a terminal: {TerminalError(t.Result.StdErr)}");
+        }, TaskScheduler.Default);
+    }
+
+    /// <summary>osascript's message, plus what to do about the common case (error -1743: not allowed to control the terminal).</summary>
+    internal static string TerminalError(string stderr)
+    {
+        var message = stderr.Trim();
+        return message.Contains("-1743")
+            ? message + " — allow gh_notify in System Settings → Privacy & Security → Automation"
+            : message.Length > 0 ? message : "osascript failed";
     }
 }

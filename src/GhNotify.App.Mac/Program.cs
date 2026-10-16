@@ -35,10 +35,10 @@ public static class Program
         var paths = MacPaths.Current;
         using var instance = InstanceLock.TryAcquire(paths.InstanceLock);
         if (instance is null) return 0;
-        return Run(args, paths, testNotification: args.Contains("--test-notification"));
+        return Run(args, paths, testNotification: args.Contains("--test-notification"), testTerminal: args.Contains("--test-terminal"));
     }
 
-    static int Run(string[] args, MacPaths paths, bool testNotification)
+    static int Run(string[] args, MacPaths paths, bool testNotification, bool testTerminal)
     {
         Log.Configure(paths.Logs);
         string? error = null;
@@ -47,11 +47,12 @@ public static class Program
             LoginShellPath.Merge(new ProcessRunner());
             var options = Composition.Build(paths);
             if (testNotification) ScheduleTestNotification(options.Platform.Notifier);
+            if (testTerminal) ScheduleTestTerminal(options.Platform.Shell);
             var app = AppBuilder.Configure(() => new GhNotify.UI.App(options))
                 .UsePlatformDetect()
                 .With(new MacOSPlatformOptions { ShowInDock = false }) // a menu-bar app: no Dock icon, no app menu
                 .LogToTrace();
-            var exit = app.StartWithClassicDesktopLifetime(args.Where(a => a != "--test-notification").ToArray());
+            var exit = app.StartWithClassicDesktopLifetime(args.Where(a => a is not ("--test-notification" or "--test-terminal")).ToArray());
             error = (Application.Current as GhNotify.UI.App)?.StartupError;
             return error is null ? exit : 1;
         }
@@ -72,6 +73,11 @@ public static class Program
     static void ScheduleTestNotification(INotifier notifier) =>
         _ = Task.Delay(TimeSpan.FromSeconds(5)).ContinueWith(_ =>
             notifier.Apply(new ToastRequest(ToastAction.Show, "ghn-test", "gh_notify test notification", "Click to open the popup")));
+
+    /// <summary>Tester round 2: a terminal action (display.terminal) in the home folder, to check the Automation permission prompt.</summary>
+    static void ScheduleTestTerminal(IShell shell) =>
+        _ = Task.Delay(TimeSpan.FromSeconds(10)).ContinueWith(_ =>
+            shell.OpenTerminal(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "echo \"gh_notify terminal test\""));
 
     /// <summary>The app is already gone, so use a plain system alert (osascript) instead of an Avalonia window.</summary>
     static void ShowStartupError(string error, string logs)

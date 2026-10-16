@@ -74,11 +74,14 @@ jobs:
           exit $failed
       - name: Install vpk
         run: dotnet tool install -g vpk --version $env:VELOPACK_VERSION
-      - name: Pack (arm64, two versions)
+      - name: Pack Apple Silicon (osx-arm64, two versions)
         shell: bash
         run: |
           ./build/pack-mac.sh 0.0.1-ci artifacts/mac-old osx-arm64
           ./build/pack-mac.sh 0.0.2-ci artifacts/mac-new osx-arm64
+      - name: Pack Intel (osx-x64; built here, not run)
+        shell: bash
+        run: ./build/pack-mac.sh 0.0.2-ci artifacts/mac-x64 osx-x64
       - name: Install / update / uninstall test
         shell: bash
         run: ./build/test-install-mac.sh artifacts/mac-old artifacts/mac-new osx-arm64

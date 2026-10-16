@@ -125,25 +125,17 @@ jobs:
         if: steps.prev.outputs.setup != ''
         run: ./build/test-install.ps1 -OldSetup "${{ steps.prev.outputs.setup }}" -NewFeed artifacts/new
       # SIGNING: sign artifacts/new/* here once a certificate or Trusted Signing account exists.
-      # Release notes travel inside the package (vpk pack --releaseNotes); --merge adds the assets to the
-      # release-please release without replacing its body. The next step then sets the body to the full notes.
-      - name: Publish GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag }}
-        run: >
-          vpk upload github --repoUrl "https://github.com/$env:GITHUB_REPOSITORY" --token "$env:GH_TOKEN"
-          --outputDir artifacts/new --merge --publish --tag "$env:TAG"
-      - name: Release page notes
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag }}
-        run: |
-          gh release edit $env:TAG --repo "$env:GITHUB_REPOSITORY" --notes-file artifacts/notes.md
-          if ($LASTEXITCODE) { Write-Host "::error::could not set the release notes on $env:TAG"; exit 1 }
-  # macOS: after the Windows release is up, pack both Mac channels with the same notes and add them to the same release. The gates
-  # job already ran the macOS install / update / uninstall test on this commit. A failure here leaves Windows released; fix and
-  # re-run Actions -> Release with the tag (the Windows upload is idempotent with --merge).
+      - name: Keep the Windows packages and notes for publishing
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-win
+          path: |
+            artifacts/new/
+            artifacts/notes.md
+          if-no-files-found: error
+          retention-days: 7
+  # macOS: both channels, packed with the same notes, and upgrade-tested from the previous macOS release when there is one. Nothing
+  # is published until this and the Windows job have both succeeded (publish, below).
   release-mac:
     needs: release
     runs-on: macos-latest
@@ -157,30 +149,41 @@ jobs:
           dotnet-version: 10.0.x
       - name: Install vpk
         run: dotnet tool install -g vpk --version $env:VELOPACK_VERSION
-      - name: Notes and previous macOS packages
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-win
+          path: artifacts/win
+      - name: Previous macOS packages
+        id: prev
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
         run: |
           New-Item -ItemType Directory -Force artifacts/mac-prev | Out-Null
-          # The Windows job set the release body to the full notes; the Mac packages carry the same text.
-          gh release view $env:TAG --repo "$env:GITHUB_REPOSITORY" --json body --jq .body > artifacts/notes.md
-          if ($LASTEXITCODE) { Write-Host "::error::could not read the notes of $env:TAG"; exit 1 }
+          $found = $false
           $tags = @(gh release list --repo "$env:GITHUB_REPOSITORY" --exclude-drafts --limit 30 --json tagName --jq '.[].tagName')
           foreach ($t in $tags) {
             if (-not $t -or $t -eq $env:TAG) { continue }
             $names = @(gh release view $t --repo "$env:GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
             if ($names | Where-Object { $_ -like 'releases.osx-*.json' }) {
               gh release download $t --repo "$env:GITHUB_REPOSITORY" --dir artifacts/mac-prev --pattern '*osx-*' --clobber
+              if ($LASTEXITCODE) { Write-Host "::error::could not download $t"; exit 1 }
               Write-Host "previous macOS release: $t"
+              $found = $true
               break
             }
           }
+          if (-not $found) { Write-Host "::notice::no previous macOS release (the first one ships full packages only)" }
+          "found=$found" >> $env:GITHUB_OUTPUT
       - name: Pack (osx-arm64, osx-x64)
         shell: bash
-        run: ./build/pack-mac.sh "${TAG#v}" artifacts/mac --prev artifacts/mac-prev --notes artifacts/notes.md osx-arm64 osx-x64
         env:
           TAG: ${{ inputs.tag }}
+        run: ./build/pack-mac.sh "${TAG#v}" artifacts/mac --prev artifacts/mac-prev --notes artifacts/win/notes.md osx-arm64 osx-x64
+      - name: Upgrade test from the previous macOS release (arm64)
+        if: steps.prev.outputs.found == 'True'
+        shell: bash
+        run: ./build/test-install-mac.sh artifacts/mac-prev artifacts/mac osx-arm64
       - name: Each feed lists only its own channel
         run: |
           foreach ($rid in 'osx-arm64', 'osx-x64') {
@@ -191,13 +194,46 @@ jobs:
             if ($text -match [regex]::Escape($other) -or $text -match '-win-') { Write-Host "::error::$feed mentions another channel"; exit 1 }
           }
       # SIGNING: Developer ID signing and notarization go into build/pack-mac.sh (vpk --signAppIdentity / --notaryProfile).
-      - name: Add the macOS files to the release
+      - name: Keep the macOS packages for publishing
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-mac
+          path: artifacts/mac/
+          if-no-files-found: error
+          retention-days: 7
+  # Publishes Windows and both macOS channels into the release-please release, then writes the full notes once. --merge adds the
+  # assets without replacing the body; a re-run with the same tag replaces assets of the same name.
+  publish:
+    needs: [release, release-mac]
+    runs-on: windows-latest
+    steps:
+      - name: Install vpk
+        run: dotnet tool install -g vpk --version $env:VELOPACK_VERSION
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-win
+          path: artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-mac
+          path: artifacts/mac
+      - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
         run: |
+          vpk upload github --repoUrl "https://github.com/$env:GITHUB_REPOSITORY" --token "$env:GH_TOKEN" `
+            --outputDir artifacts/new --merge --publish --tag "$env:TAG"
+          if ($LASTEXITCODE) { Write-Host "::error::Windows upload failed"; exit 1 }
           foreach ($rid in 'osx-arm64', 'osx-x64') {
             vpk upload github --repoUrl "https://github.com/$env:GITHUB_REPOSITORY" --token "$env:GH_TOKEN" `
               --outputDir artifacts/mac --channel $rid --merge --tag "$env:TAG"
             if ($LASTEXITCODE) { Write-Host "::error::upload of $rid failed"; exit 1 }
           }
+      - name: Release page notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          gh release edit $env:TAG --repo "$env:GITHUB_REPOSITORY" --notes-file artifacts/notes.md
+          if ($LASTEXITCODE) { Write-Host "::error::could not set the release notes on $env:TAG"; exit 1 }

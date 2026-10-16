@@ -56,8 +56,13 @@ sealed class FakeShim : IMacShim
 sealed class FakeRunner : IProcessRunner
 {
     public List<ProcessSpec> Started { get; } = [];
+    public List<ProcessSpec> Ran { get; } = [];
     public Func<ProcessSpec, ProcessResult> Result { get; set; } = _ => new ProcessResult(0, "", "", false);
 
-    public Task<ProcessResult> RunAsync(ProcessSpec spec, CancellationToken ct = default) => Task.FromResult(Result(spec));
+    public Task<ProcessResult> RunAsync(ProcessSpec spec, CancellationToken ct = default)
+    {
+        Ran.Add(spec);
+        return Task.FromResult(Result(spec));
+    }
     public void StartDetached(ProcessSpec spec) => Started.Add(spec);
 }

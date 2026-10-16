@@ -47,6 +47,12 @@ codesign -dv "$APP" 2>&1 | grep -q "Signature=adhoc" || echo "::notice::the app 
 OLD_VERSION="$(version_of "$APP")"; echo "version $OLD_VERSION"
 [ -n "$OLD_VERSION" ] || fail "--version printed nothing"
 test -f "$APP/Contents/MacOS/libGhNotifyMac.dylib" || fail "libGhNotifyMac.dylib is not in the bundle"
+PLIST="$APP/Contents/Info.plist"
+[ "$(plutil -extract LSUIElement raw "$PLIST")" = "true" ] || fail "Info.plist has no LSUIElement"
+[ "$(plutil -extract LSMinimumSystemVersion raw "$PLIST")" = "13.0" ] || fail "Info.plist has no LSMinimumSystemVersion 13.0"
+plutil -extract NSAppleEventsUsageDescription raw "$PLIST" >/dev/null || fail "Info.plist has no NSAppleEventsUsageDescription"
+[ "$(plutil -extract CFBundleVersion raw "$PLIST")" = "$OLD_VERSION" ] || fail "Info.plist CFBundleVersion is not $OLD_VERSION"
+test -f "$APP/Contents/Resources/$(plutil -extract CFBundleIconFile raw "$PLIST")" || fail "the app icon named in Info.plist is missing"
 
 step "launch"
 pkill -x GhNotify || true # the installer may have launched it

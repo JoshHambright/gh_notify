@@ -25,12 +25,15 @@ gh_notify finds `gh`, `az` and `claude` in Homebrew's folders and on your shell'
 ## Using it
 
 - Click the menu-bar icon to open the popup. The icon is plain when nothing is waiting, and red with a count when something is.
+  Settings, updates and Quit are in the popup's ⋯ menu (the menu-bar icon has no menu of its own on macOS).
 - **Ctrl+Option+G** opens and closes the popup from anywhere. Change it in Settings › General (`hotkey`). You can write
   `Cmd` and `Option` in `config.json`.
 - **Open at login** is in Settings › General. If macOS asks you to approve it, allow gh_notify in System Settings → General →
   Login Items.
 - Agent actions such as **Open in Claude** open in Terminal.app. To use iTerm2 or another terminal, change Settings › Advanced
-  › **Open terminals in** (`display.terminal`, see [Configuration](configuration.md#display)).
+  › **Open terminals in** (`display.terminal`, see [Configuration](configuration.md#display)). The first time,
+  macOS asks whether gh_notify may control Terminal: click **OK**. If you declined, allow it in System Settings → Privacy &
+  Security → Automation.
 
 ## Where things live
 
@@ -44,8 +47,8 @@ gh_notify finds `gh`, `az` and `claude` in Homebrew's folders and on your shell'
 
 macOS has no uninstaller for gh_notify. To remove it:
 
-1. Quit it: right-click the menu-bar icon → **Quit**.
-2. Turn off Open at login in Settings › General first, or remove gh_notify from System Settings → General → Login Items.
+1. Turn off Open at login in Settings › General, or remove gh_notify from System Settings → General → Login Items.
+2. Quit it: open the popup, then ⋯ → **Quit**.
 3. Drag gh_notify from Applications to the Trash.
 4. Optionally delete `~/Library/Application Support/GhNotify`, `~/Library/Application Support/GhNotify-data` and
    `~/Library/Logs/GhNotify`.

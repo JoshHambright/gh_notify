@@ -86,7 +86,7 @@ public class MacServicesTests
     [InlineData(0, false, null)]
     [InlineData(1, true, null)]
     [InlineData(2, false, MacStartupService.ApprovalHint)]
-    [InlineData(3, false, null)]
+    [InlineData(3, false, MacStartupService.NotFoundHint)]
     public void Login_item_status_maps_to_enabled_and_a_problem(int status, bool enabled, string? problem)
     {
         var service = new MacStartupService(new FakeShim { LoginStatus = status });
@@ -100,8 +100,13 @@ public class MacServicesTests
         var shim = new FakeShim { LoginStatus = -1, LoginSetStatus = -1 };
         var service = new MacStartupService(shim);
         Assert.Contains("could not be read", service.Problem);
-        service.SetEnabled(true); // logged, not thrown
+        service.SetEnabled(true); // logged, not thrown, and shown in Settings
         Assert.Equal(["login True"], shim.Calls);
+        Assert.Contains("Could not turn on open at login", service.Problem);
+        shim.LoginSetStatus = 0;
+        shim.LoginStatus = 1;
+        service.SetEnabled(true);
+        Assert.Null(service.Problem);
     }
 
     [Fact]
@@ -138,9 +143,19 @@ public class MacServicesTests
         shell.OpenUrl("https://github.com/acme/api/pull/1");
         shell.OpenUrl("file:///etc/passwd");
         shell.OpenFolder("/Users/alice/dev");
-        shell.OpenTerminal("/Users/alice/dev", "claude --resume abc");
-        Assert.Equal(["open https://github.com/acme/api/pull/1", "open /Users/alice/dev", "osascript"],
-            runner.Started.Select(s => s.FileName == "open" ? "open " + s.Args[0] : s.FileName));
+        Assert.Equal(["https://github.com/acme/api/pull/1", "/Users/alice/dev"], runner.Started.Select(s => s.Args[0]));
+        Assert.All(runner.Started, s => Assert.Equal("open", s.FileName));
+    }
+
+    [Fact]
+    public void Terminal_scripts_run_with_a_timeout_and_a_custom_terminal_starts_detached()
+    {
+        var runner = new FakeRunner();
+        new MacShell(runner, () => "terminal").OpenTerminal("/Users/alice/dev", "claude --resume abc");
+        Assert.Equal("osascript", runner.Ran.Single().FileName);
+        Assert.Equal(TimeSpan.FromSeconds(30), runner.Ran.Single().Timeout);
+        new MacShell(runner, () => "/usr/local/bin/open-term").OpenTerminal("/tmp", "ls");
+        Assert.Equal("/usr/local/bin/open-term", runner.Started.Single().FileName);
     }
 
     [Fact]
@@ -148,7 +163,15 @@ public class MacServicesTests
     {
         var runner = new FakeRunner();
         new MacShell(runner, () => throw new IOException("locked")).OpenTerminal("/tmp", "ls");
-        Assert.Contains(runner.Started.Single().Args, a => a.Contains("tell application \"Terminal\""));
+        Assert.Contains(runner.Ran.Single().Args, a => a.Contains("tell application \"Terminal\""));
+    }
+
+    [Fact]
+    public void A_refused_Apple_event_explains_the_Automation_permission()
+    {
+        Assert.Contains("Privacy & Security → Automation",
+            MacShell.TerminalError("execution error: Not authorized to send Apple events to Terminal. (-1743)"));
+        Assert.Equal("osascript failed", MacShell.TerminalError(""));
     }
 
     [Fact]

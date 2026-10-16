@@ -17,7 +17,7 @@ public static class LoginShellPath
         try
         {
             var shell = Environment.GetEnvironmentVariable("SHELL") is { Length: > 0 } s && s.StartsWith('/') ? s : "/bin/zsh";
-            var r = runner.RunAsync(new ProcessSpec(shell, ["-l", "-c", "printf %s \"$PATH\""], Timeout: timeout ?? TimeSpan.FromSeconds(3)))
+            var r = runner.RunAsync(new ProcessSpec(shell, ["-l", "-c", "printenv PATH"], Timeout: timeout ?? TimeSpan.FromSeconds(3)))
                 .GetAwaiter().GetResult();
             if (r.TimedOut) Log.Error("the login shell took too long to report its PATH; using the default PATH");
             else if (r.ExitCode != 0) Log.Error($"the login shell exited {r.ExitCode} reporting its PATH; using the default PATH");
@@ -48,7 +48,7 @@ public static class LoginShellPath
         return string.Join(':', result);
     }
 
-    /// <summary>A noisy profile may print before our printf; the PATH is what follows the last newline.</summary>
+    /// <summary>A noisy profile may print before printenv does; the PATH is what follows the last newline.</summary>
     internal static string LastLine(string output)
     {
         var trimmed = output.TrimEnd('\r', '\n');

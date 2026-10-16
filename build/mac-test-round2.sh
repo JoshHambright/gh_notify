@@ -52,9 +52,9 @@ ask() {
 }
 
 if [ -n "$APP" ]; then
-  echo "==> Starting gh_notify from $APP (a test notification follows after about 5 seconds)"
+  echo "==> Starting gh_notify from $APP (a test notification follows after about 5 seconds, and a Terminal window after about 10)"
   GHNOTIFY_CONFIG_DIR="$SCRATCH/config" GHNOTIFY_DATA_DIR="$SCRATCH/data" \
-    "$APP/Contents/MacOS/GhNotify" --test-notification > "$OUT/logs/stdout.log" 2>&1 &
+    "$APP/Contents/MacOS/GhNotify" --test-notification --test-terminal > "$OUT/logs/stdout.log" 2>&1 &
   sleep 6
 
   ask launched     "Did gh_notify start without an error or an 'unidentified developer' block? (If macOS blocked it: System Settings → Privacy & Security → Open Anyway, then answer n and describe it.)"
@@ -67,8 +67,8 @@ if [ -n "$APP" ]; then
   ask theme        "System Settings → Appearance: switch Light/Dark. Does the popup follow?"
   ask settings     "Popup ⋯ → Settings… → General: turn 'Open at login' on. Did it stay on (or show a hint about approving it)? Turn it off again."
   ask folder       "Settings → Advanced → Open logs folder. Did Finder open a folder?"
-  ask terminal     "Settings → Advanced: is there an 'Open terminals in' setting (default: terminal)?"
-  ask quit         "Right-click the menu-bar icon → Quit. Did gh_notify quit (icon gone)?"
+  ask terminal     "About 10 seconds after starting, did a Terminal window open showing 'gh_notify terminal test'? (macOS may first ask to let gh_notify control Terminal: allow it.)"
+  ask quit         "Popup ⋯ → Quit. Did gh_notify quit (icon gone)?"
   pkill -x GhNotify 2>/dev/null
 else
   echo "app-installed: n | no app found after installing" >> "$ANSWERS"
