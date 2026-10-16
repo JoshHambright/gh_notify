@@ -55,6 +55,19 @@ public class MacUiTests
     }
 
     [AvaloniaFact]
+    public void The_popup_menu_has_Whats_new_on_macOS_only()
+    {
+        using var h = new PopupHarness();
+        static List<string?> Headers(Avalonia.Controls.ContextMenu m) =>
+            m.Items.OfType<Avalonia.Controls.MenuItem>().Select(i => (string?)i.Header).ToList();
+        Assert.DoesNotContain(UpdateUi.WhatsNewItem, AsMac(false, () => Headers(h.Window.FooterMenu())));
+        var mac = AsMac(true, () => h.Window.FooterMenu());
+        var item = mac.Items.OfType<Avalonia.Controls.MenuItem>().Single(i => (string?)i.Header == UpdateUi.WhatsNewItem);
+        item.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.MenuItem.ClickEvent));
+        Assert.Contains("whats-new", h.Host.Calls);
+    }
+
+    [AvaloniaFact]
     public void Windows_settings_hide_the_terminal_setting_and_keep_Start_with_Windows()
     {
         SettingsTokens.Ensure();

@@ -442,6 +442,13 @@ public partial class PopupWindow : Window
         ToolTip.SetTip(check, checkTip);
         ToolTip.SetShowOnDisabled(check, true);
         check.Click += (_, _) => _ = _host.CheckForUpdatesAsync();
+        if (UiPlatform.IsMac)
+        {
+            // Windows has it in the tray menu; the macOS menu-bar icon has no menu.
+            var whatsNew = new MenuItem { Header = UpdateUi.WhatsNewItem };
+            whatsNew.Click += (_, _) => _host.OpenWhatsNew();
+            menu.Items.Add(whatsNew);
+        }
         menu.Items.Add(check);
         if (UpdateUi.RestartItem(_host.Update) is { } restartHeader)
         {
