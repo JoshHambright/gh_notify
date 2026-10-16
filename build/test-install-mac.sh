@@ -5,7 +5,7 @@
 # Checks: the .pkg installs an ad-hoc signed app that prints its version and starts; config.json and state.json survive an
 # update through Velopack's updater; the documented manual uninstall leaves nothing behind.
 set -euo pipefail
-OLD="$1"; NEW="$2"; RID="$3"
+OLD="$(cd "$1" && pwd)"; NEW="$(cd "$2" && pwd)"; RID="$3" # absolute: the updater runs from inside the bundle
 fail() { echo "::error::$*"; exit 1; }
 step() { echo "== $*"; }
 
