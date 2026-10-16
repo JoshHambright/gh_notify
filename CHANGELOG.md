@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.0.0](https://github.com/JoshHambright/gh_notify/compare/v1.3.0...v2.0.0) (2026-10-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* the UI framework moved from WPF to Avalonia. No config or data changes are needed.
+
+### Features
+
+* hide a repo, project or org; collapsed Muted section; resizable popup and text size ([#13](https://github.com/JoshHambright/gh_notify/issues/13)) ([a515cbb](https://github.com/JoshHambright/gh_notify/commit/a515cbbe77d1dbe0af90b6b9fd45a599e52a411c))
+* release notes for every version, and What's new after an update ([#12](https://github.com/JoshHambright/gh_notify/issues/12)) ([8f43329](https://github.com/JoshHambright/gh_notify/commit/8f43329c4e8fc08472d226bb522fc34bbec2d4fa))
+* v2.0 cross-platform UI (Avalonia), Windows first ([#9](https://github.com/JoshHambright/gh_notify/issues/9)) ([dd17dc7](https://github.com/JoshHambright/gh_notify/commit/dd17dc7ac8a5b791226116d94fa3bd96e603b04c))
+
 ## [1.3.0](https://github.com/JoshHambright/gh_notify/compare/v1.2.0...v1.3.0) (2026-10-14)
 
 
