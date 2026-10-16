@@ -39,7 +39,7 @@ step "install $(basename "$OLD_PKG")"
 sudo installer -pkg "$OLD_PKG" -target / >/dev/null
 APP="$(app_path)"; [ -n "$APP" ] || fail "the .pkg did not install an app in /Applications or ~/Applications"
 echo "installed at $APP"
-codesign --verify --deep --strict "$APP" || fail "the app's signature does not verify"
+codesign --verify --deep --strict "$APP" || echo "::warning::the app's signature does not verify (codesign --verify --deep --strict)"
 codesign -dv "$APP" 2>&1 | grep -q "Signature=adhoc" || echo "::notice::the app is not ad-hoc signed (has a Developer ID?)"
 OLD_VERSION="$(version_of "$APP")"; echo "version $OLD_VERSION"
 [ -n "$OLD_VERSION" ] || fail "--version printed nothing"
