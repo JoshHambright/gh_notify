@@ -94,7 +94,7 @@ public sealed class SettingsDraft
 
     public static string SoundLabel(string sound) => sound switch
     {
-        "default" => "Windows default",
+        "default" => OperatingSystem.IsMacOS() ? "macOS default" : "Windows default",
         "none" => "None",
         _ when sound.Length > "builtin:".Length && sound.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase) =>
             char.ToUpperInvariant(sound["builtin:".Length]) + sound["builtin:".Length..][1..],

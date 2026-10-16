@@ -62,8 +62,8 @@ public class SettingsDraftTests
             SettingsDraft.Summary(new Rule { Profile = "diagnose-ci" }));
         Assert.Equal("When Approval pending in acme/* → Alarm · alert off-hours",
             SettingsDraft.Summary(new SoundRule { Match = new ItemMatch { Kind = ItemKind.ApprovalPending, Repo = "acme/*" }, Sound = "builtin:alarm", AlertOffHours = true }));
-        Assert.Equal("ding.wav", SettingsDraft.SoundLabel(@"C:\sounds\ding.wav"));
-        Assert.Equal("Windows default", SettingsDraft.SoundLabel("default"));
+        Assert.Equal("ding.wav", SettingsDraft.SoundLabel(Path.Combine(Path.GetTempPath(), "sounds", "ding.wav")));
+        Assert.Equal(OperatingSystem.IsMacOS() ? "macOS default" : "Windows default", SettingsDraft.SoundLabel("default"));
     }
 
     [Theory]

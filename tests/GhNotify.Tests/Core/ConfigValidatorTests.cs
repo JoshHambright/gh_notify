@@ -28,13 +28,26 @@ public class ConfigValidatorTests
     [InlineData("none", true)]
     [InlineData("builtin:chime", true)]
     [InlineData("builtin:kazoo", false)]
-    [InlineData(@"C:\sounds\ding.wav", true)]
+    [InlineData("<rooted>ding.wav", true)]
     [InlineData(@"ding.wav", false)]
-    [InlineData(@"C:\sounds\ding.mp3", false)]
+    [InlineData("<rooted>ding.mp3", false)]
     public void Sound_values(string sound, bool ok)
     {
+        sound = sound.Replace("<rooted>", Path.Combine(Path.GetTempPath(), "sounds") + Path.DirectorySeparatorChar); // rooted on every OS
         var errors = E(c => c.Notifications.Sounds.Add(new SoundRule { Sound = sound }));
         Assert.Equal(ok, !errors.Any(e => e.Field == "notifications.sounds[0].sound"));
+    }
+
+    [Theory]
+    [InlineData("terminal", true)]
+    [InlineData("iterm", true)]
+    [InlineData("/usr/local/bin/open-term", true)]
+    [InlineData("", false)]
+    [InlineData("   ", false)]
+    public void Terminal_must_not_be_empty(string terminal, bool ok)
+    {
+        var errors = E(c => c.Display.Terminal = terminal);
+        Assert.Equal(ok, !errors.Any(e => e.Field == "display.terminal"));
     }
 
     [Fact]
