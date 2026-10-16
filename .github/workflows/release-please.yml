@@ -22,11 +22,29 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           token: ${{ secrets.GITHUB_TOKEN }}
+  release-pr:
+    # The open release PR, if any. release-please's `pr` output is empty when a push leaves the PR unchanged (ci:, docs:),
+    # but its head still needs the release-notes status and a CodeQL result.
+    needs: release-please
+    if: needs.release-please.outputs.release_created != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      number: ${{ steps.find.outputs.number }}
+      branch: ${{ steps.find.outputs.branch }}
+    steps:
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr list -R "$GITHUB_REPOSITORY" --base main --state open --label "autorelease: pending" --limit 1 \
+            --json number,headRefName --jq '.[0] // empty | "number=\(.number)\nbranch=\(.headRefName)"' >> "$GITHUB_OUTPUT"
   release-notes-status:
     # The release PR gets no CI (it is opened with GITHUB_TOKEN), so check for docs/releases/v<version>.md here and
     # put a release-notes status on the PR: red until the notes are merged to main. The release won't publish without them.
-    needs: release-please
-    if: needs.release-please.outputs.pr != ''
+    needs: release-pr
+    if: needs.release-pr.outputs.number != ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -37,7 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+          ref: ${{ needs.release-pr.outputs.branch }}
       - name: Release notes status
         env:
           GH_TOKEN: ${{ github.token }}
@@ -53,15 +71,15 @@ jobs:
           if (-not $ok) { exit 1 }
   codeql-release-pr:
     # The main ruleset requires a CodeQL result on the release PR, which gets no pull_request runs (see codeql.yml).
-    needs: release-please
-    if: needs.release-please.outputs.pr != ''
+    needs: release-pr
+    if: needs.release-pr.outputs.number != ''
     permissions:
       contents: read
       security-events: write
     uses: ./.github/workflows/codeql.yml
     with:
-      branch: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
-      pr: ${{ fromJSON(needs.release-please.outputs.pr).number }}
+      branch: ${{ needs.release-pr.outputs.branch }}
+      pr: ${{ fromJSON(needs.release-pr.outputs.number) }}
   publish:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'

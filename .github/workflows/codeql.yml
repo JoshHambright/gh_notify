@@ -23,10 +23,14 @@ permissions:
 jobs:
   analyze:
     runs-on: windows-latest
+    env:
+      # PRs are scanned at their head commit, not GitHub's test merge commit: GitHub regenerates that merge commit (new sha)
+      # after the run, and the ruleset then waits for results that never come. The head commit is accepted and never moves.
+      PR: ${{ inputs.pr || github.event.pull_request.number || '' }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.branch || github.sha }}
+          ref: ${{ inputs.branch || github.event.pull_request.head.sha || github.sha }}
       - id: head
         shell: pwsh
         run: '"sha=$(git rev-parse HEAD)" >> $env:GITHUB_OUTPUT'
@@ -40,6 +44,8 @@ jobs:
       - run: dotnet build GhNotify.slnx -c Release
       - uses: github/codeql-action/analyze@v4
         with:
-          # Called for the release PR: upload against the PR's head so the ruleset sees it. Empty means the triggering ref.
-          ref: ${{ inputs.pr && format('refs/pull/{0}/head', inputs.pr) || '' }}
-          sha: ${{ inputs.pr && steps.head.outputs.sha || '' }}
+          # Fixed, so a run called from release-please.yml files its results under the same category as main's.
+          category: .github/workflows/codeql.yml:analyze
+          # For a PR, upload against refs/pull/N/head and its commit. Empty means the triggering ref (main, schedule).
+          ref: ${{ env.PR && format('refs/pull/{0}/head', env.PR) || '' }}
+          sha: ${{ env.PR && steps.head.outputs.sha || '' }}
