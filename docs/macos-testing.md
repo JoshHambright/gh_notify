@@ -69,16 +69,25 @@ open at login. It uses sample data, so you don't need a GitHub or Azure DevOps a
 
 ### Steps
 
-In Terminal, from the repo folder (update it first with `git pull`):
+In Terminal, from the repo folder. Until v2.1 is merged, the round 2 script lives on the `feat/v2.1` branch:
 
 ```sh
-./build/mac-test.sh --round 2 ~/Downloads/gh_notify-macos-arm64/<the .pkg file>
+git fetch && git checkout feat/v2.1 && git pull
+./build/mac-test.sh --round 2 ~/Downloads/gh_notify-macos-arm64/GhNotify-osx-arm64-Setup.pkg
+```
+
+No artifact, or prefer to build it yourself? With the Xcode command line tools (`xcode-select --install`) and vpk
+(`dotnet tool install -g vpk --version 1.2.161`):
+
+```sh
+./build/pack-mac.sh 0.0.1-local out osx-arm64
+./build/mac-test.sh --round 2 out/GhNotify-osx-arm64-Setup.pkg
 ```
 
 The script:
 1. installs the package (macOS asks for your password);
 2. starts gh_notify with sample settings in a scratch folder, so a real gh_notify setup is never touched;
-3. shows a test notification after about 5 seconds;
+3. shows a test notification after about 5 seconds, and opens a Terminal window after about 10;
 4. asks you 12 yes/no questions, one at a time, each with room for a note.
 
 The app is ad-hoc signed, not notarized. If macOS blocks it, open System Settings → Privacy & Security, click **Open Anyway**,
