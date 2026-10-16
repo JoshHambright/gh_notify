@@ -59,7 +59,8 @@ The UI build and UI tests should pass with no failures. Linux CI already runs th
 ## Round 2: install and walk through the app
 
 This round installs the real app and checks the parts only a Mac can show: the menu-bar icon, notifications, the hotkey and
-open at login. It uses sample data, so you don't need a GitHub or Azure DevOps account. It takes about 15 minutes.
+open at login. If `gh` is signed in (`gh auth login`), the inbox shows your real GitHub items, which are read only; without it the inbox
+is empty and a few questions don't apply. It takes about 15 minutes.
 
 ### Get the package
 
@@ -86,9 +87,9 @@ No artifact, or prefer to build it yourself? With the Xcode command line tools (
 
 The script:
 1. installs the package (macOS asks for your password);
-2. starts gh_notify with sample settings in a scratch folder, so a real gh_notify setup is never touched;
+2. starts gh_notify (with `open`, like Finder) with settings in a scratch folder, so a real gh_notify setup is never touched;
 3. shows a test notification after about 5 seconds, and opens a Terminal window after about 10;
-4. asks you 12 yes/no questions, one at a time, each with room for a note.
+4. asks you 13 yes/no questions, one at a time, each with room for a note.
 
 The app is ad-hoc signed, not notarized. If macOS blocks it, open System Settings → Privacy & Security, click **Open Anyway**,
 and say so in the first answer, including the exact wording macOS used.

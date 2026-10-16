@@ -2,8 +2,7 @@
 # macOS check, round 2: install the packaged app and walk through it by hand. See docs/macos-testing.md.
 # Usage, from the repo root:  ./build/mac-test.sh --round 2 <path-to.pkg>
 # Writes mac-test-r2-<timestamp>.zip in the repo root. Send that one file back.
-# Uses scratch config and data folders with sample items and both sources off: it never touches a real gh_notify setup
-# and needs no GitHub or Azure DevOps login. Works with the bash 3.2 that ships with macOS.
+# Uses scratch config and data folders, so it never touches a real gh_notify setup. GitHub is on only if `gh` is signed in. Works with the bash 3.2 that ships with macOS.
 
 set -u
 PKG="${1:-}"
@@ -30,14 +29,11 @@ APP="$(app_path)"
 if [ -z "$APP" ]; then echo "    FAILED: no app was installed. See logs/install.log"; fi
 pkill -x GhNotify 2>/dev/null; sleep 1
 
-# Sample setup: both sources off, two review requests in the saved snapshot, so the menu-bar icon turns red.
-echo '{"github":{"enabled":false},"ado":{"enabled":false}}' > "$SCRATCH/config/config.json"
-cat > "$SCRATCH/data/state.json" <<'EOF'
-{"snapshot":{"GitHub":[
- {"key":"gh:review:acme/api#12","provider":"gitHub","kind":"reviewRequested","repo":"acme/api","title":"Add retry with jitter to the payment client","url":"https://github.com/acme/api/pull/12","author":"alice","updatedAt":"2026-10-16T07:00:00+00:00","headSha":"abc1234","changedLines":40},
- {"key":"gh:review:contoso/web#31","provider":"gitHub","kind":"reviewRequested","repo":"contoso/web","title":"Update dependency versions","url":"https://github.com/contoso/web/pull/31","author":"bob","updatedAt":"2026-10-16T04:00:00+00:00","headSha":"def5678","changedLines":12}
-]}}
-EOF
+# Settings in a scratch folder. GitHub is on when `gh` is signed in, so the inbox shows your real items (nothing is sent
+# anywhere; gh_notify only reads). Azure DevOps stays off. Without gh the inbox is empty and the icon stays plain.
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then GITHUB=true; else GITHUB=false; fi
+echo "{\"github\":{\"enabled\":$GITHUB},\"ado\":{\"enabled\":false}}" > "$SCRATCH/config/config.json"
+echo "    GitHub source: $GITHUB (gh signed in: $GITHUB)"
 
 ANSWERS="$OUT/answers.txt"
 : > "$ANSWERS"
@@ -53,22 +49,24 @@ ask() {
 
 if [ -n "$APP" ]; then
   echo "==> Starting gh_notify from $APP (a test notification follows after about 5 seconds, and a Terminal window after about 10)"
-  GHNOTIFY_CONFIG_DIR="$SCRATCH/config" GHNOTIFY_DATA_DIR="$SCRATCH/data" \
-    "$APP/Contents/MacOS/GhNotify" --test-notification --test-terminal > "$OUT/logs/stdout.log" 2>&1 &
+  # `open` launches it the way Finder does, so macOS treats it as the app (started directly, it may not ask for notifications).
+  open -n "$APP" --env GHNOTIFY_CONFIG_DIR="$SCRATCH/config" --env GHNOTIFY_DATA_DIR="$SCRATCH/data" \
+    --stdout "$OUT/logs/stdout.log" --stderr "$OUT/logs/stdout.log" --args --test-notification --test-terminal
   sleep 6
 
   ask launched     "Did gh_notify start without an error or an 'unidentified developer' block? (If macOS blocked it: System Settings → Privacy & Security → Open Anyway, then answer n and describe it.)"
   ask permission   "Did macOS ask to allow notifications for gh_notify, and did you allow it?"
   ask notification "Did a 'gh_notify test notification' appear? (If you allowed it late, it may not have.)"
   ask click        "Click the notification (in Notification Center if it is gone). Did the gh_notify popup open?"
-  ask menubar      "Is the gh_notify icon in the menu bar, red with a 2 badge (two items are waiting)?"
-  ask popup        "Click the menu-bar icon. Does the popup open just below it at the top right, showing two review requests?"
-  ask hotkey       "Press Control+Option+G twice. Does the popup open, then close?"
-  ask theme        "System Settings → Appearance: switch Light/Dark. Does the popup follow?"
-  ask settings     "Popup ⋯ → Settings… → General: turn 'Open at login' on. Did it stay on (or show a hint about approving it)? Turn it off again."
-  ask folder       "Settings → Advanced → Open logs folder. Did Finder open a folder?"
   ask terminal     "About 10 seconds after starting, did a Terminal window open showing 'gh_notify terminal test'? (macOS may first ask to let gh_notify control Terminal: allow it.)"
-  ask quit         "Popup ⋯ → Quit. Did gh_notify quit (icon gone)?"
+  ask menubar      "Is the gh_notify icon in the menu bar and sharp (not blurry)? With GitHub on and something waiting, is it red with a count?"
+  ask menu         "Click the menu-bar icon. Does a menu open with Open, Settings…, What's new, Check for updates and Quit?"
+  ask popup        "Choose Open. Does the popup appear at the top right, under the menu bar, and stay open?"
+  ask hotkey       "Click somewhere else so the popup closes, then press Control+Option+G twice. Does the popup open, then close?"
+  ask theme        "Open the popup again, then System Settings → Appearance: switch Light/Dark. Does the popup follow?"
+  ask settings     "Menu-bar icon → Settings… → General: turn 'Open at login' on. Did it stay on (or show a hint about approving it)? Turn it off again."
+  ask folder       "Settings → Advanced → Open logs folder. Did Finder open a folder?"
+  ask quit         "Menu-bar icon → Quit. Did gh_notify quit (icon gone)?"
   pkill -x GhNotify 2>/dev/null
 else
   echo "app-installed: n | no app found after installing" >> "$ANSWERS"

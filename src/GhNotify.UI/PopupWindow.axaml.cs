@@ -39,6 +39,7 @@ public partial class PopupWindow : Window
     int _selectedIndex;
     // Where the popup sits: the primary screen's work area, bottom-right (set when it is shown).
     PixelRect? _area;
+    double _areaScaling = 1;
 
     public PopupWindow() : this(new SampleHost()) { }
 
@@ -284,13 +285,15 @@ public partial class PopupWindow : Window
         if (screen is not null)
         {
             _area = screen.WorkingArea;
-            MaxHeight = Math.Max(MinHeight, _area.Value.Height / screen.Scaling - 40);
+            _areaScaling = screen.Scaling > 0 ? screen.Scaling : 1;
+            MaxHeight = Math.Max(MinHeight, _area.Value.Height / _areaScaling - 40);
         }
         Render();
         PlaceNearTray();
         Show();
         Activate();
         PlaceNearTray();
+        if (UiPlatform.IsMac) Log.Info($"popup shown at {Position} in {_area} (screen scaling {_areaScaling}, render scaling {RenderScaling}), active {IsActive}");
     }
 
     /// <summary>SizeToContent grows and shrinks the height (expanding a row); keep the popup anchored next to the tray: the
@@ -298,7 +301,9 @@ public partial class PopupWindow : Window
     void PlaceNearTray()
     {
         if (_area is not { } area) return;
-        var scale = RenderScaling > 0 ? RenderScaling : 1;
+        // Position and the work area are in the screen's units: pixels on Windows (scaling = DPI), points on macOS (scaling 1,
+        // although the window renders at 2x on Retina), so convert the size with the screen's scaling, not the window's.
+        var scale = _areaScaling;
         var height = Bounds.Height > 0 ? Bounds.Height : MinHeight;
         Position = TrayPlacement(area, (int)Math.Round(Width * scale), (int)Math.Round(height * scale), UiPlatform.IsMac);
     }
@@ -316,6 +321,7 @@ public partial class PopupWindow : Window
     {
         // A deactivation that arrives after the popup was hidden and shown again is stale (IsActive is already true again).
         if (!IsVisible || IsActive) return;
+        if (UiPlatform.IsMac) Log.Info("popup hidden: it lost focus");
         LastHiddenByDeactivateUtc = DateTime.UtcNow;
         _confirmTick.Stop();
         Hide();
@@ -442,13 +448,6 @@ public partial class PopupWindow : Window
         ToolTip.SetTip(check, checkTip);
         ToolTip.SetShowOnDisabled(check, true);
         check.Click += (_, _) => _ = _host.CheckForUpdatesAsync();
-        if (UiPlatform.IsMac)
-        {
-            // Windows has it in the tray menu; the macOS menu-bar icon has no menu.
-            var whatsNew = new MenuItem { Header = UpdateUi.WhatsNewItem };
-            whatsNew.Click += (_, _) => _host.OpenWhatsNew();
-            menu.Items.Add(whatsNew);
-        }
         menu.Items.Add(check);
         if (UpdateUi.RestartItem(_host.Update) is { } restartHeader)
         {

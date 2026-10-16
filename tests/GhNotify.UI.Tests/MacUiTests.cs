@@ -31,7 +31,7 @@ public class MacUiTests
         Assert.Equal(36, b.Width);
         var corner = b.GetPixel(1, 1);
         Assert.Equal(0, corner.Alpha); // no tile
-        var trunk = b.GetPixel(11, 16);
+        var trunk = b.GetPixel(9, 17); // the trunk (x 11 in the artwork) after the glyph is scaled to fill the icon
         Assert.True(trunk.Alpha > 200 && trunk.Red < 40 && trunk.Green < 40 && trunk.Blue < 40, $"trunk pixel {trunk}");
     }
 
@@ -52,19 +52,6 @@ public class MacUiTests
         advanced.TerminalBox.Text = "iterm";
         Assert.Equal("iterm", w.Draft.Config.Display.Terminal);
         w.Discard();
-    }
-
-    [AvaloniaFact]
-    public void The_popup_menu_has_Whats_new_on_macOS_only()
-    {
-        using var h = new PopupHarness();
-        static List<string?> Headers(Avalonia.Controls.ContextMenu m) =>
-            m.Items.OfType<Avalonia.Controls.MenuItem>().Select(i => (string?)i.Header).ToList();
-        Assert.DoesNotContain(UpdateUi.WhatsNewItem, AsMac(false, () => Headers(h.Window.FooterMenu())));
-        var mac = AsMac(true, () => h.Window.FooterMenu());
-        var item = mac.Items.OfType<Avalonia.Controls.MenuItem>().Single(i => (string?)i.Header == UpdateUi.WhatsNewItem);
-        item.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.MenuItem.ClickEvent));
-        Assert.Contains("whats-new", h.Host.Calls);
     }
 
     [AvaloniaFact]

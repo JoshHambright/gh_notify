@@ -13,7 +13,12 @@ public sealed class MacHotkeyService(IMacShim shim) : IHotkeyService
     {
         Unregister();
         var (mods, key) = MacKeyCodes.Translate(hotkey);
-        var status = shim.HotkeyRegister(key, mods, onPressed);
+        var status = shim.HotkeyRegister(key, mods, () =>
+        {
+            Log.Info($"hotkey {hotkey} pressed");
+            onPressed();
+        });
+        Log.Info($"hotkey {hotkey} (key 0x{key:X2}, modifiers 0x{mods:X4}): RegisterEventHotKey status {status}");
         _registered = status == 0;
         error = status switch
         {

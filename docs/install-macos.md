@@ -24,8 +24,8 @@ gh_notify finds `gh`, `az` and `claude` in Homebrew's folders and on your shell'
 
 ## Using it
 
-- Click the menu-bar icon to open the popup. The icon is plain when nothing is waiting, and red with a count when something is.
-  Settings, updates and Quit are in the popup's ⋯ menu (the menu-bar icon has no menu of its own on macOS).
+- Click the menu-bar icon for its menu, then **Open** to show the popup (or press the hotkey). The icon is plain when nothing
+  is waiting, and red with a count when something is. The menu also has Settings…, What's new, Check for updates and Quit.
 - **Ctrl+Option+G** opens and closes the popup from anywhere. Change it in Settings › General (`hotkey`). You can write
   `Cmd` and `Option` in `config.json`.
 - **Open at login** is in Settings › General. If macOS asks you to approve it, allow gh_notify in System Settings → General →
@@ -48,7 +48,7 @@ gh_notify finds `gh`, `az` and `claude` in Homebrew's folders and on your shell'
 macOS has no uninstaller for gh_notify. To remove it:
 
 1. Turn off Open at login in Settings › General, or remove gh_notify from System Settings → General → Login Items.
-2. Quit it: open the popup, then ⋯ → **Quit**.
+2. Quit it: menu-bar icon → **Quit**.
 3. Drag gh_notify from Applications to the Trash.
 4. Optionally delete `~/Library/Application Support/GhNotify`, `~/Library/Application Support/GhNotify-data` and
    `~/Library/Logs/GhNotify`.

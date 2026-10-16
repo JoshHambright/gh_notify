@@ -42,8 +42,13 @@ public static class TrayIconRenderer
         var bitmap = new SKBitmap(new SKImageInfo(sizePx, sizePx, SKColorType.Bgra8888, SKAlphaType.Premul));
         using var canvas = new SKCanvas(bitmap);
         canvas.Clear(SKColors.Transparent);
+        // Without the Windows tile there is padding to spare: centre the glyph (x 7.8–28.6, y 3.3–30.2 in the 36-unit artwork)
+        // and let it fill the height, with a heavier stroke, so it reads like the system menu-bar icons.
         canvas.Scale(sizePx / 36f);
-        DrawGlyph(canvas, SKColors.Black);
+        canvas.Translate(18, 18);
+        canvas.Scale(1.26f);
+        canvas.Translate(-18.2f, -16.75f);
+        DrawGlyph(canvas, SKColors.Black, stroke: 3.1f);
         using (var p = Fill(SKColors.Black)) canvas.DrawCircle(25, 9, 3.6f, p);
         canvas.Flush();
         return bitmap;
@@ -114,9 +119,9 @@ public static class TrayIconRenderer
     }
 
     /// <summary>The merge glyph: trunk, curve and two dots (the third dot is drawn by the caller).</summary>
-    static void DrawGlyph(SKCanvas canvas, SKColor color)
+    static void DrawGlyph(SKCanvas canvas, SKColor color, float stroke = 2.6f)
     {
-        using (var p = Stroke(color, 2.6f, round: true))
+        using (var p = Stroke(color, stroke, round: true))
         {
             canvas.DrawLine(11, 6.5f, 11, 25.5f, p);
             using var curve = new SKPath();
