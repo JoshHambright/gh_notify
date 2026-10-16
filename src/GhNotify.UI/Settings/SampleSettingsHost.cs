@@ -89,6 +89,8 @@ public sealed class SampleSettingsHost : ISettingsHost
     public bool StartWithWindows { get; set; } = true;
     public ThemeMode ThemeMode { get; private set; } = ThemeMode.System;
     public void SetThemeMode(ThemeMode mode) => ThemeMode = mode;
+    public double TextScale { get; private set; } = 1.0;
+    public void SetTextScale(double scale) => TextScale = scale;
     public bool CommentsWarningShown { get; set; }
     public void OpenPath(string path) { }
     /// <summary>Sounds the Notifications page test button played (tests).</summary>

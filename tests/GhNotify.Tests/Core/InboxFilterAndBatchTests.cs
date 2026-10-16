@@ -115,6 +115,16 @@ public class BatchApprovalTests
     }
 
     [Fact]
+    public void Lock_disables_approvals_in_any_section_and_leaves_other_rows_alone()
+    {
+        var muted = new InboxSection("Muted", [R("m-approval", false, Both), R("m-review", false, ItemAction.ApprovePr)]) { Id = InboxPresenter.MutedSectionId };
+        var locked = BatchApproval.Lock([Approvals(R("a", false, Both)), muted], key => key is "a" or "m-approval", "Finish the batch first");
+        var rows = locked.SelectMany(s => s.Rows).ToDictionary(r => r.Key);
+        Assert.All(rows["a"].Actions.Concat(rows["m-approval"].Actions), a => Assert.Equal((false, "Finish the batch first"), (a.Enabled, a.DisabledReason)));
+        Assert.True(rows["m-review"].Actions.Single().Enabled);
+    }
+
+    [Fact]
     public void Other_sections_have_no_eligible_rows() =>
         Assert.Empty(BatchApproval.Eligible(new InboxSection("Review requests", [R("a", false, Both), R("b", false, Both)]) { Id = "ReviewRequested" }));
 

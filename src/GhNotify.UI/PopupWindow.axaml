@@ -226,7 +226,8 @@
     </Style>
   </Window.Styles>
 
-  <!-- Frame: includes the shadow margin. -->
+  <!-- Scaler: the text size (Settings → General) scales everything at once. Frame: includes the shadow margin. -->
+  <LayoutTransformControl x:Name="Scaler">
   <Grid x:Name="Frame">
     <Border Margin="8" CornerRadius="12" Background="{DynamicResource Brush.Surface}" BoxShadow="0 3 18 0 #59000000" />
     <Border x:Name="Outer" Margin="8" CornerRadius="12" Background="{DynamicResource Brush.Surface}" ClipToBounds="True">
@@ -305,25 +306,30 @@
                           <Button Theme="{StaticResource Small}" Content="Reject all…" Click="OnBatchReject" />
                         </StackPanel>
                       </DockPanel>
+                      <!-- Collapsible sections (all of them in the live popup): clicking the header toggles the section. -->
+                      <DockPanel Margin="0,10,18,4" LastChildFill="False" IsVisible="{Binding Collapsible}">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" IsVisible="{Binding BatchButtons}">
+                          <Button Theme="{StaticResource Small}" Content="Approve all…" Click="OnBatchApprove" />
+                          <Button Theme="{StaticResource Small}" Content="Reject all…" Click="OnBatchReject" />
+                        </StackPanel>
+                        <Button Tag="{Binding Id}" Click="OnToggleSection" DockPanel.Dock="Left" Margin="18,0,0,0" VerticalAlignment="Center" Cursor="Hand">
+                          <Button.Template>
+                            <ControlTemplate>
+                              <Border Background="Transparent"><ContentPresenter Content="{TemplateBinding Content}" /></Border>
+                            </ControlTemplate>
+                          </Button.Template>
+                          <StackPanel Orientation="Horizontal">
+                            <Path Theme="{StaticResource Style.EBars}" />
+                            <TextBlock Theme="{StaticResource Style.SectionLabel}" FontSize="10.5" Margin="7,0,0,0" VerticalAlignment="Center">
+                              <Run Text="{Binding Title, Converter={x:Static local:PopupConverters.Upper}, Mode=OneWay}" /><Run Text=" (" /><Run Text="{Binding Count, Mode=OneWay}" /><Run Text=")" />
+                            </TextBlock>
+                            <TextBlock Classes="arrow" Theme="{StaticResource Style.SectionLabel}" FontFamily="Segoe UI Symbol" FontSize="12" VerticalAlignment="Center"
+                                       Classes.expanded="{Binding Expanded}" />
+                          </StackPanel>
+                        </Button>
+                      </DockPanel>
                       <!-- The batch panel is moved in here from code when this is the Approvals section. -->
                       <Border Tag="{Binding Id}" Loaded="OnBatchSlotLoaded" />
-                      <!-- Collapsible sections ("waiting", "snoozed"): the header toggles the section. -->
-                      <Button Tag="{Binding Id}" Click="OnToggleSection" Margin="18,10,18,4" HorizontalAlignment="Left" Cursor="Hand"
-                              IsVisible="{Binding Collapsible}">
-                        <Button.Template>
-                          <ControlTemplate>
-                            <Border Background="Transparent"><ContentPresenter Content="{TemplateBinding Content}" /></Border>
-                          </ControlTemplate>
-                        </Button.Template>
-                        <StackPanel Orientation="Horizontal">
-                          <Path Theme="{StaticResource Style.EBars}" />
-                          <TextBlock Theme="{StaticResource Style.SectionLabel}" FontSize="10.5" Margin="7,0,0,0" VerticalAlignment="Center">
-                            <Run Text="{Binding Title, Converter={x:Static local:PopupConverters.Upper}, Mode=OneWay}" /><Run Text=" (" /><Run Text="{Binding Count, Mode=OneWay}" /><Run Text=")" />
-                          </TextBlock>
-                          <TextBlock Classes="arrow" Theme="{StaticResource Style.SectionLabel}" FontFamily="Segoe UI Symbol" FontSize="12" VerticalAlignment="Center"
-                                     Classes.expanded="{Binding Expanded}" />
-                        </StackPanel>
-                      </Button>
                       <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource RowTemplate}" />
                     </StackPanel>
                   </DataTemplate>
@@ -336,5 +342,9 @@
         <Rectangle Width="5" HorizontalAlignment="Left" Fill="{DynamicResource Brush.EdgeStrip}" IsHitTestVisible="False" />
       </Grid>
     </Border>
+    <!-- Drag the left edge to widen the popup (it stays anchored bottom-right); double-click resets it. -->
+    <Border x:Name="ResizeGrip" Width="10" HorizontalAlignment="Left" Margin="2,20" Background="Transparent" Cursor="SizeWestEast"
+            ToolTip.Tip="Drag to resize · double-click to reset" ToolTip.ShowDelay="900" />
   </Grid>
+  </LayoutTransformControl>
 </Window>

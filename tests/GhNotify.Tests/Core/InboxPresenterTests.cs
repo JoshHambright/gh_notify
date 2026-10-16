@@ -216,19 +216,69 @@ public class InboxPresenterTests
         Assert.Equal("acme/api", formatted.Repo);
     }
 
-    static IReadOnlyList<InboxSection> BuildView(InboxView view, bool waitingExpanded, bool snoozedExpanded) =>
-        InboxPresenter.Build(view, _ => null, _ => Button(), (_, _) => null, Now, ActionText.DefaultActions, null, null, waitingExpanded, snoozedExpanded);
+    static IReadOnlyList<InboxSection> BuildView(InboxView view, bool waitingExpanded, bool snoozedExpanded, bool mutedExpanded = false,
+        IReadOnlySet<string>? collapsed = null) =>
+        InboxPresenter.Build(view, _ => null, _ => Button(), (_, _) => null, Now, ActionText.DefaultActions, null, null,
+            waitingExpanded, snoozedExpanded, mutedExpanded, collapsed);
 
     [Fact]
-    public void View_build_marks_muted_rows_and_builds_waiting_and_snoozed_sections()
+    public void Every_section_can_collapse_and_a_collapsed_one_keeps_its_count_but_not_its_rows_or_batch_buttons()
+    {
+        var view = InboxView.Compose(
+            [E("a1", ItemKind.ApprovalPending, TimeSpan.FromHours(1)), E("a2", ItemKind.ApprovalPending, TimeSpan.FromHours(2)),
+             E("r", ItemKind.ReviewRequested, TimeSpan.FromHours(3))],
+            new FiltersConfig(), [], [], Now);
+
+        var open = BuildView(view, false, false);
+        Assert.All(open, s => Assert.True(s.Collapsible && s.Expanded));
+        Assert.True(open.Single(s => s.Id == BatchApproval.SectionId).BatchButtons);
+
+        var shut = BuildView(view, false, false, collapsed: new HashSet<string> { BatchApproval.SectionId });
+        var approvals = shut.Single(s => s.Id == BatchApproval.SectionId);
+        Assert.False(approvals.Expanded);
+        Assert.Empty(approvals.Rows);
+        Assert.Equal(2, approvals.Count);
+        Assert.False(approvals.BatchButtons);
+        Assert.Equal("r", shut.Single(s => s.Id == nameof(ItemKind.ReviewRequested)).Rows.Single().Key);
+    }
+
+    static InboxEntry InRepo(string repo, InboxEntry e) => e with { Item = e.Item with { Repo = repo } };
+
+    [Fact]
+    public void Muted_rows_move_to_a_collapsed_Muted_section_and_show_their_pattern_when_expanded()
+    {
+        var view = InboxView.Compose(
+            [InRepo("fabrikam/web", E("live", ItemKind.ReviewRequested, TimeSpan.FromHours(1))),
+             E("m", ItemKind.ReviewRequested, TimeSpan.FromHours(2)), E("m2", ItemKind.ApprovalPending, TimeSpan.FromHours(3))],
+            new FiltersConfig { Mute = ["gh:acme"] }, [], [], Now);
+
+        var collapsed = BuildView(view, false, false);
+        Assert.Equal(["Review requests", "Muted"], collapsed.Select(s => s.Title));
+        Assert.Equal("live", collapsed[0].Rows.Single().Key);
+        var muted = collapsed[1];
+        Assert.Equal(InboxPresenter.MutedSectionId, muted.Id);
+        Assert.True(muted.Collapsible);
+        Assert.False(muted.Expanded);
+        Assert.Equal(2, muted.Count);
+        Assert.Empty(muted.Rows);
+
+        var expanded = BuildView(view, false, false, mutedExpanded: true)[1];
+        Assert.Equal(["m", "m2"], expanded.Rows.Select(r => r.Key));
+        Assert.All(expanded.Rows, r => Assert.Equal("gh:acme", r.MutedBy));
+        Assert.NotEmpty(expanded.Rows.Single(r => r.Key == "m2").Actions); // muted rows can still be acted on
+    }
+
+    [Fact]
+    public void View_build_keeps_live_rows_in_their_kind_section_and_builds_waiting_and_snoozed_sections()
     {
         var view = InboxView.Compose(
             [E("m", ItemKind.ReviewRequested, TimeSpan.FromHours(1)), E("w", ItemKind.MyPrWaiting, TimeSpan.FromHours(2)), E("s", ItemKind.ReviewRequested, TimeSpan.FromHours(3))],
-            new FiltersConfig { Mute = ["acme"] }, [], [new Snooze("s", Now.AddMinutes(30), false)], Now);
+            new FiltersConfig { Mute = ["fabrikam"] }, [], [new Snooze("s", Now.AddMinutes(30), false)], Now);
 
         var sections = BuildView(view, waitingExpanded: false, snoozedExpanded: true);
 
-        Assert.Equal("acme", sections[0].Rows.Single().MutedBy);
+        Assert.Null(sections[0].Rows.Single().MutedBy);
+        Assert.DoesNotContain(sections, s => s.Id == InboxPresenter.MutedSectionId);
         var waiting = sections.Single(s => s.Id == "waiting");
         Assert.True(waiting.Collapsible);
         Assert.False(waiting.Expanded);

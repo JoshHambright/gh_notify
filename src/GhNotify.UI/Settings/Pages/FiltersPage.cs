@@ -19,14 +19,14 @@ public sealed class FiltersPage : SettingsPageBase
         _items = host.CurrentItems();
 
         Body.Children.Add(Ui.Section("MUTED", 8));
-        Body.Children.Add(Note("Muted items stay in the list, dimmed, and never toast, sound or count.", 10));
+        Body.Children.Add(Note("Muted items move to the popup's collapsed Muted section and never toast, sound or count.", 10));
         Body.Children.Add(_muteChips);
         MuteHint = Ui.Text("", "muted", "small");
         MuteBox = PatternBox("gh:acme/legacy-* — Enter to add", () => Filters.Mute, MuteHint);
         Body.Children.Add(AddBox(MuteBox, MuteHint, 22));
 
         Body.Children.Add(Ui.Section("HIDDEN", 8));
-        Body.Children.Add(Note("Hidden items are dropped from the popup entirely.", 10));
+        Body.Children.Add(Note("Hidden items don't appear anywhere: no row, count, toast or sound. Remove a pattern (×) and Save to bring them back. Rows' ⋯ menus offer Hide repo, project or org.", 10));
         Body.Children.Add(_hideChips);
         HideHint = Ui.Text("", "muted", "small");
         HideBox = PatternBox("ado:contoso/sandbox — Enter to add", () => Filters.Hide, HideHint);
@@ -112,6 +112,9 @@ public sealed class FiltersPage : SettingsPageBase
         {
             var chip = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
             chip.Children.Add(new TextBlock { Text = pattern, VerticalAlignment = VerticalAlignment.Center });
+            // How many current items the pattern catches, so a too-broad hide (a whole org) is easy to spot.
+            var n = SettingsDraft.CountMatches(pattern, _items);
+            if (n >= 0) chip.Children.Add(Ui.Text($"· {n}", "muted", "small"));
             chip.Children.Add(Ui.Remove(() =>
             {
                 list.Remove(pattern);

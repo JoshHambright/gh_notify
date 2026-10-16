@@ -40,6 +40,8 @@ public sealed record InboxSection(string Title, IReadOnlyList<InboxRow> Rows)
 
 public static class InboxPresenter
 {
+    public const string MutedSectionId = "muted";
+
     static readonly (ItemKind Kind, string Title)[] Order =
     [
         (ItemKind.ApprovalPending, "Approvals"),
@@ -86,7 +88,9 @@ public static class InboxPresenter
         Func<string, RowUiState?>? uiState,
         Func<string, string>? repoDisplay,
         bool waitingExpanded,
-        bool snoozedExpanded)
+        bool snoozedExpanded,
+        bool mutedExpanded = false,
+        IReadOnlySet<string>? collapsed = null)
     {
         InboxRow RowOf(InboxEntry e) =>
             Row(e, runOf(e.Item.Key), decide(e.Item), whyCannotRun, now, actionsFor, uiState?.Invoke(e.Item.Key), repoDisplay);
@@ -95,11 +99,30 @@ public static class InboxPresenter
         foreach (var (kind, title) in Order)
         {
             if (kind == ItemKind.MyPrWaiting) continue;
-            var rows = view.Active.Where(v => v.Entry.Item.Kind == kind)
+            var rows = view.Active.Where(v => v.Entry.Item.Kind == kind && v.Attention != Attention.Muted)
                 .OrderByDescending(v => v.Entry.Item.UpdatedAt)
-                .Select(v => RowOf(v.Entry) with { MutedBy = v.MutedBy })
+                .Select(v => RowOf(v.Entry))
                 .ToList();
-            if (rows.Count > 0) sections.Add(new InboxSection(title, rows) { Id = kind.ToString() });
+            if (rows.Count == 0) continue;
+            // Every section can be collapsed by clicking its header; these start expanded. Approve all needs the rows, so it hides while collapsed.
+            var id = kind.ToString();
+            var expanded = collapsed is null || !collapsed.Contains(id);
+            var section = new InboxSection(title, rows) { Id = id, Collapsible = true };
+            sections.Add(section with
+            {
+                Rows = expanded ? rows : [],
+                Expanded = expanded,
+                BatchButtons = expanded && id == BatchApproval.SectionId && BatchApproval.ShowsButtons(section),
+            });
+        }
+        // Muted rows sit in their own collapsed section, so they don't crowd the live ones. Waiting rows stay in Waiting, muted or not.
+        var muted = view.Active.Where(v => v.Attention == Attention.Muted).ToList();
+        if (muted.Count > 0)
+        {
+            var rows = mutedExpanded
+                ? muted.OrderByDescending(v => v.Entry.Item.UpdatedAt).Select(v => RowOf(v.Entry) with { MutedBy = v.MutedBy }).ToList()
+                : [];
+            sections.Add(new InboxSection("Muted", rows) { Id = MutedSectionId, Collapsible = true, Expanded = mutedExpanded, Count = muted.Count });
         }
         if (view.Waiting.Count > 0)
         {
@@ -119,7 +142,7 @@ public static class InboxPresenter
             sections.Add(new InboxSection("Snoozed", rows)
             { Id = "snoozed", Collapsible = true, Expanded = snoozedExpanded, Count = view.Snoozed.Count });
         }
-        return sections.Select(s => s.Id == BatchApproval.SectionId ? s with { BatchButtons = BatchApproval.ShowsButtons(s) } : s).ToList();
+        return sections;
     }
 
     static InboxRow Row(InboxEntry e, AgentRun? run, AgentDecision decision, Func<InboxItem, AgentDecision, string?> why, DateTimeOffset now,

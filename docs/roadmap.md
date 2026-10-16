@@ -9,7 +9,7 @@ Every release follows the same pipeline: a design spec (`docs/superpowers/specs/
 | v1.0–v1.2 | Inbox, toasts, approvals, agents, installer, settings, mute/snooze | ✅ Shipped |
 | **v1.3** | Clear work from the tray | ✅ Shipped |
 | **v2.0** | Cross-platform UI (Avalonia), Windows first | 🟡 In review, dogfooding ([spec](superpowers/specs/2026-10-14-gh-notify-v2.0-design.md), [#9](https://github.com/JoshHambright/gh_notify/pull/9)) |
-| **v2.0.x** | Hide, not just mute | ⚪ Next |
+| **v2.0.x** | Hide, not just mute | 🟡 In review, ships with v2.0.0 |
 | **v2.1** | macOS | ⚪ Planned, [#1](https://github.com/JoshHambright/gh_notify/issues/1) |
 | **v2.2** | Broader inbox and smarter alerts | ⚪ Planned |
 | **v2.3** | Agent hand-off and insights | ⚪ Planned |

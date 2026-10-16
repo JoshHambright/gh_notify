@@ -56,11 +56,22 @@ Muted items never toast or play, whatever the sound rules say.
 | | Applies to | Still visible? | Toast / sound / auto-agent | Counted in badge | Comes back |
 |---|---|---|---|---|---|
 | **Snooze** | One item | Only in the "Snoozed (n)" section | No | No | By itself: at the time, when the item changes, or when you unsnooze |
-| **Mute** | A repo, org or project | Yes, dimmed, tagged 🔇 ("Muted by <pattern>") | No (the Run button still works) | No | Timed mutes expire; forever mutes stay until you remove the pattern |
-| **Hide** | A repo, org or project | No | No | No | When you remove the pattern |
+| **Mute** | A repo, org or project | Only in the collapsed "Muted (n)" section, tagged 🔇 ("Muted by <pattern>") | No (actions and the Run button still work) | No | Timed mutes expire; forever mutes stay until you remove the pattern |
+| **Hide** | A repo, org or project | No | No | No | When you remove the pattern: **Undo** right after hiding, **Hidden (n)** in the popup's ⋯ menu, or Settings › Filters |
+
+In short: **Snooze** brings one item back later. **Mute** keeps it in view but quiet. **Hide** removes it until you unhide it.
 
 Hiding is purely a display filter; gh_notify still tracks the items, so unhiding brings them back with no stale or duplicate
 toasts.
+
+### Hide
+
+Each row's **⋯** menu has **Hide repo**, **Hide org** and, for Azure DevOps, **Hide project**. One click adds the pattern to
+`filters.hide` in config.json, and every item it matches disappears: no row, no count, no toast, no sound, no auto-agent.
+- **Undo:** right after a hide, the popup footer shows **Hidden <pattern> · Undo** until you close and reopen the popup.
+- **Unhide later:** the popup's **⋯** menu lists every hide pattern under **Hidden (n)**, with how many current items it hides
+  and an **Unhide** entry. Settings › Filters shows the same patterns as chips with a count; remove one (×) and Save.
+- **Careful with orgs:** a hidden org can hide something urgent. The counts make a too-broad pattern easy to spot.
 
 ### Pattern syntax
 
@@ -101,7 +112,11 @@ thread, a changed approval or vote state). It then returns to its section and to
 "Back: ". If the item leaves the inbox meanwhile (merged, approved, closed), the snooze is dropped without a toast. Snoozes
 survive restarts.
 
-## The Waiting and Snoozed sections
+## The Muted, Waiting and Snoozed sections
+
+- **Muted (n)**: everything a mute pattern matches (except your waiting PRs, which stay in Waiting). It is collapsed by
+  default, remembers whether you expanded it, and isn't counted in the badge. Muted rows keep their actions. While you search,
+  it opens so its rows can match.
 
 - **My PRs — ready to merge**: your approved, green, mergeable PRs. They count in the badge, toast as "Ready to merge" and are
   merged in the browser.

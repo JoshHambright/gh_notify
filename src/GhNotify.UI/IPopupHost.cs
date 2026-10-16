@@ -17,6 +17,11 @@ public interface IPopupHost
     DateTimeOffset? LastPolledAt { get; }
     bool IsRefreshing { get; }
     ThemeMode ThemeMode { get; }
+    /// <summary>The popup width, unscaled (<see cref="PopupSize"/>); the window is PopupWidth × TextScale wide.</summary>
+    double PopupWidth { get; }
+    double TextScale { get; }
+    /// <summary>Saves the width dragged from the popup's left edge (clamped; the default resets it).</summary>
+    void SetPopupWidth(double width);
     event Action? Changed;
     void OpenUrl(string url);
     void RunAgent(string key);
@@ -57,7 +62,14 @@ public interface IPopupHost
     void Mute(string key, MuteScope scope, MuteDuration duration);
     IReadOnlyList<ActiveMute> ActiveMutes();
     void Unmute(string pattern);
-    /// <summary>Expands or collapses a collapsible section ("waiting", "snoozed").</summary>
+    /// <summary>Adds a filters.hide pattern for the item's repo, project or org (saved to config.json).</summary>
+    void HideMatching(string key, MuteScope scope);
+    /// <summary>The pattern hidden since the popup was last opened; the footer offers Undo for it.</summary>
+    string? JustHidden { get; }
+    /// <summary>Removes a filters.hide pattern.</summary>
+    void Unhide(string pattern);
+    IReadOnlyList<HiddenFilter> HiddenFilters();
+    /// <summary>Expands or collapses a collapsible section ("muted", "waiting", "snoozed").</summary>
     void ToggleSection(string id);
     UpdateStatus Update { get; }
     /// <summary>Runs, or queued, agents: what a restart would interrupt.</summary>
@@ -75,3 +87,6 @@ public interface IPopupHost
 
 /// <summary>A mute shown in the popup's active-mutes list. <paramref name="Remaining"/> is display text ("forever", "45m left").</summary>
 public sealed record ActiveMute(string Pattern, string Remaining, bool Permanent);
+
+/// <summary>A filters.hide pattern and how many current items it hides.</summary>
+public sealed record HiddenFilter(string Pattern, int Items);

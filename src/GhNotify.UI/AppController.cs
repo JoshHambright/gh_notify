@@ -37,6 +37,12 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     List<Snooze> _snoozes;
     bool _waitingExpanded;
     bool _snoozedExpanded;
+    bool _mutedExpanded;
+    // The other sections (Approvals, Review requests, …) start expanded; these are the ones the user collapsed.
+    readonly HashSet<string> _collapsed;
+    string? _justHidden;
+    double _popupWidth;
+    double _textScale;
     bool _commentsWarningShown;
     readonly SkillLocator _skills = new(SkillLocator.DefaultClaudeHome);
 
@@ -81,9 +87,13 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         _snoozes = state.Snoozes.ToList();
         _waitingExpanded = state.WaitingExpanded;
         _snoozedExpanded = state.SnoozedExpanded;
+        _mutedExpanded = state.MutedExpanded;
+        _collapsed = new HashSet<string>(state.CollapsedSections);
         _commentsWarningShown = state.CommentsWarningShown;
         _lastRunVersion = state.LastRunVersion;
         _whatsNewVersion = state.WhatsNewVersion;
+        _popupWidth = PopupSize.ClampWidth(state.PopupWidth ?? PopupSize.DefaultWidth);
+        _textScale = PopupSize.NormalizeScale(state.TextScale);
         _usedBefore = state.Snapshot.Count > 0 || state.AgentRuns.Count > 0 || state.Mutes.Count > 0 || state.Snoozes.Count > 0;
         _reconciler = new Reconciler(state.Snapshot.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<InboxItem>)kv.Value));
 
@@ -207,10 +217,25 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         var plan = NotificationPlanner.Plan(diff, woken, view, cfg, WorkHours.IsWithin(cfg.WorkHours, DateTime.Now));
         foreach (var t in plan.Toasts) _toasts.Apply(t);
         if (plan.Sound is { } sound) _runtime.Dispatcher.Post(() => _platform.Sound.Play(sound));
+        // Hidden items fire nothing: no toast or sound (the planner), no auto-agent (MaybeAutoRun) and no hooks.
+        bool Hidden(InboxItem i) => InboxView.IsHidden(i, cfg.Filters);
         foreach (var i in diff.InitialLoad) { _agents.OnItemAdded(i); MaybeAutoRun(i, cfg, view); }
-        foreach (var i in diff.Added) { _agents.OnItemAdded(i); _ = _hooks.DispatchAsync(HookEvent.ItemAdded, i); MaybeAutoRun(i, cfg, view); }
-        foreach (var c in diff.Changed) { _agents.OnItemChanged(c); _ = _hooks.DispatchAsync(HookEvent.ItemChanged, c.New); }
-        foreach (var r in diff.Removed) { _agents.OnItemRemoved(r); _ = _hooks.DispatchAsync(HookEvent.ItemRemoved, r); }
+        foreach (var i in diff.Added)
+        {
+            _agents.OnItemAdded(i);
+            if (!Hidden(i)) _ = _hooks.DispatchAsync(HookEvent.ItemAdded, i);
+            MaybeAutoRun(i, cfg, view);
+        }
+        foreach (var c in diff.Changed)
+        {
+            _agents.OnItemChanged(c);
+            if (!Hidden(c.New)) _ = _hooks.DispatchAsync(HookEvent.ItemChanged, c.New);
+        }
+        foreach (var r in diff.Removed)
+        {
+            _agents.OnItemRemoved(r);
+            if (!Hidden(r)) _ = _hooks.DispatchAsync(HookEvent.ItemRemoved, r);
+        }
         PruneRowStates(diff);
         _ = SweepAsync();
         Save();
@@ -236,8 +261,10 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         {
             run = _agents.Get(run.Key) ?? run; // RunChanged is a signal only; re-read the latest value (events may arrive out of order)
             // RunChanged also fires for later edits (opened, item removed); announce each finished run once.
+            // A run that finishes after its item was hidden is recorded as announced but not shown (no toast, no AgentFinished hook),
+            // so unhiding it later can't announce a stale completion.
             if (run.State is AgentState.Ready or AgentState.Failed && run.FinishedAt is { } finished &&
-                Find(run.Key) is { } item && TryMarkAnnounced(run.Key, finished))
+                Find(run.Key) is { } item && TryMarkAnnounced(run.Key, finished) && !InboxView.IsHidden(item, _config.Current.Filters))
             {
                 var label = InboxPresenter.LabelFor(run.Profile);
                 if (WorkHours.IsWithin(_config.Current.WorkHours, DateTime.Now))
@@ -308,27 +335,27 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         var sections = InboxFilter.Apply(Present(searching), query);
         if (searching) sections = sections.Select(s => s.BatchButtons ? s with { BatchButtons = false } : s).ToList();
         if (!Batch.Active) return sections;
-        // While a batch is open or running, the Approvals rows can only be acted on through it.
-        return sections.Select(s => s.Id != BatchApproval.SectionId ? s : s with
-        {
-            Rows = s.Rows.Select(r => r with
-            {
-                Actions = r.Actions.Select(a => a with { Enabled = false, DisabledReason = BatchBusy }).ToList(),
-            }).ToList(),
-        }).ToList();
+        return BatchApproval.Lock(sections, key => Find(key)?.Kind == ItemKind.ApprovalPending, BatchBusy);
     }
 
     public const string BatchBusy = "Finish the batch first";
 
-    /// <summary>The presented sections; while searching, Waiting and Snoozed are built expanded so their rows can be matched.</summary>
+    /// <summary>The presented sections; while searching, Muted, Waiting and Snoozed are built expanded so their rows can be matched.</summary>
     IReadOnlyList<InboxSection> Present(bool expandAll)
     {
         var cfg = _config.Current;
-        bool waitingExpanded, snoozedExpanded;
-        lock (_filterGate) { waitingExpanded = _waitingExpanded || expandAll; snoozedExpanded = _snoozedExpanded || expandAll; }
+        bool waitingExpanded, snoozedExpanded, mutedExpanded;
+        HashSet<string>? collapsed;
+        lock (_filterGate)
+        {
+            waitingExpanded = _waitingExpanded || expandAll;
+            snoozedExpanded = _snoozedExpanded || expandAll;
+            mutedExpanded = _mutedExpanded || expandAll;
+            collapsed = expandAll ? null : new HashSet<string>(_collapsed);
+        }
         return InboxPresenter.Build(CurrentView(), _agents.Get, i => RulesEngine.Decide(i, cfg), _agents.WhyCannotRun,
             DateTimeOffset.Now, _actions.ActionsFor, k => _rowStates.GetValueOrDefault(k),
-            r => RepoNames.Display(r, cfg.Display.RepoAliases, cfg.Display.MaxRepoChars), waitingExpanded, snoozedExpanded);
+            r => RepoNames.Display(r, cfg.Display.RepoAliases, PopupSize.RepoChars(cfg.Display.MaxRepoChars, _popupWidth)), waitingExpanded, snoozedExpanded, mutedExpanded, collapsed);
     }
 
     public IReadOnlyList<SourceStatus> Sources() => _reconciler.Statuses;
@@ -346,6 +373,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         foreach (var (key, s) in _rowStates)
             if (s.Mode == RowMode.Confirming) _rowStates.TryUpdate(key, RowStateMachine.Rearm(s, now), s);
         Batch.Rearm();
+        _justHidden = null; // Undo is offered until the popup is closed and opened again.
     }
 
     public void CycleTheme()
@@ -565,14 +593,67 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         Changed?.Invoke();
     }
 
-    /// <summary>Applies an edit to filters.mute in config.json with the Settings guards; false (after a toast) when it was not saved.</summary>
-    bool EditMuteConfig(Action<List<string>> edit)
+    /// <summary>Adds a filters.hide pattern for the item's repo, project or org. The footer offers Undo until the popup is reopened.</summary>
+    public void HideMatching(string key, MuteScope scope)
     {
-        var result = MuteConfigEditor.TrySave(_config, edit, _commentsWarningShown);
+        if (Find(key) is not { } item || MutePatterns.For(item, scope) is not { } pattern) return;
+        var added = false;
+        if (!EditMuteConfig(list =>
+            {
+                if (list.Contains(pattern, StringComparer.OrdinalIgnoreCase)) return;
+                list.Add(pattern);
+                added = true;
+            }, FilterList.Hide)) return;
+        Log.Info($"hid {pattern}");
+        // Undo only removes a pattern this click added, never one that was already in Settings.
+        if (added) _justHidden = pattern;
+        // Like a snooze: clear the hidden items' toasts from Action Center so none can be clicked through.
+        foreach (var e in _reconciler.Entries.Where(e => InboxView.IsHidden(e.Item, _config.Current.Filters)))
+        {
+            _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.For(e.Item.Key)));
+            _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.ForAgent(e.Item.Key)));
+            // Keep Sending and Done: an action in flight must still finish into its own state (and Undo must not re-offer it).
+            if (_rowStates.TryGetValue(e.Item.Key, out var s) && s.Mode is not (RowMode.Sending or RowMode.Done))
+                _rowStates.TryRemove(KeyValuePair.Create(e.Item.Key, s));
+        }
+        // An open batch must not go on to send items that are now hidden; a running one can't be stopped and finishes.
+        if (Batch.Phase is BatchPhase.Previewing or BatchPhase.Ready && Batch.Lines.Any(l => InboxView.IsHidden(l.Item, _config.Current.Filters)))
+            Batch.Close();
+        Changed?.Invoke();
+    }
+
+    public string? JustHidden => _justHidden;
+
+    public void Unhide(string pattern)
+    {
+        // Already gone (removed in Settings meanwhile): nothing to save.
+        if (!_config.Current.Filters.Hide.Contains(pattern, StringComparer.OrdinalIgnoreCase))
+        {
+            _justHidden = null;
+            Changed?.Invoke();
+            return;
+        }
+        if (!EditMuteConfig(list => list.RemoveAll(p => string.Equals(p, pattern, StringComparison.OrdinalIgnoreCase)), FilterList.Hide)) return;
+        if (string.Equals(_justHidden, pattern, StringComparison.OrdinalIgnoreCase)) _justHidden = null;
+        Changed?.Invoke();
+    }
+
+    /// <summary>Every filters.hide pattern with how many current items it hides.</summary>
+    public IReadOnlyList<HiddenFilter> HiddenFilters()
+    {
+        var items = _reconciler.Entries.Select(e => e.Item).ToList();
+        return _config.Current.Filters.Hide.Select(p => new HiddenFilter(p, Math.Max(0, SettingsDraft.CountMatches(p, items)))).ToList();
+    }
+
+    /// <summary>Applies an edit to filters.mute (or filters.hide) in config.json with the Settings guards; false (after a toast) when it was not saved.</summary>
+    bool EditMuteConfig(Action<List<string>> edit, FilterList list = FilterList.Mute)
+    {
+        var result = MuteConfigEditor.TrySave(_config, edit, _commentsWarningShown, list);
         if (result == MuteSaveResult.Saved) return true;
+        var what = list == FilterList.Hide ? "hide" : "mute";
         var message = result == MuteSaveResult.CommentsNotAcknowledged
-            ? "Couldn't save mute: config.json has comments — use Settings to save it once"
-            : "Couldn't save mute: config.json changed or has an error. Fix it or use Settings.";
+            ? $"Couldn't save {what}: config.json has comments — use Settings to save it once"
+            : $"Couldn't save {what}: config.json changed or has an error. Fix it or use Settings.";
         _toasts.Apply(new ToastRequest(ToastAction.Show, ItemTag.For("mute-error"), "gh_notify", message));
         return false;
     }
@@ -583,7 +664,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         {
             if (id == "waiting") _waitingExpanded = !_waitingExpanded;
             else if (id == "snoozed") _snoozedExpanded = !_snoozedExpanded;
-            else return;
+            else if (id == InboxPresenter.MutedSectionId) _mutedExpanded = !_mutedExpanded;
+            else if (!_collapsed.Remove(id)) _collapsed.Add(id);
         }
         Save();
         Changed?.Invoke();
@@ -706,6 +788,27 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         Changed?.Invoke();
     }
 
+    public double PopupWidth => _popupWidth;
+    public double TextScale => _textScale;
+
+    public void SetPopupWidth(double width)
+    {
+        width = PopupSize.ClampWidth(width);
+        if (width == _popupWidth) return;
+        _popupWidth = width;
+        Save();
+        Changed?.Invoke(); // longer repo names fit
+    }
+
+    public void SetTextScale(double scale)
+    {
+        scale = PopupSize.NormalizeScale(scale);
+        if (scale == _textScale) return;
+        _textScale = scale;
+        Save();
+        Changed?.Invoke();
+    }
+
     public void PlaySound(string sound) => _platform.Sound.Play(sound);
 
     public bool CommentsWarningShown
@@ -742,9 +845,13 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
                         Snoozes = _snoozes.ToList(),
                         WaitingExpanded = _waitingExpanded,
                         SnoozedExpanded = _snoozedExpanded,
+                        MutedExpanded = _mutedExpanded,
+                        CollapsedSections = _collapsed.Order(StringComparer.Ordinal).ToList(),
                         CommentsWarningShown = _commentsWarningShown,
                         LastRunVersion = _lastRunVersion,
                         WhatsNewVersion = _whatsNewVersion,
+                        PopupWidth = _popupWidth == PopupSize.DefaultWidth ? null : _popupWidth,
+                        TextScale = _textScale,
                     };
                 }
                 _stateStore.Save(state);

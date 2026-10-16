@@ -22,8 +22,8 @@ public class PopupRenderTests
         Assert.DoesNotContain("gh:waiting:fabrikam/api#88", keys); // "Waiting on others" starts collapsed
 
         var texts = h.Texts(h.Window);
-        Assert.Contains("APPROVALS", texts);
-        Assert.Contains("REVIEW REQUESTS", texts);
+        Assert.Contains(texts, t => t.StartsWith("APPROVALS (2)", StringComparison.Ordinal)); // every header is a toggle with its count
+        Assert.Contains(texts, t => t.StartsWith("REVIEW REQUESTS (", StringComparison.Ordinal));
         Assert.Contains(texts, t => t.StartsWith("WAITING ON OTHERS (2)"));
         Assert.Contains("Add retry with jitter to payment gateway client", texts);
         Assert.Contains("Waiting on you", texts);
@@ -182,7 +182,7 @@ public class PopupRenderTests
     {
         using var h = new PopupHarness();
         var menu = h.Window.RowMenuFor(h.RowMenuButton(SampleHost.CiKey), SampleHost.CiKey)!;
-        Assert.Equal(["Snooze", "Mute repo", "Mute org"], menu.Items.OfType<MenuItem>().Select(i => i.Header).ToList());
+        Assert.Equal(["Snooze", "Mute repo", "Mute org", "Hide repo", "Hide org"], menu.Items.OfType<MenuItem>().Select(i => i.Header).ToList());
         var ado = h.Window.RowMenuFor(h.RowMenuButton(SampleHost.ReviewKey), SampleHost.ReviewKey)!;
         Assert.Contains("Mute project", ado.Items.OfType<MenuItem>().Select(i => i.Header));
 

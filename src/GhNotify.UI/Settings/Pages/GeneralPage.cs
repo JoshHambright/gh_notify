@@ -14,6 +14,7 @@ public sealed class GeneralPage : SettingsPageBase
     static readonly string[] Days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     readonly bool _startWithWindows;
     readonly ThemeMode _themeMode;
+    readonly double _textScale;
     readonly bool _loading = true;
     readonly NumberInput _poll, _checkHours, _maxAgents, _timeout;
     string? _captureProblem;
@@ -52,7 +53,14 @@ public sealed class GeneralPage : SettingsPageBase
         ThemeDark = Ui.Segment("Dark", _themeMode == ThemeMode.Dark);
         ThemeLight = Ui.Segment("Light", _themeMode == ThemeMode.Light);
         foreach (var r in new[] { ThemeSystem, ThemeDark, ThemeLight }) r.IsCheckedChanged += (_, _) => LocalChoice();
-        Body.Children.Add(Ui.Field("Theme", Ui.Segments(ThemeSystem, ThemeDark, ThemeLight), 22));
+        Body.Children.Add(Ui.Field("Theme", Ui.Segments(ThemeSystem, ThemeDark, ThemeLight), 4));
+        _textScale = PopupSize.NormalizeScale(host.TextScale);
+        TextSizes = PopupSize.TextScales.Select(s => Ui.Segment($"{s * 100:0}%", s == _textScale)).ToList();
+        foreach (var r in TextSizes) r.IsCheckedChanged += (_, _) => LocalChoice();
+        Body.Children.Add(Ui.Field("Popup text size", Ui.Segments(TextSizes.ToArray()), 4));
+        var sizeHint = Ui.Text("Drag the popup's left edge to make it wider; double-click the edge to reset.", "muted", "small");
+        sizeHint.Margin = new Thickness(180, 0, 0, 22);
+        Body.Children.Add(sizeHint);
 
         // SHORTCUT
         Body.Children.Add(Ui.Section("SHORTCUT"));
@@ -118,6 +126,8 @@ public sealed class GeneralPage : SettingsPageBase
     internal RadioButton ThemeSystem { get; }
     internal RadioButton ThemeDark { get; }
     internal RadioButton ThemeLight { get; }
+    /// <summary>One segment per <see cref="PopupSize.TextScales"/> entry, in order.</summary>
+    internal IReadOnlyList<RadioButton> TextSizes { get; }
     internal TextBox PollBox => _poll.Box;
     internal TextBox HotkeyBox { get; }
     internal Button HotkeyClear { get; }
@@ -210,8 +220,10 @@ public sealed class GeneralPage : SettingsPageBase
 
     public ThemeMode ThemeMode => ThemeDark.IsChecked == true ? ThemeMode.Dark : ThemeLight.IsChecked == true ? ThemeMode.Light : ThemeMode.System;
 
-    /// <summary>Start-with-Windows or theme differ from when the window opened (they are saved outside config.json).</summary>
-    public bool HasLocalChanges => StartWithWindows != _startWithWindows || ThemeMode != _themeMode;
+    public double TextScale => PopupSize.TextScales[Math.Max(0, TextSizes.ToList().FindIndex(r => r.IsChecked == true))];
+
+    /// <summary>Start-with-Windows, theme or text size differ from when the window opened (they are saved outside config.json).</summary>
+    public bool HasLocalChanges => StartWithWindows != _startWithWindows || ThemeMode != _themeMode || TextScale != _textScale;
 
     public void ApplyLocalChoices()
     {
@@ -221,6 +233,7 @@ public sealed class GeneralPage : SettingsPageBase
             catch (Exception ex) { Log.Error("could not change the startup registration", ex); }
         }
         if (ThemeMode != _themeMode) Host.SetThemeMode(ThemeMode);
+        if (TextScale != _textScale) Host.SetTextScale(TextScale);
     }
 
     void SetDay(string day, bool on)
