@@ -5,10 +5,12 @@
     <Project Path="src/GhNotify.App/GhNotify.App.csproj" />
     <Project Path="src/GhNotify.Core/GhNotify.Core.csproj" />
     <Project Path="src/GhNotify.GitHub/GhNotify.GitHub.csproj" />
+    <Project Path="src/GhNotify.Platform.Mac/GhNotify.Platform.Mac.csproj" />
     <Project Path="src/GhNotify.Platform.Windows/GhNotify.Platform.Windows.csproj" />
     <Project Path="src/GhNotify.UI/GhNotify.UI.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/GhNotify.Platform.Mac.Tests/GhNotify.Platform.Mac.Tests.csproj" />
     <Project Path="tests/GhNotify.Platform.Windows.Tests/GhNotify.Platform.Windows.Tests.csproj" />
     <Project Path="tests/GhNotify.Tests/GhNotify.Tests.csproj" />
     <Project Path="tests/GhNotify.UI.Tests/GhNotify.UI.Tests.csproj" />
