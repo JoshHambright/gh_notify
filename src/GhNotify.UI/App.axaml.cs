@@ -102,10 +102,9 @@ public partial class App : Application
         TrayIcon.SetIcons(this, [_tray]);
 
         controller.Changed += () => dispatcher.Post(UpdateTray);
-        o.Platform.Notifier.Activated += (_, action) => dispatcher.Post(() =>
+        o.Platform.Notifier.Activated += (tag, action) => dispatcher.Post(() =>
         {
-            if (ToastActions.TryGetUrl(action, out var url)) controller.OpenUrl(url);
-            else _popup.ShowNearTray();
+            if (!controller.OnToastActivated(tag, action)) _popup.ShowNearTray();
         });
 
         StartHotkey(controller, o.Platform.Hotkey);
