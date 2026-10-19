@@ -69,7 +69,7 @@ if [ -n "$APP" ]; then
 
   ask launched     "Did gh_notify start without an error or an 'unidentified developer' block? (If macOS blocked it: System Settings → Privacy & Security → Open Anyway, then answer n and describe it.)"
   ask permission   "Did macOS ask to allow notifications for gh_notify, and did you allow it?"
-  ask notification "Did a 'gh_notify test notification' appear? (If you allowed it late, it may not have.)"
+  ask notification "Did a 'gh_notify test notification' appear? (Not if Focus / Do Not Disturb is on, or you allowed it late. Check Notification Center too.)"
   ask notifsettings "Open System Settings → Notifications. Is gh_notify in the list with notifications allowed? (Add what you see: not listed / listed but off / on.)"
   ask click       "Click the notification (in Notification Center if it is gone). Did the gh_notify popup open?"
   ask terminal     "About 10 seconds after starting, did a Terminal window open showing 'gh_notify terminal test'? (macOS may first ask to let gh_notify control Terminal: allow it.)"

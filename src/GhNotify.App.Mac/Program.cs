@@ -75,10 +75,11 @@ public static class Program
     }
 
     /// <summary>Tester round 2 (build/mac-test.sh): one sample notification a few seconds after startup, to check the permission
-    /// prompt and that a click opens the popup.</summary>
+    /// prompt and that a click opens the popup. A new id each run: macOS may replace one with the same id without a banner.</summary>
     static void ScheduleTestNotification(INotifier notifier) =>
         _ = Task.Delay(TimeSpan.FromSeconds(5)).ContinueWith(_ =>
-            notifier.Apply(new ToastRequest(ToastAction.Show, "ghn-test", "gh_notify test notification", "Click to open the popup")));
+            notifier.Apply(new ToastRequest(ToastAction.Show, $"ghn-test-{DateTime.UtcNow:HHmmss}",
+                "gh_notify test notification", "Click to open the popup")));
 
     /// <summary>Tester round 2: a terminal action (display.terminal) in the home folder, to check the Automation permission prompt.</summary>
     static void ScheduleTestTerminal(IShell shell) =>

@@ -57,7 +57,9 @@ public func ghn_notify_init(_ onClick: GhnClickCallback?) -> Int32 {
     center.getNotificationSettings { settings in
         let names = ["notDetermined", "denied", "authorized", "provisional", "ephemeral"]
         let i = settings.authorizationStatus.rawValue
-        NSLog("gh_notify: notification permission before asking: \(i < names.count ? names[i] : String(i)) (bundle \(Bundle.main.bundleIdentifier ?? "none"))")
+        let styles = ["none", "banner", "alert"]
+        let s = settings.alertStyle.rawValue
+        NSLog("gh_notify: notification permission before asking: \(i < names.count ? names[i] : String(i)), alert style \(s < styles.count ? styles[s] : String(s)) (bundle \(Bundle.main.bundleIdentifier ?? "none"))")
     }
     center.requestAuthorization(options: [.alert, .sound]) { granted, error in
         if let error = error { NSLog("gh_notify: notification permission request failed: \(error.localizedDescription)") }
@@ -79,6 +81,7 @@ public func ghn_notify_show(_ tag: UnsafePointer<CChar>, _ title: UnsafePointer<
     let request = UNNotificationRequest(identifier: String(cString: tag), content: content, trigger: nil)
     UNUserNotificationCenter.current().add(request) { error in
         if let error = error { NSLog("gh_notify: notification failed: \(error.localizedDescription)") }
+        else { NSLog("gh_notify: notification delivered to Notification Center") }
     }
     return 0
 }
@@ -117,7 +120,9 @@ public func ghn_hotkey_register(_ keyCode: UInt32, _ modifiers: UInt32, _ onPres
     hotkeyCallback = onPressed
     if !hotkeyHandlerInstalled {
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        let status = InstallEventHandler(GetApplicationEventTarget(), { _, event, _ in
+        // The event dispatcher target (as MASShortcut and HotKey use): it sees the press first. The application target relies on
+        // the app's event loop passing Carbon events on, which Avalonia's loop does not do (round 5: registered, never fired).
+        let status = InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ in
             var id = EventHotKeyID()
             GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil,
                               MemoryLayout<EventHotKeyID>.size, nil, &id)
@@ -128,7 +133,7 @@ public func ghn_hotkey_register(_ keyCode: UInt32, _ modifiers: UInt32, _ onPres
         hotkeyHandlerInstalled = true
     }
     let id = EventHotKeyID(signature: hotkeySignature, id: 1)
-    return RegisterEventHotKey(keyCode, modifiers, id, GetApplicationEventTarget(), 0, &hotkeyRef)
+    return RegisterEventHotKey(keyCode, modifiers, id, GetEventDispatcherTarget(), 0, &hotkeyRef)
 }
 
 @_cdecl("ghn_hotkey_unregister")
