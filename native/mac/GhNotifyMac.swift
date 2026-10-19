@@ -52,6 +52,12 @@ public func ghn_notify_init(_ onClick: GhnClickCallback?) -> Int32 {
     notificationDelegate.onClick = onClick
     let center = UNUserNotificationCenter.current()
     center.delegate = notificationDelegate
+    // The status before asking: "denied" means an earlier answer (or a management profile) blocks it, and macOS won't ask again.
+    center.getNotificationSettings { settings in
+        let names = ["notDetermined", "denied", "authorized", "provisional", "ephemeral"]
+        let i = settings.authorizationStatus.rawValue
+        NSLog("gh_notify: notification permission before asking: \(i < names.count ? names[i] : String(i)) (bundle \(Bundle.main.bundleIdentifier ?? "none"))")
+    }
     center.requestAuthorization(options: [.alert, .sound]) { granted, error in
         if let error = error { NSLog("gh_notify: notification permission request failed: \(error.localizedDescription)") }
         else if !granted { NSLog("gh_notify: notifications are turned off for gh_notify in System Settings") }

@@ -29,6 +29,19 @@ APP="$(app_path)"
 if [ -z "$APP" ]; then echo "    FAILED: no app was installed. See logs/install.log"; fi
 pkill -x GhNotify 2>/dev/null; sleep 1
 
+# The package must come from the commit this checkout is on: every CI build is called 0.0.2-ci, so an older download looks the same.
+HEAD_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
+APP_SHA="$([ -n "$APP" ] && "$APP/Contents/MacOS/GhNotify" --commit 2>/dev/null | tail -1)"
+echo "    Installed build: commit ${APP_SHA:-unknown}; this checkout: ${HEAD_SHA:-unknown}"
+if [ -n "$APP" ] && [ "${APP_SHA:-x}" != "${HEAD_SHA:-y}" ]; then
+  echo
+  echo "    This .pkg is not from the commit you are on. Download the newest gh_notify-macos-arm64 artifact from the PR"
+  echo "    (Checks → CI → Artifacts), delete the old download first, and run this again with the new .pkg."
+  printf '    Test this package anyway? [y/N] '
+  read -r go
+  [ "$go" = y ] || exit 1
+fi
+
 # Settings in a scratch folder. GitHub is on when `gh` is signed in, so the inbox shows your real items (nothing is sent
 # anywhere; gh_notify only reads). Azure DevOps stays off. Without gh the inbox is empty and the icon stays plain.
 if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then GITHUB=true; else GITHUB=false; fi
@@ -57,7 +70,8 @@ if [ -n "$APP" ]; then
   ask launched     "Did gh_notify start without an error or an 'unidentified developer' block? (If macOS blocked it: System Settings → Privacy & Security → Open Anyway, then answer n and describe it.)"
   ask permission   "Did macOS ask to allow notifications for gh_notify, and did you allow it?"
   ask notification "Did a 'gh_notify test notification' appear? (If you allowed it late, it may not have.)"
-  ask click        "Click the notification (in Notification Center if it is gone). Did the gh_notify popup open?"
+  ask notifsettings "Open System Settings → Notifications. Is gh_notify in the list with notifications allowed? (Add what you see: not listed / listed but off / on.)"
+  ask click       "Click the notification (in Notification Center if it is gone). Did the gh_notify popup open?"
   ask terminal     "About 10 seconds after starting, did a Terminal window open showing 'gh_notify terminal test'? (macOS may first ask to let gh_notify control Terminal: allow it.)"
   ask menubar      "Is the gh_notify icon in the menu bar and sharp (not blurry)? With GitHub on and something waiting, is it red with a count?"
   ask menu         "Click the menu-bar icon. Does a menu open with Open, Settings…, What's new, Check for updates and Quit?"
@@ -82,7 +96,9 @@ for f in "$OUT/logs/"*.log; do [ -f "$f" ] && sed -i '' "s|$HOME|~|g" "$f"; done
   echo "  \"package\": \"$(basename "$PKG")\","
   echo "  \"app\": \"$(echo "${APP:-}" | sed "s|$HOME|~|g")\","
   echo "  \"version\": \"$([ -n "${APP:-}" ] && "$APP/Contents/MacOS/GhNotify" --version 2>/dev/null | tail -1)\","
-  echo "  \"utc\": \"$STAMP\","
+  echo "  \"commit\": \"${APP_SHA:-}\","
+  echo "  \"checkout\": \"${HEAD_SHA:-}\","
+  echo "  \"utc\":\"$STAMP\","
   echo "  \"macos\": \"$(sw_vers -productVersion)\","
   echo "  \"arch\": \"$(uname -m)\","
   echo "  \"owner\": \"$([ -n "${APP:-}" ] && stat -f %Su "$APP")\","

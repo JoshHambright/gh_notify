@@ -66,7 +66,8 @@ is empty and a few questions don't apply. It takes about 15 minutes.
 
 1. Open the pull request we send you (for v2.1 that is [#16](https://github.com/JoshHambright/gh_notify/pull/16)) and click
    **Checks**, then the **CI** run, then scroll to **Artifacts**. You need to be signed in to GitHub to download it.
-2. Download **gh_notify-macos-arm64** and unzip it. Inside is a `.pkg` file.
+2. Delete any earlier `gh_notify-macos-arm64` download, then download **gh_notify-macos-arm64** from the newest run and unzip it.
+   Inside is a `.pkg` file. It must come from the commit you check out below: the script checks, and stops if it does not.
 
 ### Steps
 
@@ -86,10 +87,10 @@ No artifact, or prefer to build it yourself? With the Xcode command line tools (
 ```
 
 The script:
-1. installs the package (macOS asks for your password);
+1. installs the package (macOS asks for your password) and checks it was built from the commit you are on;
 2. starts gh_notify (with `open`, like Finder) with settings in a scratch folder, so a real gh_notify setup is never touched;
 3. shows a test notification after about 5 seconds, and opens a Terminal window after about 10;
-4. asks you 13 yes/no questions, one at a time, each with room for a note.
+4. asks you 14 yes/no questions, one at a time, each with room for a note.
 
 The app is ad-hoc signed, not notarized. If macOS blocks it, open System Settings → Privacy & Security, click **Open Anyway**,
 and say so in the first answer, including the exact wording macOS used.

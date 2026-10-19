@@ -50,7 +50,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref || github.sha }}
+          # The PR head, not the merge commit: the tester package must match the branch they check out (build/mac-test-round2.sh).
+          ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - uses: actions/setup-dotnet@v6
         with:

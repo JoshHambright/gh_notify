@@ -26,6 +26,11 @@ public static class Program
             Console.WriteLine(AppVersion.Current);
             return 0;
         }
+        if (args is ["--commit"])
+        {
+            Console.WriteLine(AppVersion.Commit);
+            return 0;
+        }
         if (args is ["--write-iconset", var dir])
         {
             WriteIconset(dir);
@@ -41,6 +46,7 @@ public static class Program
     static int Run(string[] args, MacPaths paths, bool testNotification, bool testTerminal)
     {
         Log.Configure(paths.Logs);
+        Log.Info($"gh_notify {AppVersion.Current} (commit {AppVersion.Commit}) from {AppContext.BaseDirectory}");
         string? error = null;
         try
         {
