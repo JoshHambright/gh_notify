@@ -6,6 +6,10 @@ public static class UiPlatform
 {
     public static bool IsMac { get; set; } = OperatingSystem.IsMacOS();
 
+    /// <summary>macOS: the menu-bar icon's frame in screen points (Avalonia doesn't expose it), so the popup opens under it.
+    /// Set by the macOS host; null, or returning null, falls back to the top-right corner.</summary>
+    public static Func<Avalonia.Rect?>? TrayIconFrame { get; set; }
+
     /// <summary>The start-at-login toggle in Settings and the popup menu.</summary>
     public static string StartupLabel => IsMac ? "Open at login" : "Start with Windows";
 }

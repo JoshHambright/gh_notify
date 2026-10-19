@@ -15,7 +15,7 @@ Windows, and updates itself the same way.
    app for malicious software. Open System Settings → Privacy & Security, scroll down, and click **Open Anyway** next to
    gh_notify. You only do this once; updates open normally.
 4. When macOS asks whether gh_notify may send notifications, click **Allow**. You can change this later in System Settings →
-   Notifications → gh_notify.
+   Notifications → gh_notify. If macOS doesn't ask, turn on **Allow notifications** there yourself.
 5. Sign in to GitHub once: `gh auth login`. Install the [GitHub CLI](https://cli.github.com/) with `brew install gh` if you
    don't have it.
 6. Optional, for Azure DevOps: `brew install azure-cli`, then `az login`.

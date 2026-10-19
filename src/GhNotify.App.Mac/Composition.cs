@@ -29,6 +29,7 @@ static class Composition
         try
         {
             var shim = NativeShim.Load();
+            UiPlatform.TrayIconFrame = () => shim.StatusItemFrame() is var (x, y, w, h) ? new Avalonia.Rect(x, y, w, h) : null;
             return (new MacNotifier(shim), new MacHotkeyService(shim), new MacStartupService(shim));
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or InvalidOperationException or BadImageFormatException)

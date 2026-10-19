@@ -8,7 +8,7 @@ namespace GhNotify.Platform.Mac;
 public sealed unsafe partial class NativeShim : IMacShim
 {
     /// <summary>Bumped together with GHN_API_VERSION in GhNotifyMac.swift whenever the C API changes.</summary>
-    public const int ApiVersion = 1;
+    public const int ApiVersion = 2;
     const string Lib = "GhNotifyMac";
 
     static Action<string, string?>? _onClick;
@@ -52,6 +52,12 @@ public sealed unsafe partial class NativeShim : IMacShim
     public int LoginItemStatus() => ghn_login_item_status();
     public int LoginItemSet(bool enabled) => ghn_login_item_set(enabled ? 1 : 0);
 
+    public (double X, double Y, double Width, double Height)? StatusItemFrame()
+    {
+        double x, y, w, h;
+        return ghn_status_item_frame(&x, &y, &w, &h) == 0 ? (x, y, w, h) : null;
+    }
+
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     static void OnClick(byte* tag, byte* url)
     {
@@ -76,4 +82,5 @@ public sealed unsafe partial class NativeShim : IMacShim
     [LibraryImport(Lib)] private static partial void ghn_hotkey_unregister();
     [LibraryImport(Lib)] private static partial int ghn_login_item_status();
     [LibraryImport(Lib)] private static partial int ghn_login_item_set(int enabled);
+    [LibraryImport(Lib)] private static partial int ghn_status_item_frame(double* x, double* y, double* width, double* height);
 }

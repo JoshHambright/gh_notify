@@ -293,11 +293,11 @@ public partial class PopupWindow : Window
         Show();
         Activate();
         PlaceNearTray();
-        if (UiPlatform.IsMac) Log.Info($"popup shown at {Position} in {_area} (screen scaling {_areaScaling}, render scaling {RenderScaling}), active {IsActive}");
+        if (UiPlatform.IsMac) Log.Info($"popup shown at {Position} in {_area}, icon {UiPlatform.TrayIconFrame?.Invoke()?.ToString() ?? "unknown"} (screen scaling {_areaScaling}, render scaling {RenderScaling}), active {IsActive}");
     }
 
     /// <summary>SizeToContent grows and shrinks the height (expanding a row); keep the popup anchored next to the tray: the
-    /// bottom-right of the work area on Windows (taskbar), the top-right on macOS (under the menu bar).</summary>
+    /// bottom-right of the work area on Windows (taskbar), under the menu-bar icon on macOS.</summary>
     void PlaceNearTray()
     {
         if (_area is not { } area) return;
@@ -305,11 +305,21 @@ public partial class PopupWindow : Window
         // although the window renders at 2x on Retina), so convert the size with the screen's scaling, not the window's.
         var scale = _areaScaling;
         var height = Bounds.Height > 0 ? Bounds.Height : MinHeight;
-        Position = TrayPlacement(area, (int)Math.Round(Width * scale), (int)Math.Round(height * scale), UiPlatform.IsMac);
+        var icon = UiPlatform.IsMac && UiPlatform.TrayIconFrame?.Invoke() is { } f
+            ? new PixelRect(PixelPoint.FromPoint(f.Position, scale), PixelSize.FromSize(f.Size, scale))
+            : (PixelRect?)null;
+        Position = TrayPlacement(area, (int)Math.Round(Width * scale), (int)Math.Round(height * scale), UiPlatform.IsMac, icon);
     }
 
-    internal static PixelPoint TrayPlacement(PixelRect area, int width, int height, bool mac) =>
-        new(area.Right - width, mac ? area.Y : area.Bottom - height);
+    /// <summary>Windows: the bottom-right of the work area. macOS: the top of the work area, centred under the menu-bar icon but kept
+    /// on screen, or at the right edge when the icon's position is unknown.</summary>
+    internal static PixelPoint TrayPlacement(PixelRect area, int width, int height, bool mac, PixelRect? icon = null)
+    {
+        if (!mac) return new(area.Right - width, area.Bottom - height);
+        if (icon is not { } i) return new(area.Right - width, area.Y);
+        var x = i.X + i.Width / 2 - width / 2;
+        return new(Math.Max(area.X, Math.Min(x, area.Right - width)), area.Y);
+    }
 
     void OnActivated(object? sender, EventArgs e)
     {

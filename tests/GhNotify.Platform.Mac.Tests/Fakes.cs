@@ -20,6 +20,7 @@ sealed class FakeShim : IMacShim
     public List<string> Calls { get; } = [];
 
     public int Version() => NativeShim.ApiVersion;
+    public (double X, double Y, double Width, double Height)? StatusItemFrame() => null;
 
     public int NotifyInit(Action<string, string?> onClick)
     {

@@ -3,13 +3,14 @@
 // Strings are UTF-8 and only valid for the duration of a call. Return codes: 0 is success, see IMacShim.cs for the rest.
 // Build: native/mac/build.sh (universal arm64 + x86_64, macOS 13+).
 
+import AppKit
 import Carbon
 import Foundation
 import ServiceManagement
 import UserNotifications
 
 /// Bumped together with NativeShim.ApiVersion whenever this C API changes.
-let GHN_API_VERSION: Int32 = 1
+let GHN_API_VERSION: Int32 = 2
 
 @_cdecl("ghn_version")
 public func ghn_version() -> Int32 { GHN_API_VERSION }
@@ -160,4 +161,22 @@ public func ghn_login_item_set(_ enabled: Int32) -> Int32 {
         NSLog("gh_notify: login item \(enabled != 0 ? "register" : "unregister") failed: \(error.localizedDescription)")
         return -1
     }
+}
+
+// MARK: - Menu-bar icon position
+
+/// The frame of our status item (Avalonia's tray icon) in points, with the origin at the top left of the main screen (Avalonia's
+/// screen coordinates on macOS), so the popup can open under the icon. Its button lives in an NSStatusBarWindow that belongs to
+/// this process. 0 when found, -1 when not (the popup then opens at the top right). Call on the main thread.
+@_cdecl("ghn_status_item_frame")
+public func ghn_status_item_frame(_ x: UnsafeMutablePointer<Double>, _ y: UnsafeMutablePointer<Double>,
+                                  _ width: UnsafeMutablePointer<Double>, _ height: UnsafeMutablePointer<Double>) -> Int32 {
+    guard let window = NSApp?.windows.first(where: { String(describing: type(of: $0)).contains("StatusBarWindow") && $0.isVisible }),
+          let main = NSScreen.screens.first else { return -1 }
+    let f = window.frame
+    x.pointee = f.minX
+    y.pointee = main.frame.maxY - f.maxY
+    width.pointee = f.width
+    height.pointee = f.height
+    return 0
 }

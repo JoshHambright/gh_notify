@@ -23,4 +23,7 @@ public interface IMacShim
     int LoginItemStatus();
     /// <summary>Registers or unregisters the login item; 0 on success, &lt;0 on error.</summary>
     int LoginItemSet(bool enabled);
+
+    /// <summary>The menu-bar icon's frame in points from the main screen's top left, or null when it can't be found. Main thread only.</summary>
+    (double X, double Y, double Width, double Height)? StatusItemFrame();
 }

@@ -24,6 +24,17 @@ public class MacUiTests
         Assert.Equal(new PixelPoint(1440 - 376, 25), PopupWindow.TrayPlacement(area, 376, 600, mac: true));
     }
 
+    [Theory]
+    [InlineData(1000, 1000 + 15 - 188)] // centred under the icon
+    [InlineData(1400, 1440 - 376)]      // near the right edge: kept on screen
+    [InlineData(40, 0)]                 // near the left edge
+    public void macOS_popup_opens_centred_under_the_menu_bar_icon(int iconX, int expectedX)
+    {
+        var area = new PixelRect(0, 25, 1440, 875);
+        var icon = new PixelRect(iconX, 0, 30, 24);
+        Assert.Equal(new PixelPoint(expectedX, 25), PopupWindow.TrayPlacement(area, 376, 600, mac: true, icon));
+    }
+
     [Fact]
     public void Template_icon_is_black_glyph_on_transparent()
     {
