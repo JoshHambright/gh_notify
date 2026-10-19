@@ -54,7 +54,8 @@ See [docs/actions.md](docs/actions.md).
 ### Pre-review and diagnose agents
 
 Claude Code agents can run unattended in a throwaway worktree: **Pre-review** reads a review request, **Diagnose** works out
-why your PR is red. They are read-only, and a finished run shows **✓ Ready** with a one-line summary. The built-in
+why your PR is red. They are read-only, and a finished run shows **✓ Ready** with a one-line summary. Clicking its "ready"
+notification resumes that Claude session in a terminal, so you can pick the review up straight away. The built-in
 profiles need no skills; bring your own skills or scripts if you want. See [docs/workflows.md](docs/workflows.md).
 
 ### Sounds and off-hours alerts
