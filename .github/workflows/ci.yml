@@ -87,13 +87,28 @@ jobs:
         shell: bash
         run: ./build/test-install-mac.sh artifacts/mac-old artifacts/mac-new osx-arm64
       - name: Keep the package for the Mac tester
+        id: keep
         if: ${{ !cancelled() }}
+        # The artifact service sometimes times out on CreateArtifact; try once more after a pause before failing the job.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: gh_notify-macos-arm64
           path: artifacts/mac-new/*.pkg
           if-no-files-found: warn
           retention-days: 14
+      - name: Wait before retrying the upload
+        if: ${{ !cancelled() && steps.keep.outcome == 'failure' }}
+        run: sleep 60
+      - name: Keep the package for the Mac tester (retry)
+        if: ${{ !cancelled() && steps.keep.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: gh_notify-macos-arm64
+          path: artifacts/mac-new/*.pkg
+          if-no-files-found: warn
+          retention-days: 14
+          overwrite: true
   build:
     runs-on: windows-latest
     steps:
