@@ -68,7 +68,7 @@ if [ -n "$APP" ]; then
   sleep 6
 
   ask launched     "Did gh_notify start without an error or an 'unidentified developer' block? (If macOS blocked it: System Settings → Privacy & Security → Open Anyway, then answer n and describe it.)"
-  ask permission   "Did macOS ask to allow notifications for gh_notify, and did you allow it?"
+  ask permission   "Did macOS ask to allow notifications for gh_notify, and did you allow it? (It asks only once: if you allowed them in an earlier round, answer y.)"
   ask notification "Did a 'gh_notify test notification' appear? (Not if Focus / Do Not Disturb is on, or you allowed it late. Check Notification Center too.)"
   ask notifsettings "Open System Settings → Notifications. Is gh_notify in the list with notifications allowed? (Add what you see: not listed / listed but off / on.)"
   ask click       "Click the notification (in Notification Center if it is gone). Did the gh_notify popup open?"
@@ -77,6 +77,13 @@ if [ -n "$APP" ]; then
   ask menu         "Click the menu-bar icon. Does a menu open with Open, Settings…, What's new, Check for updates and Quit?"
   ask popup        "Choose Open. Does the popup appear at the top right, under the menu bar, and stay open?"
   ask hotkey       "Click somewhere else so the popup closes, then press Control+Option+G twice. Does the popup open, then close?"
+  # macOS lets two apps register the same combination and gives it to the other one, so try one nothing else is likely to use.
+  # gh_notify re-registers when config.json changes.
+  if ! tail -1 "$ANSWERS" | grep -q '^hotkey: y'; then
+    echo "{\"github\":{\"enabled\":$GITHUB},\"ado\":{\"enabled\":false},\"hotkey\":\"Ctrl+Option+Cmd+J\"}" > "$SCRATCH/config/config.json"
+    sleep 2
+    ask hotkey2    "Now try Control+Option+Command+J twice instead. Does the popup open, then close? (If only this one works, another app or a key remapper has Control+Option+G.)"
+  fi
   ask theme        "Open the popup again, then System Settings → Appearance: switch Light/Dark. Does the popup follow?"
   ask settings     "Menu-bar icon → Settings… → General: turn 'Open at login' on. Did it stay on (or show a hint about approving it)? Turn it off again."
   ask folder       "Settings → Advanced → Open logs folder. Did Finder open a folder?"

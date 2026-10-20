@@ -90,7 +90,7 @@ The script:
 1. installs the package (macOS asks for your password) and checks it was built from the commit you are on;
 2. starts gh_notify (with `open`, like Finder) with settings in a scratch folder, so a real gh_notify setup is never touched;
 3. shows a test notification after about 5 seconds, and opens a Terminal window after about 10;
-4. asks you 14 yes/no questions, one at a time, each with room for a note.
+4. asks you 14 yes/no questions (15 if the hotkey needs a second try), one at a time, each with room for a note.
 
 The app is ad-hoc signed, not notarized. If macOS blocks it, open System Settings → Privacy & Security, click **Open Anyway**,
 and say so in the first answer, including the exact wording macOS used.
