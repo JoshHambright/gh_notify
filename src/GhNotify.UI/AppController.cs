@@ -691,6 +691,24 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         }
     }
 
+    /// <summary>
+    /// A toast click. A finished agent run (e.g. "Pre-review ready") resumes its Claude session, where the review continues;
+    /// other toasts, and a run whose session or worktree is gone, open their URL. False when the click should just open the popup.
+    /// </summary>
+    public bool OnToastActivated(string tag, string action)
+    {
+        var entry = _reconciler.Entries.FirstOrDefault(e => ItemTag.ForAgent(e.Item.Key) == tag);
+        if (entry is not null && _agents.Get(entry.Item.Key) is { State: AgentState.Ready, SessionId: not null, WorktreePath: { } wt } &&
+            Directory.Exists(wt))
+        {
+            OpenInClaude(entry.Item.Key);
+            return true;
+        }
+        if (!ToastActions.TryGetUrl(action, out var url)) return false;
+        OpenUrl(url);
+        return true;
+    }
+
     /// <summary>Opens an item URL (row click, toast). Item URLs come from API data, so only https is shell-executed.</summary>
     public void OpenUrl(string url)
     {
