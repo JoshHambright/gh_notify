@@ -59,7 +59,9 @@ public func ghn_notify_init(_ onClick: GhnClickCallback?) -> Int32 {
         let i = settings.authorizationStatus.rawValue
         let styles = ["none", "banner", "alert"]
         let s = settings.alertStyle.rawValue
-        NSLog("gh_notify: notification permission before asking: \(i < names.count ? names[i] : String(i)), alert style \(s < styles.count ? styles[s] : String(s)) (bundle \(Bundle.main.bundleIdentifier ?? "none"))")
+        let on = { (v: UNNotificationSetting) in v == .enabled ? "on" : v == .disabled ? "off" : "n/a" }
+        NSLog("gh_notify: notification permission before asking: \(i < names.count ? names[i] : String(i)), alert style \(s < styles.count ? styles[s] : String(s)), banners \(on(settings.alertSetting)), Notification Center \(on(settings.notificationCenterSetting)), sound \(on(settings.soundSetting)) (bundle \(Bundle.main.bundleIdentifier ?? "none"))")
+        // Banners can still be held back by Focus / Do Not Disturb or while the screen is shared or mirrored; apps can't read either.
     }
     center.requestAuthorization(options: [.alert, .sound]) { granted, error in
         if let error = error { NSLog("gh_notify: notification permission request failed: \(error.localizedDescription)") }

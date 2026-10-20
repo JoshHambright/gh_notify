@@ -34,6 +34,12 @@ gh_notify finds `gh`, `az` and `claude` in Homebrew's folders and on your shell'
   › **Open terminals in** (`display.terminal`, see [Configuration](configuration.md#display)). The first time,
   macOS asks whether gh_notify may control Terminal: click **OK**. If you declined, allow it in System Settings → Privacy &
   Security → Automation.
+- Notifications only in Notification Center, with no banner? In System Settings → Notifications → gh_notify, set the alert
+  style to **Banners** or **Alerts**. macOS also holds banners back while a Focus (Do Not Disturb) is on, and while you
+  share or mirror your screen unless **Allow notifications when mirroring or sharing the display** is on (System Settings
+  → Notifications).
+- If the hotkey does nothing, another app or a key remapper may own the combination: macOS gives it to that app without an
+  error. Pick another one in Settings › General.
 
 ## Where things live
 
