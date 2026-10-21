@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
@@ -453,9 +454,23 @@ public partial class PopupWindow : Window
         menu.Items.Add(logs);
         menu.Items.Add(MutedMenu());
         menu.Items.Add(HiddenMenu());
+        menu.Items.Add(AboutMenu());
         menu.Items.Add(new Separator());
         menu.Items.Add(quit);
         return menu;
+    }
+
+    /// <summary>"About gh_notify": the repo, and a new issue pre-filled with the version and OS.</summary>
+    MenuItem AboutMenu()
+    {
+        var item = new MenuItem { Header = AboutLinks.Header };
+        var repo = new MenuItem { Header = AboutLinks.RepoItem };
+        repo.Click += (_, _) => _host.OpenUrl(AboutLinks.RepoUrl);
+        var issue = new MenuItem { Header = AboutLinks.IssueItem };
+        issue.Click += (_, _) => _host.OpenUrl(AboutLinks.IssueUrl(_host.Version, RuntimeInformation.OSDescription));
+        item.Items.Add(repo);
+        item.Items.Add(issue);
+        return item;
     }
 
     /// <summary>"Muted (n)" with an Unmute entry per active mute; a disabled "Nothing muted" when there are none.</summary>

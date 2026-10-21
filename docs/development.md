@@ -127,7 +127,8 @@ links to the docs as they were at that version, and images point at the raw file
 1. **Release page:** the notes file goes on top, followed by "All changes", which is release-please's changelog.
 2. **Update package:** the same text is packed with `vpk --releaseNotes`.
 3. **In the app:** after an update, the popup footer shows "Updated to vX · What's new" once, and the tray menu has a
-   permanent **What's new** item. Both open `https://github.com/JoshHambright/gh_notify/releases/tag/vX`.
+   permanent **What's new** item. Both open `https://github.com/JoshHambright/gh_notify/releases/tag/vX`. The tray and
+   the popup's ⋯ menu also have **About gh_notify** (repo link, **Report an issue**), built in `AboutLinks`.
 
 The gates:
 - `release-please.yml` sets the `release-notes` status on the release PR.
