@@ -463,7 +463,7 @@ public partial class PopupWindow : Window
     /// <summary>"About gh_notify": the repo, and a new issue pre-filled with the version and OS.</summary>
     MenuItem AboutMenu()
     {
-        var item = new MenuItem { Header = AboutLinks.Header };
+        var item = new MenuItem { Header = AboutLinks.Header.Replace("_", "__") };
         var repo = new MenuItem { Header = AboutLinks.RepoItem };
         repo.Click += (_, _) => _host.OpenUrl(AboutLinks.RepoUrl);
         var issue = new MenuItem { Header = AboutLinks.IssueItem };

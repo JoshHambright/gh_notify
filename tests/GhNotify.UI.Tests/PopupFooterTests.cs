@@ -158,7 +158,8 @@ public class PopupFooterTests
     public void The_about_submenu_opens_the_repo_and_a_prefilled_new_issue()
     {
         using var h = new PopupHarness();
-        var about = h.Window.FooterMenu().Items.OfType<MenuItem>().First(i => (string?)i.Header == "About gh_notify");
+        var about = h.Window.FooterMenu().Items.OfType<MenuItem>().First(i => ((string?)i.Header)?.Replace("__", "_") == "About gh_notify");
+        Assert.Equal("About gh__notify", about.Header); // a lone "_" would mark an access key and hide the underscore
         Assert.Equal(["GitHub repo (star it)", "Report an issue"], about.Items.OfType<MenuItem>().Select(i => i.Header).ToList());
         foreach (var i in about.Items.OfType<MenuItem>()) i.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
         Assert.Contains("open https://github.com/JoshHambright/gh_notify", h.Host.Calls);
