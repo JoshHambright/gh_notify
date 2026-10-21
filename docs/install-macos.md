@@ -13,7 +13,8 @@ Windows, and updates itself the same way.
 2. Open the `.pkg` and follow the installer.
 3. Start gh_notify from Applications. gh_notify isn't notarized by Apple yet, so the first time macOS says it can't check the
    app for malicious software. Open System Settings → Privacy & Security, scroll down, and click **Open Anyway** next to
-   gh_notify. You only do this once; updates open normally.
+   gh_notify. You only do this once; updates open normally. Installing an update may ask for your Mac's admin password,
+   because the installer leaves gh_notify owned by the system.
 4. When macOS asks whether gh_notify may send notifications, click **Allow**. You can change this later in System Settings →
    Notifications → gh_notify. If macOS doesn't ask, turn on **Allow notifications** there yourself.
 5. Sign in to GitHub once: `gh auth login`. Install the [GitHub CLI](https://cli.github.com/) with `brew install gh` if you
