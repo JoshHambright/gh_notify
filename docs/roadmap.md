@@ -10,11 +10,12 @@ Every release follows the same pipeline: a design spec (`docs/superpowers/specs/
 | **v1.3** | Clear work from the tray | ✅ Shipped |
 | **v2.0** | Cross-platform UI (Avalonia), Windows first | ✅ Shipped ([spec](superpowers/specs/2026-10-14-gh-notify-v2.0-design.md)) |
 | **v2.0.x** | Hide, not just mute | ✅ Shipped in v2.0.0 |
-| **v2.1** | macOS | 🟡 In progress ([spec](superpowers/specs/2026-10-16-gh-notify-v2.1-design.md), [#16](https://github.com/JoshHambright/gh_notify/pull/16), [#1](https://github.com/JoshHambright/gh_notify/issues/1)) |
-| **v2.2** | Broader inbox and smarter alerts | ⚪ Planned |
-| **v2.3** | Agent hand-off and insights | ⚪ Planned |
+| **v2.1** | Clicking "Pre-review ready" resumes the Claude session | ✅ Shipped |
+| **v2.2** | macOS | 🟡 In progress ([spec](superpowers/specs/2026-10-16-gh-notify-v2.1-design.md), [#16](https://github.com/JoshHambright/gh_notify/pull/16), [#1](https://github.com/JoshHambright/gh_notify/issues/1)) |
+| **v2.3** | Broader inbox and smarter alerts | ⚪ Planned |
+| **v2.4** | Agent hand-off and insights | ⚪ Planned |
 
-Not planned for now: code signing, and Teams/Slack notifications. Revisit them after v2.3. Workflow profiles and hooks can already post to chat tools today.
+Not planned for now: code signing, and Teams/Slack notifications. Revisit them after v2.4. Workflow profiles and hooks can already post to chat tools today.
 
 ---
 
@@ -61,7 +62,7 @@ Not planned for now: code signing, and Teams/Slack notifications. Revisit them a
 **Risks:** a hide pattern that is too broad, such as a whole org, can hide something urgent. Mitigations: the Undo link, the per-pattern count in Settings, and the hidden count in the popup footer ("3 hidden"). Hiding never touches the item on GitHub or ADO.
 **Exit criteria:** hide and unhide work for repo, org and ADO project from the popup and from Settings; a hidden item never toasts or counts; muted items sit in a collapsed section; the headless UI tests cover hide, undo, unhide and the muted section.
 
-## v2.1: macOS
+## v2.2: macOS
 
 **Goal:** the v2.0 app on macOS. There is no Mac on hand, so CI does the verification and a borrowed or cloud Mac runs the final smoke test.
 
@@ -80,7 +81,7 @@ Not planned for now: code signing, and Teams/Slack notifications. Revisit them a
 **Risks:** ad-hoc signed apps need a one-time "Open Anyway" in System Settings → Privacy & Security, which the docs must explain. Notification permissions need a bundled `.app`. UI parity has to be checked screen by screen.
 **Exit criteria:** feature parity with Windows; a macOS install, upgrade and uninstall have been verified on a real Mac.
 
-## v2.2: Broader inbox and smarter alerts
+## v2.3: Broader inbox and smarter alerts
 
 **Goal:** more of what's waiting on you shows up, and the alerts get smarter about timing.
 
@@ -95,7 +96,7 @@ Not planned for now: code signing, and Teams/Slack notifications. Revisit them a
 **Builds on:** the source → reconcile → NotificationPlanner pipeline, WorkHours, Snoozes and RulesEngine.
 **Risks:** GraphQL rate limits as the number of queries grows, so polling should be batched per host. Mention noise needs sensible defaults (off for repos you don't watch).
 
-## v2.3: Agent hand-off and insights
+## v2.4: Agent hand-off and insights
 
 **Goal:** agent output turns into your action faster; spending stays bounded; you can see how your queue trends.
 

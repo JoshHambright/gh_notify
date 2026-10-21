@@ -2,7 +2,7 @@
 
 Thanks for helping. gh_notify is a tray app that shows the GitHub and Azure DevOps items waiting on you. It is moving from a Windows-only UI to Avalonia so it can run on macOS.
 
-**Where things stand:** round 1 checks that the shared UI builds, passes its tests and renders correctly on macOS. Round 2 installs the v2.1 macOS app and walks through it.
+**Where things stand:** round 1 checks that the shared UI builds, passes its tests and renders correctly on macOS. Round 2 installs the v2.2 macOS app and walks through it.
 
 Each round takes about 15 minutes, plus download time.
 
@@ -54,7 +54,7 @@ Send back the one file `mac-test-<time>.zip` from the repo folder. It contains:
 - `test-results/`: the raw test results.
 - `screenshots/` and your `notes.md`.
 
-The UI build and UI tests should pass with no failures. Linux CI already runs them, so any failure there is specific to macOS. Some core tests may assume Windows paths; those failures help us scope v2.1. Everything uses placeholder names only (contoso, fabrikam, alice, bob), so the zip is safe to share.
+The UI build and UI tests should pass with no failures. Linux CI already runs them, so any failure there is specific to macOS. Some core tests may assume Windows paths; those failures help us scope the macOS release. Everything uses placeholder names only (contoso, fabrikam, alice, bob), so the zip is safe to share.
 
 ## Round 2: install and walk through the app
 
@@ -64,14 +64,14 @@ is empty and a few questions don't apply. It takes about 15 minutes.
 
 ### Get the package
 
-1. Open the pull request we send you (for v2.1 that is [#16](https://github.com/JoshHambright/gh_notify/pull/16)) and click
+1. Open the pull request we send you (for v2.2 that is [#16](https://github.com/JoshHambright/gh_notify/pull/16)) and click
    **Checks**, then the **CI** run, then scroll to **Artifacts**. You need to be signed in to GitHub to download it.
 2. Delete any earlier `gh_notify-macos-arm64` download, then download **gh_notify-macos-arm64** from the newest run and unzip it.
    Inside is a `.pkg` file. It must come from the commit you check out below: the script checks, and stops if it does not.
 
 ### Steps
 
-In Terminal, from the repo folder. Until v2.1 is merged, the round 2 script lives on the `feat/v2.1` branch:
+In Terminal, from the repo folder. Until macOS support is merged, the round 2 script lives on the `feat/v2.1` branch:
 
 ```sh
 git fetch && git checkout feat/v2.1 && git pull
