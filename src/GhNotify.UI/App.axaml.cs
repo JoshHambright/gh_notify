@@ -34,6 +34,7 @@ public partial class App : Application
     GlobalHotkey? _hotkey;
     FileSystemWatcher? _watcher;
     DispatcherTimer? _debounce;
+    UiWatchdog? _watchdog;
     Action<string> _copy = _ => { };
 
     public App() { } // the XAML previewer / designer
@@ -79,6 +80,8 @@ public partial class App : Application
         Dispatcher.UIThread.UnhandledException += (_, a) => { Log.Error("unhandled UI exception", a.Exception); a.Handled = true; };
         AppDomain.CurrentDomain.UnhandledException += (_, a) => Log.Error("unhandled exception", a.ExceptionObject as Exception);
         TaskScheduler.UnobservedTaskException += (_, a) => { Log.Error("unobserved task exception", a.Exception); a.SetObserved(); };
+        _watchdog = new UiWatchdog(dispatcher.Post, TimeSpan.FromSeconds(10));
+        _watchdog.Start();
 
         var config = new ConfigStore(o.ConfigFile);
         config.Load();
@@ -108,11 +111,21 @@ public partial class App : Application
             if (!controller.OnToastActivated(tag, action)) _popup.ShowNearTray();
         });
 
+        if (UiPlatform.IsMac) DispatcherTimer.RunOnce(LogMenuBarIcon, TimeSpan.FromSeconds(3));
+
         StartHotkey(controller, o.Platform.Hotkey);
         WatchConfig(o.ConfigFile);
+        Log.Info("watching config.json; starting the first poll");
         controller.Start();
         _ = _updates.RunAsync(_cts.Token);
         Log.Info("gh_notify started");
+    }
+
+    /// <summary>macOS hides menu-bar icons that don't fit (behind the notch on a crowded menu bar) without telling the app.</summary>
+    static void LogMenuBarIcon()
+    {
+        if (UiPlatform.TrayIconFrame?.Invoke() is { } f) Log.Info($"menu-bar icon at {f.X:0}, {f.Y:0}, {f.Width:0}x{f.Height:0}");
+        else Log.Error("the menu-bar icon has no window: macOS may be hiding it because the menu bar is full");
     }
 
     async Task CopyAsync(string text)
@@ -279,6 +292,7 @@ public partial class App : Application
     public void Cleanup()
     {
         _cts.Cancel();
+        _watchdog?.Dispose();
         _theme?.Dispose();
         _watcher?.Dispose();
         _hotkey?.Apply("");

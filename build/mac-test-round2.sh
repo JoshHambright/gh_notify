@@ -73,7 +73,13 @@ if [ -n "$APP" ]; then
   ask notifsettings "Open System Settings → Notifications. Is gh_notify in the list with notifications allowed? (Add what you see: not listed / listed but off / on.)"
   ask click       "Click the notification (in Notification Center if it is gone). Did the gh_notify popup open?"
   ask terminal     "About 10 seconds after starting, did a Terminal window open showing 'gh_notify terminal test'? (macOS may first ask to let gh_notify control Terminal: allow it.)"
-  ask menubar      "Is the gh_notify icon in the menu bar and sharp (not blurry)? With GitHub on and something waiting, is it red with a count?"
+  ask menubar      "Is the gh_notify icon in the menu bar and sharp (not blurry)? With GitHub on and something waiting, is it red with a count? (On a MacBook, macOS hides icons that don't fit beside the notch: if it's missing, quit another menu-bar app and look again, and say whether that helped.)"
+  # No icon: record what the app is doing (macOS `sample`: the threads' stacks for 3 seconds) and how many copies run.
+  if ! tail -1 "$ANSWERS" | grep -q '^menubar: y'; then
+    echo "    Recording what gh_notify is doing (3 seconds)…"
+    echo "processes: $(pgrep -x GhNotify | wc -l | tr -d ' ') GhNotify running" >> "$ANSWERS"
+    PID=$(pgrep -nx GhNotify) && sample "$PID" 3 -file "$OUT/logs/sample.txt" >/dev/null 2>&1
+  fi
   ask menu         "Click the menu-bar icon. Does a menu open with Open, Settings…, What's new, Check for updates and Quit?"
   ask popup        "Choose Open. Does the popup appear at the top right, under the menu bar, and stay open?"
   ask hotkey       "Click somewhere else so the popup closes, then press Control+Option+G twice. Does the popup open, then close?"
@@ -95,7 +101,7 @@ fi
 
 # Logs and system details; home paths become ~.
 cp "$SCRATCH/data/logs/"*.log "$OUT/logs/" 2>/dev/null
-for f in "$OUT/logs/"*.log; do [ -f "$f" ] && sed -i '' "s|$HOME|~|g" "$f"; done
+for f in "$OUT/logs/"*.log "$OUT/logs/sample.txt"; do [ -f "$f" ] && sed -i '' "s|$HOME|~|g" "$f"; done
 {
   echo "{"
   echo "  \"schema\": 1,"
