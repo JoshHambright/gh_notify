@@ -81,7 +81,7 @@ The popup's own **⋯** menu lists active mutes (**Unmute**) and hidden patterns
 ### The settings window
 
 Everything in `config.json` has a visual editor: sources, sound rules, filters, workflows and profiles, hooks.
-Open it from the popup's **⋯** menu › **Settings…** (the tray icon has no right-click menu; the same menu has **Check for updates** and, once one is downloaded, **Restart to update**, next to the footer's **Update ready · Restart** link). Raw JSON stays one click away.
+Open it from the popup's **⋯** menu › **Settings…** or the tray icon's right-click menu (the same menus have **Check for updates** and, once one is downloaded, **Restart to update**, next to the footer's **Update ready · Restart** link). Raw JSON stays one click away.
 
 ![Settings, Workflows page](docs/images/settings-workflows.png)
 

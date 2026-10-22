@@ -151,7 +151,19 @@ public class PopupFooterTests
         Assert.True(menu.IsOpen);
         var headers = menu.Items.Select(i => i is MenuItem m ? ((string?)m.Header)?.Replace("__", "_") : "-").ToList(); // "__" is how a literal underscore is written in a menu header
         Assert.Equal(["Settings…", "gh_notify v1.2.0", "Check for updates", "Restart to update (v1.2.1)", "-", "Open config",
-            UiPlatform.StartupLabel, "Open logs folder", "Muted (2)", "Nothing hidden", "-", "Quit"], headers);
+            UiPlatform.StartupLabel, "Open logs folder", "Muted (2)", "Nothing hidden", "About gh_notify", "-", "Quit"], headers);
+    }
+
+    [AvaloniaFact]
+    public void The_about_submenu_opens_the_repo_and_a_prefilled_new_issue()
+    {
+        using var h = new PopupHarness();
+        var about = h.Window.FooterMenu().Items.OfType<MenuItem>().First(i => ((string?)i.Header)?.Replace("__", "_") == "About gh_notify");
+        Assert.Equal("About gh__notify", about.Header); // a lone "_" would mark an access key and hide the underscore
+        Assert.Equal(["GitHub repo (star it)", "Report an issue"], about.Items.OfType<MenuItem>().Select(i => i.Header).ToList());
+        foreach (var i in about.Items.OfType<MenuItem>()) i.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+        Assert.Contains("open https://github.com/JoshHambright/gh_notify", h.Host.Calls);
+        Assert.Contains(h.Host.Calls, c => c.StartsWith("open https://github.com/JoshHambright/gh_notify/issues/new?body=") && c.Contains("gh_notify%201.2.0%2C%20"));
     }
 
     [AvaloniaFact]
