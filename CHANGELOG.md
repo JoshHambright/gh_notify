@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.0](https://github.com/JoshHambright/gh_notify/compare/v2.0.0...v2.1.0) (2026-10-22)
+
+
+### Features
+
+* About gh_notify links in the tray and ⋯ menus ([#8](https://github.com/JoshHambright/gh_notify/issues/8)) ([#22](https://github.com/JoshHambright/gh_notify/issues/22)) ([10c994a](https://github.com/JoshHambright/gh_notify/commit/10c994a927ffb25cdba8ad67a7504742579edb1d))
+* clicking a "Pre-review ready" notification resumes the Claude session ([#17](https://github.com/JoshHambright/gh_notify/issues/17)) ([50038ce](https://github.com/JoshHambright/gh_notify/commit/50038cee7c7bd80c814c9866b648cda692e2a605))
+
 ## [2.0.0](https://github.com/JoshHambright/gh_notify/compare/v1.3.0...v2.0.0) (2026-10-16)
 
 
