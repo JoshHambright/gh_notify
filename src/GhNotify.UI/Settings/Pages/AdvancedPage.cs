@@ -27,6 +27,16 @@ public sealed class AdvancedPage : SettingsPageBase
         ConfigPathBox.Classes.Add("pill");
         Body.Children.Add(Ui.Field("Config file", ConfigPathBox, 22));
 
+        if (UiPlatform.IsMac)
+        {
+            Body.Children.Add(Ui.Section("TERMINAL"));
+            TerminalBox = Ui.Box(Config.Display.Terminal, DisplayConfig.DefaultTerminal, 260, v => { Config.Display.Terminal = v.Trim(); Changed(); });
+            Body.Children.Add(Ui.Field("Open terminals in", TerminalBox, 4));
+            var hint = Ui.Text("terminal (Terminal.app), iterm (iTerm2), or a command that gets the folder and the command line as its two arguments.", "muted", "small");
+            hint.Margin = new Thickness(0, 0, 0, 12);
+            Body.Children.Add(hint);
+        }
+
         Body.Children.Add(Ui.Section("RESET"));
         var note = Ui.Text("Puts every setting back to its default. Nothing changes on disk until you Save; Cancel undoes it.", "muted", "small");
         note.Margin = new Thickness(0, 0, 0, 10);
@@ -41,6 +51,7 @@ public sealed class AdvancedPage : SettingsPageBase
     }
 
     internal TextBox ConfigPathBox { get; }
+    internal TextBox? TerminalBox { get; }
     internal Button ResetButton { get; }
     internal bool Armed => _confirmWindow.IsEnabled;
 

@@ -1,11 +1,14 @@
 #!/bin/bash
 # macOS check for gh_notify (round 1: build, headless tests, screenshots). See docs/macos-testing.md.
-# Usage, from the repo root:  ./build/mac-test.sh [git-ref]      (default ref: feat/v2.0)
+# Usage, from the repo root:  ./build/mac-test.sh [git-ref]      (default ref: main)
+#                             ./build/mac-test.sh --round 2 <pkg>   (round 2: build/mac-test-round2.sh)
 # Writes mac-test-<timestamp>.zip in the repo root. Send that one file back.
 # Works with the bash 3.2 that ships with macOS; needs only git, the .NET 10 SDK and the standard tools.
 
 set -u
-REF="${1:-feat/v2.0}"
+# Round 2 (install the packaged app and walk through it) lives in its own script.
+if [ "${1:-}" = "--round" ] && [ "${2:-}" = "2" ]; then exec "$(dirname "$0")/mac-test-round2.sh" "${3:-}"; fi
+REF="${1:-main}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUT="$ROOT/mac-test-$STAMP"

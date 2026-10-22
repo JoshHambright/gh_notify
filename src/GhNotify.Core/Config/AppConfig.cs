@@ -31,8 +31,11 @@ public sealed class AppConfig
     public UpdatesConfig Updates { get; set; } = new();
     public NotificationsConfig Notifications { get; set; } = new();
     public FiltersConfig Filters { get; set; } = new();
-    /// <summary>Global hotkey that toggles the popup, e.g. "Win+Shift+G"; "" turns it off.</summary>
-    public string Hotkey { get; set; } = "Win+Shift+G";
+    /// <summary>Global hotkey that toggles the popup, e.g. "Win+Shift+G"; "" turns it off. The default depends on the OS.</summary>
+    public string Hotkey { get; set; } = DefaultHotkey(OperatingSystem.IsMacOS());
+
+    /// <summary>Win+Shift+G on Windows; Ctrl+Option+G on macOS, where Cmd+Shift+G is Finder's Go to Folder.</summary>
+    public static string DefaultHotkey(bool mac) => mac ? "Ctrl+Option+G" : "Win+Shift+G";
     public ActionsConfig Actions { get; set; } = new();
     /// <summary>Item kind name (e.g. "ReviewRequested") → profile name; overrides the built-in default per kind.</summary>
     public Dictionary<string, string> DefaultProfiles { get; set; } = new(StringComparer.OrdinalIgnoreCase);

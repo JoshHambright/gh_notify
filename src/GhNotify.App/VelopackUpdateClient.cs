@@ -32,6 +32,8 @@ public sealed class VelopackUpdateClient : IUpdateClient
     public Task DownloadAsync(UpdateCandidate c, CancellationToken ct) =>
         _mgr.DownloadUpdatesAsync((UpdateInfo)c.Native, cancelToken: ct);
 
+    /// <summary>Silent on Windows (per-user install). Not on macOS: a .pkg install can leave the bundle owned by root, and Velopack
+    /// must then ask for the admin password, which silent mode forbids.</summary>
     public void ApplyOnExit(UpdateCandidate c) =>
-        _mgr.WaitExitThenApplyUpdates(((UpdateInfo)c.Native).TargetFullRelease, silent: true, restart: true);
+        _mgr.WaitExitThenApplyUpdates(((UpdateInfo)c.Native).TargetFullRelease, silent: !OperatingSystem.IsMacOS(), restart: true);
 }

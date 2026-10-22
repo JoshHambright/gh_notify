@@ -73,7 +73,7 @@ public class CommandRunnerTests : IDisposable
         Assert.Equal($"1|{title}", o.ResultText!.Trim());
     }
 
-    [Fact]
+    [WindowsFact]
     public async Task Cmd_script_with_quote_in_arg_fails_cleanly()
     {
         var marker = Path.Combine(_dir, "ran.txt");

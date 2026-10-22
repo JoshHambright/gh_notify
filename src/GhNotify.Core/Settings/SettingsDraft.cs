@@ -60,6 +60,7 @@ public sealed class SettingsDraft
 
     public static SettingsPage PageFor(string field)
     {
+        if (field == "display.terminal") return SettingsPage.Advanced; // its box is on Advanced (macOS only), not with the repo display
         var head = field.Split('.', '[')[0];
         return head switch
         {
@@ -94,7 +95,7 @@ public sealed class SettingsDraft
 
     public static string SoundLabel(string sound) => sound switch
     {
-        "default" => "Windows default",
+        "default" => OperatingSystem.IsMacOS() ? "macOS default" : "Windows default",
         "none" => "None",
         _ when sound.Length > "builtin:".Length && sound.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase) =>
             char.ToUpperInvariant(sound["builtin:".Length]) + sound["builtin:".Length..][1..],

@@ -50,6 +50,7 @@ dependency, so never reference a Windows API from `GhNotify.UI` (put it behind a
 | Formatting | `dotnet format GhNotify.slnx --verify-no-changes` (drop the flag to fix) |
 | Leak scan | `pwsh build/leak-scan.ps1 -TermsFile <path>` |
 | Install / upgrade / uninstall | `build/test-install.ps1`, CI only (it installs real packages). Also upgrades from the latest published release's `GhNotify-win-Setup.exe` to the locally packed build and checks config, state, the Run key and the shortcut survive; skipped with a notice if no release exists |
+| macOS | The `mac` job in `ci.yml` (`macos-latest`): `native/mac/build.sh`, the Core, UI and Mac tests, then `build/pack-mac.sh` twice and `build/test-install-mac.sh` (install, update, uninstall). CI only. It keeps the `.pkg` as the `gh_notify-macos-arm64` artifact for the Mac tester |
 | CodeQL | `codeql.yml`, weekly, on `main` and on every PR (required by the main ruleset) |
 | Dependency updates | Dependabot, weekly (NuGet and Actions) |
 
@@ -65,6 +66,18 @@ it without a reason in the PR description.
 and tenant names). In CI the terms come from the `LEAK_TERMS` secret. Locally, put one term per line in a file **outside the
 repo** (or git-ignored) and pass `-TermsFile`. The terms are never committed, and hits print only `file:line`. Without terms the
 scan is skipped with a notice. Use placeholder names (contoso, fabrikam, acme, alice, bob) everywhere.
+
+## macOS
+
+The Mac app is `GhNotify.App.Mac` plus `GhNotify.Platform.Mac`. Both build on Windows too, without the native part.
+`native/mac/build.sh` builds `libGhNotifyMac.dylib`, a small Swift library for the macOS APIs .NET has no access to:
+`UNUserNotificationCenter`, Carbon hotkeys and `SMAppService`. It only builds on a Mac with the Xcode command line tools.
+When it changes its C API, bump `GHN_API_VERSION` in the Swift file and `NativeShim.ApiVersion` together. If the dylib is
+missing or the wrong version, the app runs without notifications, hotkey and open at login, and logs why.
+
+There is no Mac in the dev loop. The `mac` CI job is the gate, and the Mac tester runs `build/mac-test.sh` (round 1) and
+`build/mac-test.sh --round 2 <pkg>` (round 2); see [macos-testing.md](macos-testing.md). Releases add the `osx-arm64` and `osx-x64`
+channels to the same GitHub release (`release-mac` in `release.yml`). Each channel has its own `releases.osx-*.json`.
 
 ## Commit messages
 
@@ -149,10 +162,15 @@ src/
   GhNotify.Platform.Windows  Windows implementations of those interfaces: toasts, global hotkey, start with Windows (Run key),
                      sounds, system theme, shell, install hooks and install info
   GhNotify.App       Windows host: Program (Velopack entry, --version, single instance), paths, update client, composition
+  GhNotify.Platform.Mac  macOS implementations of the platform interfaces; calls native/mac (Swift shim: notifications, hotkey,
+                     login item) through a C API
+  GhNotify.App.Mac   macOS host: Program (Velopack entry, --version, --write-iconset, lock-file single instance), paths, composition
 tests/
   GhNotify.Tests     Core, GitHub, ADO and Agents unit tests
   GhNotify.UI.Tests  Headless Avalonia tests with fake platform services (also run on Linux CI), plus the screenshot renderer
   GhNotify.Platform.Windows.Tests  Windows-only tests (install info, ICO writer, hotkey registrar)
+  GhNotify.Platform.Mac.Tests  Mac services with a fake shim (run everywhere); real-shim tests run on macOS only
+native/mac/          the Swift shim and its build script (universal dylib, macOS 13+)
 build/               pack, coverage, leak scan, screenshots and sound generation scripts
 docs/                user guides; docs/superpowers has design specs and notes
 ```

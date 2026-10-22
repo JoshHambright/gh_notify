@@ -83,6 +83,8 @@ public static class ConfigValidator
 
         if (NotNull(c.Hotkey, "hotkey") && c.Hotkey.Length > 0 && !HotkeyParser.TryParse(c.Hotkey, out _, out var hotkeyError))
             Add("hotkey", $"hotkey '{c.Hotkey}': {hotkeyError}");
+        if (NotNull(c.Display, "display") && string.IsNullOrWhiteSpace(c.Display.Terminal))
+            Add("display.terminal", "display.terminal must not be empty (use \"terminal\", \"iterm\" or a command)");
         NotNull(c.Actions, "actions");
 
         if (NotNull(c.Filters, "filters"))

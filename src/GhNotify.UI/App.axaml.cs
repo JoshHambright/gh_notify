@@ -22,6 +22,7 @@ public sealed record AppOptions(
 public partial class App : Application
 {
     static readonly int[] TraySizes = [16, 20, 24, 32];
+    internal const int MacTrayPx = 44;
 
     readonly AppOptions? _options;
     readonly CancellationTokenSource _cts = new();
@@ -34,6 +35,7 @@ public partial class App : Application
     GlobalHotkey? _hotkey;
     FileSystemWatcher? _watcher;
     DispatcherTimer? _debounce;
+    UiWatchdog? _watchdog;
     Action<string> _copy = _ => { };
 
     public App() { } // the XAML previewer / designer
@@ -79,6 +81,8 @@ public partial class App : Application
         Dispatcher.UIThread.UnhandledException += (_, a) => { Log.Error("unhandled UI exception", a.Exception); a.Handled = true; };
         AppDomain.CurrentDomain.UnhandledException += (_, a) => Log.Error("unhandled exception", a.ExceptionObject as Exception);
         TaskScheduler.UnobservedTaskException += (_, a) => { Log.Error("unobserved task exception", a.Exception); a.SetObserved(); };
+        _watchdog = new UiWatchdog(dispatcher.Post, TimeSpan.FromSeconds(10));
+        _watchdog.Start();
 
         var config = new ConfigStore(o.ConfigFile);
         config.Load();
@@ -108,11 +112,21 @@ public partial class App : Application
             if (!controller.OnToastActivated(tag, action)) _popup.ShowNearTray();
         });
 
+        if (UiPlatform.IsMac) DispatcherTimer.RunOnce(LogMenuBarIcon, TimeSpan.FromSeconds(3));
+
         StartHotkey(controller, o.Platform.Hotkey);
         WatchConfig(o.ConfigFile);
+        Log.Info("watching config.json; starting the first poll");
         controller.Start();
         _ = _updates.RunAsync(_cts.Token);
         Log.Info("gh_notify started");
+    }
+
+    /// <summary>macOS hides menu-bar icons that don't fit (behind the notch on a crowded menu bar) without telling the app.</summary>
+    static void LogMenuBarIcon()
+    {
+        if (UiPlatform.TrayIconFrame?.Invoke() is { } f) Log.Info($"menu-bar icon at {f.X:0}, {f.Y:0}, {f.Width:0}x{f.Height:0}");
+        else Log.Error("the menu-bar icon has no window: macOS may be hiding it because the menu bar is full");
     }
 
     async Task CopyAsync(string text)
@@ -162,6 +176,7 @@ public partial class App : Application
     /// <summary>Left click on the tray icon.</summary>
     public void TogglePopup()
     {
+        if (UiPlatform.IsMac) Log.Info($"toggle popup (visible {_popup!.IsVisible})");
         if (_popup!.IsVisible) _popup.Hide();
         else if ((DateTime.UtcNow - _popup.LastHiddenByDeactivateUtc).TotalMilliseconds < 300) return; // the tray click itself deactivated the popup
         else _popup.ShowNearTray();
@@ -172,12 +187,17 @@ public partial class App : Application
         if (_tray is null || _controller is null) return;
         var (count, unhealthy) = _controller.TrayState();
         var scale = _popup?.Screens.Primary?.Scaling ?? 1.0;
-        var size = TraySizes.FirstOrDefault(s => s >= 16 * scale, TraySizes[^1]);
+        // macOS draws the status item at the menu-bar height (22 pt). The popup's screen scale is unknown until it is first shown,
+        // so a scale-derived size came out 16 px and was blown up on Retina: always render 44 px (22 pt at 2x); macOS scales down.
+        var size = UiPlatform.IsMac ? MacTrayPx : TraySizes.FirstOrDefault(s => s >= 16 * scale, TraySizes[^1]);
         var iconKey = (size, BadgeText.For(count), unhealthy);
         if (iconKey != _trayIconKey)
         {
             _trayIconKey = iconKey;
-            using var bmp = TrayIconRenderer.Render(size, iconKey.Item2, unhealthy);
+            // macOS: the calm icon is a template image, tinted by the menu bar; waiting and unhealthy keep their colours.
+            var template = UiPlatform.IsMac && iconKey.Item2 is null && !unhealthy;
+            using var bmp = template ? TrayIconRenderer.RenderTemplate(size) : TrayIconRenderer.Render(size, iconKey.Item2, unhealthy);
+            if (UiPlatform.IsMac) MacOSProperties.SetIsTemplateIcon(_tray, template);
             _tray.Icon = new WindowIcon(new MemoryStream(TrayIconRenderer.ToPng(bmp)));
         }
         var problem = _controller.TrayProblem();
@@ -283,6 +303,7 @@ public partial class App : Application
     public void Cleanup()
     {
         _cts.Cancel();
+        _watchdog?.Dispose();
         _theme?.Dispose();
         _watcher?.Dispose();
         _hotkey?.Apply("");
