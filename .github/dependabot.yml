@@ -4,6 +4,14 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    groups:
+      # Avalonia's packages must move together; a lone bump (e.g. Headless.XUnit) doesn't build.
+      avalonia:
+        patterns: ["Avalonia*"]
+    ignore:
+      # A major Avalonia version (12 brings xunit v3 to the headless tests) is a planned port, not a weekly bump.
+      - dependency-name: "Avalonia*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
