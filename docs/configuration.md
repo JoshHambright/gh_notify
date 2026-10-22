@@ -1,7 +1,7 @@
 # Configuration
 
 gh_notify reads `%APPDATA%\GhNotify\config.json`. It is created on first run and reloaded when you save it.
-**Settings** (popup **⋯** menu › **Settings…**; the tray icon has no right-click menu) edits it for you; **Settings › Advanced** opens the file.
+**Settings** (popup **⋯** menu › **Settings…**, or right-click the tray icon › **Settings…**) edits it for you; **Settings › Advanced** opens the file.
 
 Saving from Settings rewrites the file, so JSON comments are dropped. A backup of the previous file is kept as
 `config.json.bak`. Unknown top-level keys are preserved. If the file is invalid, the popup shows a banner with **Fix in Settings**.

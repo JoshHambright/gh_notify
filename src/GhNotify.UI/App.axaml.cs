@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -193,7 +194,7 @@ public partial class App : Application
     (int, string?, bool)? _trayIconKey;
 
     /// <summary>
-    /// The right-click menu: Open, Settings, What's new, Check for updates, Restart to update (only when one is ready), Quit.
+    /// The right-click menu: Open, Settings, What's new, About, Check for updates, Restart to update (only when one is ready), Quit.
     /// Built once and updated in place, so a refresh never replaces (and closes) a menu the user has open.
     /// </summary>
     internal sealed class TrayMenu
@@ -216,6 +217,16 @@ public partial class App : Application
             var whatsNew = new NativeMenuItem(UpdateUi.WhatsNewItem);
             whatsNew.Click += (_, _) => controller.OpenWhatsNew();
             Menu.Add(whatsNew);
+
+            var about = new NativeMenuItem(AboutLinks.Header) { Menu = new NativeMenu() };
+            about.Menu.Add(new NativeMenuItem(UpdateUi.VersionHeader(controller.Version)) { IsEnabled = false });
+            var repo = new NativeMenuItem(AboutLinks.RepoItem);
+            repo.Click += (_, _) => controller.OpenUrl(AboutLinks.RepoUrl);
+            about.Menu.Add(repo);
+            var issue = new NativeMenuItem(AboutLinks.IssueItem);
+            issue.Click += (_, _) => controller.OpenUrl(AboutLinks.IssueUrl(controller.Version, RuntimeInformation.OSDescription));
+            about.Menu.Add(issue);
+            Menu.Add(about);
 
             _check = new NativeMenuItem();
             _check.Click += (_, _) => _ = controller.CheckForUpdatesAsync();
