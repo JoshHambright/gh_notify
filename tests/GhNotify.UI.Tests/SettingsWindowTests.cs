@@ -99,6 +99,7 @@ public class SettingsWindowTests
             w.ShowPage(SettingsPage.Workflows);
             var workflows = (WorkflowsPage)w.CurrentPage;
 
+            Assert.False(workflows.SkillNoteShown); // no profile selected
             workflows.SelectProfile("peer-review");
             Assert.False(workflows.SkillNoteShown); // installed
 
@@ -107,8 +108,13 @@ public class SettingsWindowTests
             Assert.True(workflows.SkillInstallShown);
             Assert.Contains(@"C:\dev\acme-api\.claude\skills\summarize", workflows.SkillNoteText);
 
+            workflows.RequiresSkillBox.Text = "peer-review"; // the note follows the field
+            Assert.False(workflows.SkillNoteShown);
+            workflows.RequiresSkillBox.Text = "summarize";
+            Assert.True(workflows.SkillInstallShown);
+
             workflows.OnInstallSkill();
-            Assert.Equal(@"✓ Installed to C:\Users\alice\.claude\skills\summarize", workflows.SkillResultText);
+            Assert.Equal("✓ Installed to " + Path.Combine(@"C:\Users\alice\.claude\skills", "summarize"), workflows.SkillResultText);
             Assert.False(workflows.SkillInstallShown);
             Assert.False(w.Draft.IsDirty); // installing a skill isn't a config change
             w.Discard();

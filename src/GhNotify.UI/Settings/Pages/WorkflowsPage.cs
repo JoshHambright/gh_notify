@@ -269,6 +269,7 @@ public sealed class WorkflowsPage : SettingsPageBase
         _skillInstall.HorizontalAlignment = HorizontalAlignment.Left;
         _skillResult = Ui.Text("", "small");
         _skillResult.Margin = new Thickness(0, 6, 0, 0);
+        _skillResult.IsVisible = false; // only an install attempt shows it
         var body = new StackPanel { Children = { _skillText, _skillInstall, _skillResult } };
         _skillNote = Ui.Card(body);
         _skillNote.Padding = new Thickness(14, 10);
@@ -381,6 +382,7 @@ public sealed class WorkflowsPage : SettingsPageBase
     internal bool EditorShown => _editorCard.IsVisible;
     internal bool BuiltInShown => _builtInCard.IsVisible;
     internal bool SkillNoteShown => _skillNote.IsVisible;
+    internal TextBox RequiresSkillBox => _requiresSkill;
     internal bool SkillInstallShown => _skillInstall.IsVisible;
     internal string? SkillNoteText => _skillText.Text;
     internal string? SkillResultText => _skillResult.IsVisible ? _skillResult.Text : null;
@@ -466,6 +468,7 @@ public sealed class WorkflowsPage : SettingsPageBase
         {
             if (_loading || _editing is null) return;
             _editing.RequiresSkill = SettingsOptions.Blank(v);
+            ShowSkillNote(_editing); // so the install action names the skill now required
             Changed();
         });
         var skillRow = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
