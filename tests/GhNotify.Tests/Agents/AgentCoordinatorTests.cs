@@ -10,7 +10,11 @@ public class AgentCoordinatorTests
 
     sealed class Repos(string? clone) : ILocalRepoIndex { public string? FindClone(string url) => clone; }
 
-    sealed class Skills(bool installed) : ISkillLocator { public bool IsInstalled(string s, string? r) => installed; }
+    sealed class Skills(bool installed, string? projectCopy = null) : ISkillLocator
+    {
+        public bool IsInstalled(string s, string? r) => installed;
+        public string? ProjectCopy(string s, string? r) => r is null ? null : projectCopy;
+    }
 
     sealed class Worktrees : IWorktreeManager
     {
@@ -75,13 +79,14 @@ public class AgentCoordinatorTests
         new(AgentMode.Button, "peer-review", new AgentProfile { Prompt = "/peer-review {url}", RequiresSkill = "peer-review", NeedsWorktree = needsWorktree });
 
     static (AgentCoordinator, Worktrees, Claude, FakeTimeProvider) Make(
-        string? clone = @"C:\dev\api", bool skill = true, bool claudeOk = true, int max = 2, IEnumerable<AgentRun>? restored = null)
+        string? clone = @"C:\dev\api", bool skill = true, bool claudeOk = true, int max = 2, IEnumerable<AgentRun>? restored = null,
+        string? projectCopy = null)
     {
         var wts = new Worktrees();
         var claude = new Claude();
         var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-10-13T12:00:00Z"));
         var cfg = new AppConfig { MaxConcurrentAgents = max };
-        var c = new AgentCoordinator(new AgentDeps(new Repos(clone), wts, claude, new Skills(skill), () => claudeOk, new FakeCommands()),
+        var c = new AgentCoordinator(new AgentDeps(new Repos(clone), wts, claude, new Skills(skill, projectCopy), () => claudeOk, new FakeCommands()),
             () => cfg, Path.Combine(Path.GetTempPath(), "ghn-scratch-" + Guid.NewGuid()), time, restored);
         return (c, wts, claude, time);
     }
@@ -102,6 +107,16 @@ public class AgentCoordinatorTests
         Assert.Equal(reason, c.WhyCannotRun(Item(), Decision()));
         Assert.False(c.TryStart(Item(), Decision(), manual: true));
         Assert.Null(c.Get(Item().Key));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Says_when_the_skill_is_only_in_the_repo(bool needsWorktree)
+    {
+        var (c, _, _, _) = Make(skill: false, projectCopy: @"C:\dev\api\.claude\skills\peer-review");
+        Assert.Equal("Skill /peer-review is only in this repo's .claude/skills, which agents don't load — install it for your user in Settings › Workflows",
+            c.WhyCannotRun(Item(), Decision(needsWorktree)));
     }
 
     [Fact]

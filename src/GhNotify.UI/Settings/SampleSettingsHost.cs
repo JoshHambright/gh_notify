@@ -63,7 +63,15 @@ public sealed class SampleSettingsHost : ISettingsHost
 
     public IReadOnlyList<string> DiscoveredAdoOrgs() => ["contoso", "fabrikam"];
     public Task<string> TestAdoSignInAsync(string? subscription, string? tenant) => Task.FromResult("✓ Signed in");
-    public bool IsSkillInstalled(string skill) => skill is "peer-review" or "pr-shepherd";
+    readonly HashSet<string> _skills = ["peer-review", "pr-shepherd"];
+    public SkillStatus GetSkillStatus(string skill) =>
+        _skills.Contains(skill) ? new(true) : new(false, skill == "summarize" ? @"C:\dev\acme-api\.claude\skills\summarize" : null);
+    public string UserSkillsPath => @"C:\Users\alice\.claude\skills";
+    public string InstallSkill(string skill, string projectCopy)
+    {
+        _skills.Add(skill);
+        return Path.Combine(UserSkillsPath, skill);
+    }
 
     readonly List<ActiveMute> _mutes = [new("gh:acme/legacy-*", "forever", true), new("ado:contoso/platform", "45m left", false)];
     public IReadOnlyList<ActiveMute> ActiveMutes() => _mutes.ToList();

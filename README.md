@@ -133,7 +133,8 @@ data. To remove that too, delete `%APPDATA%\GhNotify` and `%LocalAppData%\GhNoti
 
 **Can I use my own skills or scripts?**
 Yes. Map item kinds to your own profiles with `defaultProfiles`, or add rules. A profile is either a Claude prompt (which can
-invoke your skills) or a command that runs any script. See [docs/workflows.md](docs/workflows.md).
+invoke your skills) or a command that runs any script. Install skills at user level (`~/.claude/skills/` or a plugin):
+agents don't load a repo's own `.claude/skills/`. See [docs/workflows.md](docs/workflows.md#installing-skills).
 
 **Toasts don't appear.**
 Check Windows Focus Assist / Do Not Disturb. Also, toasts are off outside your work hours unless a sound rule sets

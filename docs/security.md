@@ -30,7 +30,8 @@ Other isolation:
 
 - **`--setting-sources user`.** The checkout is the PR's own, untrusted code. Runs only load your user settings, so the PR's
   `.claude/settings.json` (hooks, permission rules) never applies. For the same reason a repo's own `.claude/skills/` aren't
-  loaded; keep skills in `~/.claude/skills/` or a plugin.
+  loaded; keep skills in `~/.claude/skills/` or a plugin. **Install for my user** in Settings copies a clone's skill into
+  `~/.claude/skills/` only when you click it, so every later agent run can use it: install only skills you trust.
 - **Throwaway worktrees.** Runs happen in a separate git worktree of your local clone, removed afterwards (and swept on startup).
   Your working tree is never touched.
 - **Timeouts and caps.** Runs stop after `agentTimeoutMinutes`, at most `maxConcurrentAgents` at a time.

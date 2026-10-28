@@ -14,7 +14,7 @@ public sealed class WorkflowsPage : SettingsPageBase
     static readonly string[] Placeholders = ["{url}", "{repo}", "{number}", "{title}", "{kind}", "{provider}", "{author}", "{detail}"];
     static readonly FontFamily Mono = new("Cascadia Mono, Consolas");
 
-    readonly Dictionary<string, bool> _skills = new(StringComparer.OrdinalIgnoreCase);
+    readonly Dictionary<string, SkillStatus> _skills = new(StringComparer.OrdinalIgnoreCase);
     readonly StackPanel _defaults = new() { Margin = new Thickness(0, 0, 0, 18) };
     readonly StackPanel _rules = new();
     readonly WrapPanel _profileChips = new() { Margin = new Thickness(0, 0, 0, 4) };
@@ -47,6 +47,7 @@ public sealed class WorkflowsPage : SettingsPageBase
 
         Body.Children.Add(Ui.Section("PROFILES"));
         Body.Children.Add(_profileChips);
+        BuildSkillNote();
         BuildBuiltInCard();
         BuildEditorCard();
 
@@ -214,7 +215,7 @@ public sealed class WorkflowsPage : SettingsPageBase
         _profileChips.Children.Clear();
         foreach (var (name, profile) in ProfileCatalog.All(Config))
         {
-            bool? skill = profile.RequiresSkill is { } s ? SkillInstalled(s) : null;
+            var skill = profile.RequiresSkill is { } s ? Skill(s) : null;
             var chip = new ProfileChip(name, !Config.AgentProfiles.ContainsKey(name), skill);
             var button = new RadioButton
             {
@@ -247,10 +248,73 @@ public sealed class WorkflowsPage : SettingsPageBase
         return panel;
     }
 
-    bool SkillInstalled(string skill)
+    SkillStatus Skill(string skill)
     {
-        if (!_skills.TryGetValue(skill, out var ok)) _skills[skill] = ok = Host.IsSkillInstalled(skill);
-        return ok;
+        if (!_skills.TryGetValue(skill, out var status)) _skills[skill] = status = Host.GetSkillStatus(skill);
+        return status;
+    }
+
+    // --- missing-skill note (above the selected profile's card)
+
+    Border _skillNote = null!;
+    TextBlock _skillText = null!, _skillResult = null!;
+    Button _skillInstall = null!;
+    string? _skillName, _skillCopy;
+
+    void BuildSkillNote()
+    {
+        _skillText = Ui.Text("", "small");
+        _skillInstall = Ui.Btn("Install for my user", OnInstallSkill, "pill");
+        _skillInstall.Margin = new Thickness(0, 8, 0, 0);
+        _skillInstall.HorizontalAlignment = HorizontalAlignment.Left;
+        _skillResult = Ui.Text("", "small");
+        _skillResult.Margin = new Thickness(0, 6, 0, 0);
+        var body = new StackPanel { Children = { _skillText, _skillInstall, _skillResult } };
+        _skillNote = Ui.Card(body);
+        _skillNote.Padding = new Thickness(14, 10);
+        _skillNote.Margin = new Thickness(0, 0, 0, 10);
+        _skillNote.IsVisible = false;
+        Body.Children.Add(_skillNote);
+    }
+
+    void ShowSkillNote(AgentProfile? profile)
+    {
+        var skill = profile?.RequiresSkill is { Length: > 0 } s ? s : null;
+        var status = skill is null ? null : Skill(skill);
+        if (!string.Equals(skill, _skillName, StringComparison.OrdinalIgnoreCase)) _skillResult.IsVisible = false;
+        _skillName = skill;
+        _skillCopy = status?.ProjectCopy;
+        _skillNote.IsVisible = status is { Installed: false } || _skillResult.IsVisible;
+        if (status is null) return;
+        _skillText.Text = status switch
+        {
+            { Installed: true } => $"/{skill} is installed.",
+            { ProjectCopy: { } copy } =>
+                $"/{skill} is only in {copy}. Agents don't load a repo's own .claude/skills, so runs are disabled. " +
+                $"Install it for your user to copy it to {Path.Combine(Host.UserSkillsPath, skill!)}. The copy doesn't follow updates to the repo's copy.",
+            _ => $"/{skill} isn't installed, so runs are disabled. Install it at user level: put its folder (with SKILL.md) in " +
+                 $"{Path.Combine(Host.UserSkillsPath, skill!)}, or install a Claude Code plugin that has it. A repo's own .claude/skills doesn't count.",
+        };
+        _skillInstall.IsVisible = status.ProjectCopy is not null && !status.Installed;
+    }
+
+    internal void OnInstallSkill()
+    {
+        if (_skillName is not { } skill || _skillCopy is not { } copy) return;
+        try
+        {
+            var target = Host.InstallSkill(skill, copy);
+            _skills.Remove(skill);
+            _skillResult.Text = $"✓ Installed to {target}";
+            Ui.TokenForeground(_skillResult, "Brush.Green");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _skillResult.Text = "Couldn't install: " + ex.Message;
+            Ui.TokenForeground(_skillResult, "Brush.Red");
+        }
+        _skillResult.IsVisible = true;
+        ShowProfiles();
     }
 
     /// <summary>Opens a profile's card (the read-only view for built-ins, the editor for user profiles). Internal for tests and previews.</summary>
@@ -316,6 +380,10 @@ public sealed class WorkflowsPage : SettingsPageBase
 
     internal bool EditorShown => _editorCard.IsVisible;
     internal bool BuiltInShown => _builtInCard.IsVisible;
+    internal bool SkillNoteShown => _skillNote.IsVisible;
+    internal bool SkillInstallShown => _skillInstall.IsVisible;
+    internal string? SkillNoteText => _skillText.Text;
+    internal string? SkillResultText => _skillResult.IsVisible ? _skillResult.Text : null;
     internal string? NameErrorText => _nameError.IsVisible ? _nameError.Text : null;
     internal bool DeleteEnabled => _deleteButton.IsEnabled;
     internal RadioButton CommandType => _commandType;
@@ -425,6 +493,7 @@ public sealed class WorkflowsPage : SettingsPageBase
         var user = profile is not null && Config.AgentProfiles.ContainsKey(_selected!);
         _builtInCard.IsVisible = profile is not null && !user;
         _editorCard.IsVisible = user;
+        ShowSkillNote(profile);
         if (profile is null) return;
         if (!user)
         {

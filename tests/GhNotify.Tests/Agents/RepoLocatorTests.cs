@@ -37,6 +37,15 @@ public class RepoLocatorTests
     }
 
     [Fact]
+    public void Lists_every_clone()
+    {
+        var root = Directory.CreateTempSubdirectory("ghn-repos").FullName;
+        var api = MakeRepo(root, "api", "https://github.com/acme/api");
+        var web = MakeRepo(root, "web", "https://github.com/acme/web");
+        Assert.Equal([api, web], new RepoLocator(() => [root]).Clones().Order());
+    }
+
+    [Fact]
     public void Throwing_or_null_roots_callback_means_no_roots()
     {
         Assert.Null(new RepoLocator(() => throw new InvalidOperationException("boom")).FindClone("https://github.com/acme/api"));

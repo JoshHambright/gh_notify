@@ -233,15 +233,20 @@ public sealed class OrgRow(string name, AdoConfig ado, Action edited)
     }
 }
 
+/// <summary>Whether agents can use a skill and, when they can't, a local clone's own copy of it (which agents don't load).</summary>
+public sealed record SkillStatus(bool Installed, string? ProjectCopy = null);
+
 /// <summary>A profile chip on the Workflows page.</summary>
-public sealed record ProfileChip(string Name, bool BuiltIn, bool? SkillInstalled)
+public sealed record ProfileChip(string Name, bool BuiltIn, SkillStatus? Skill)
 {
+    public bool? SkillInstalled => Skill?.Installed;
     /// <summary>"✓" (skill installed, green) or "✗" (missing, red) before the name; null when the profile needs no skill.</summary>
     public string? Mark => SkillInstalled switch { true => "✓", false => "✗", _ => null };
-    public string? ToolTip => SkillInstalled switch
+    public string? ToolTip => Skill switch
     {
-        true => "Skill installed",
-        false => "Skill not installed — runs are disabled",
+        { Installed: true } => "Skill installed",
+        { ProjectCopy: not null } => "Skill is only in a repo's .claude/skills, which agents don't load — select the profile to install it for your user",
+        not null => "Skill not installed — runs are disabled",
         _ => BuiltIn ? "Built-in (read-only)" : null,
     };
 }

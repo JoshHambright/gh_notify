@@ -20,7 +20,12 @@ public interface ISettingsHost
     void SaveConfig(AppConfig config, string? expectedHash);
     IReadOnlyList<string> DiscoveredAdoOrgs();
     Task<string> TestAdoSignInAsync(string? subscription, string? tenant);
-    bool IsSkillInstalled(string skill);
+    /// <summary>Whether agents can use a skill (user skills folder or a plugin); when not, the first clone under repoRoots with its own copy.</summary>
+    SkillStatus GetSkillStatus(string skill);
+    /// <summary>The user skills folder agents load from (<c>~/.claude/skills</c>, or <c>$CLAUDE_CONFIG_DIR/skills</c>).</summary>
+    string UserSkillsPath { get; }
+    /// <summary>Copies a clone's copy of a skill into <see cref="UserSkillsPath"/>; returns the new folder. Throws IOException or UnauthorizedAccessException.</summary>
+    string InstallSkill(string skill, string projectCopy);
     IReadOnlyList<ActiveMute> ActiveMutes();
     /// <summary>Lifts a timed mute now (app state). Permanent mutes live in the draft's filters.mute.</summary>
     void Unmute(string pattern);

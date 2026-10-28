@@ -785,7 +785,19 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         catch (Exception ex) { return ex.Message; }
     }
 
-    public bool IsSkillInstalled(string skill) => _skills.IsInstalled(skill, null);
+    public SkillStatus GetSkillStatus(string skill) =>
+        _skills.IsInstalled(skill, null)
+            ? new(true)
+            : new(false, _repos.Clones().Select(c => SkillLocator.ProjectCopyIn(c, skill)).FirstOrDefault(p => p is not null));
+
+    public string UserSkillsPath => _skills.UserSkillsDir;
+
+    public string InstallSkill(string skill, string projectCopy)
+    {
+        var target = _skills.InstallFrom(projectCopy, skill);
+        Log.Info($"skill {skill} copied from {projectCopy} to {target}");
+        return target;
+    }
 
     public IReadOnlyList<InboxItem> CurrentItems() => _reconciler.Entries.Select(e => e.Item).ToList();
 

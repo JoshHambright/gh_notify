@@ -38,6 +38,16 @@ public sealed class RepoLocator(Func<IReadOnlyList<string>> roots, int maxDepth 
         }
     }
 
+    /// <summary>Every main clone found under repoRoots (scanning first if the last scan is over an hour old).</summary>
+    public IReadOnlyList<string> Clones()
+    {
+        lock (_gate)
+        {
+            if (_map is null || _time.GetUtcNow() - _scannedAt > TimeSpan.FromHours(1)) Rescan();
+            return _map!.Values.ToList();
+        }
+    }
+
     public void Rescan()
     {
         var map = new Dictionary<string, string>();

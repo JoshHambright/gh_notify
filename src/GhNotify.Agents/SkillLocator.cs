@@ -3,6 +3,9 @@ namespace GhNotify.Agents;
 public interface ISkillLocator
 {
     bool IsInstalled(string skill, string? repoPath);
+
+    /// <summary>The repo's own copy of a skill (<c>&lt;repo&gt;/.claude/skills/&lt;skill&gt;</c>), which agent runs don't load; null if none.</summary>
+    string? ProjectCopy(string skill, string? repoPath) => SkillLocator.ProjectCopyIn(repoPath, skill);
 }
 
 public sealed class SkillLocator(string claudeHome, TimeProvider? time = null) : ISkillLocator
@@ -13,16 +16,44 @@ public sealed class SkillLocator(string claudeHome, TimeProvider? time = null) :
     List<string>? _pluginSkillDirs;
     DateTimeOffset _pluginsScannedAt;
 
+    /// <summary><c>$CLAUDE_CONFIG_DIR</c> when set (Claude Code reads user skills from there), else <c>~/.claude</c>.</summary>
     public static string DefaultClaudeHome =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude");
+        Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR") is { Length: > 0 } dir
+            ? dir
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude");
+
+    /// <summary>Where user skills live: <c>&lt;claude home&gt;/skills</c>.</summary>
+    public string UserSkillsDir => Path.Combine(claudeHome, "skills");
 
     /// <remarks>Project skills (<c>&lt;repo&gt;/.claude/skills</c>) do not count: unattended runs pass
     /// <c>--setting-sources user</c> so the PR's own .claude settings cannot apply, and that also stops project skills
     /// loading. <paramref name="repoPath"/> is kept for callers but ignored.</remarks>
     public bool IsInstalled(string skill, string? repoPath)
     {
-        if (File.Exists(Path.Combine(claudeHome, "skills", skill, "SKILL.md"))) return true;
+        if (File.Exists(Path.Combine(UserSkillsDir, skill, "SKILL.md"))) return true;
         return PluginSkillDirs().Any(d => File.Exists(Path.Combine(d, skill, "SKILL.md")));
+    }
+
+    public static string? ProjectCopyIn(string? repoPath, string skill)
+    {
+        if (repoPath is null) return null;
+        var dir = Path.Combine(repoPath, ".claude", "skills", skill);
+        return File.Exists(Path.Combine(dir, "SKILL.md")) ? dir : null;
+    }
+
+    /// <summary>Copies a skill folder (usually a repo's project copy) into <see cref="UserSkillsDir"/>; returns the new folder.
+    /// The copy is the user's from then on: updating the repo's copy doesn't update it.</summary>
+    public string InstallFrom(string sourceDir, string skill)
+    {
+        if (!File.Exists(Path.Combine(sourceDir, "SKILL.md"))) throw new FileNotFoundException($"No SKILL.md in {sourceDir}");
+        var target = Path.Combine(UserSkillsDir, skill);
+        foreach (var file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
+        {
+            var dest = Path.Combine(target, Path.GetRelativePath(sourceDir, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            File.Copy(file, dest, overwrite: true);
+        }
+        return target;
     }
 
     /// <summary>The plugin "skills" directories, re-enumerated at most every 5 minutes (called per popup row).</summary>

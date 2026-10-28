@@ -58,7 +58,13 @@ public sealed class AgentCoordinator : IDisposable
             if (WhyNoWorktree(item) is { } why) return why;
             clone = _d.Repos.FindClone(item.CloneUrl!);
         }
-        if (profile.RequiresSkill is { } skill && !_d.Skills.IsInstalled(skill, clone)) return $"Skill /{skill} not installed";
+        if (profile.RequiresSkill is { } skill && !_d.Skills.IsInstalled(skill, clone))
+        {
+            clone ??= item.CloneUrl is { } url ? _d.Repos.FindClone(url) : null;
+            return _d.Skills.ProjectCopy(skill, clone) is null
+                ? $"Skill /{skill} not installed"
+                : $"Skill /{skill} is only in this repo's .claude/skills, which agents don't load — install it for your user in Settings › Workflows";
+        }
         return null;
     }
 

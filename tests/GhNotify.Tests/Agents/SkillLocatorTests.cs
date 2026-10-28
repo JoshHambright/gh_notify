@@ -42,6 +42,49 @@ public class SkillLocatorTests
     }
 
     [Fact]
+    public void Finds_a_repos_project_copy()
+    {
+        var repo = Directory.CreateTempSubdirectory("ghn-repo").FullName;
+        Skill(Path.Combine(repo, ".claude", "skills", "peer-review"));
+        Assert.Equal(Path.Combine(repo, ".claude", "skills", "peer-review"), SkillLocator.ProjectCopyIn(repo, "peer-review"));
+        Assert.Null(SkillLocator.ProjectCopyIn(repo, "pr-shepherd"));
+        Assert.Null(SkillLocator.ProjectCopyIn(null, "peer-review"));
+    }
+
+    [Fact]
+    public void Installs_a_project_copy_for_the_user()
+    {
+        var home = Directory.CreateTempSubdirectory("ghn-claude").FullName;
+        var copy = Path.Combine(Directory.CreateTempSubdirectory("ghn-repo").FullName, ".claude", "skills", "peer-review");
+        Skill(copy);
+        Directory.CreateDirectory(Path.Combine(copy, "references"));
+        File.WriteAllText(Path.Combine(copy, "references", "checklist.md"), "- [ ] x");
+        var s = new SkillLocator(home);
+
+        var target = s.InstallFrom(copy, "peer-review");
+
+        Assert.Equal(Path.Combine(home, "skills", "peer-review"), target);
+        Assert.True(File.Exists(Path.Combine(target, "references", "checklist.md")));
+        Assert.True(s.IsInstalled("peer-review", null));
+        Assert.Throws<FileNotFoundException>(() => s.InstallFrom(Path.Combine(copy, "references"), "x"));
+    }
+
+    [Fact]
+    public void Default_home_follows_CLAUDE_CONFIG_DIR()
+    {
+        var before = Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR");
+        var cc = Path.Combine(Path.GetTempPath(), "ghn-cc");
+        try
+        {
+            Environment.SetEnvironmentVariable("CLAUDE_CONFIG_DIR", cc);
+            Assert.Equal(cc, SkillLocator.DefaultClaudeHome);
+            Environment.SetEnvironmentVariable("CLAUDE_CONFIG_DIR", null);
+            Assert.Equal(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude"), SkillLocator.DefaultClaudeHome);
+        }
+        finally { Environment.SetEnvironmentVariable("CLAUDE_CONFIG_DIR", before); }
+    }
+
+    [Fact]
     public void Directory_without_SKILL_md_does_not_count()
     {
         var home = Directory.CreateTempSubdirectory("ghn-claude").FullName;
