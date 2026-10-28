@@ -41,8 +41,9 @@ public class RepoLocatorTests
     {
         var root = Directory.CreateTempSubdirectory("ghn-repos").FullName;
         var api = MakeRepo(root, "api", "https://github.com/acme/api");
-        var web = MakeRepo(root, "web", "https://github.com/acme/web");
-        Assert.Equal([api, web], new RepoLocator(() => [root]).Clones().Order());
+        var api2 = MakeRepo(root, "api-2", "git@github.com:acme/api.git"); // a second clone of the same remote
+        var local = MakeRepo(root, "local", null); // no origin
+        Assert.Equal([api, api2, local], new RepoLocator(() => [root]).Clones().Order());
     }
 
     [Fact]
