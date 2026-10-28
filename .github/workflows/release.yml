@@ -126,7 +126,7 @@ jobs:
         run: ./build/test-install.ps1 -OldSetup "${{ steps.prev.outputs.setup }}" -NewFeed artifacts/new
       # SIGNING: sign artifacts/new/* here once a certificate or Trusted Signing account exists.
       - name: Keep the Windows packages and notes for publishing
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-win
           path: |
@@ -195,7 +195,7 @@ jobs:
           }
       # SIGNING: Developer ID signing and notarization go into build/pack-mac.sh (vpk --signAppIdentity / --notaryProfile).
       - name: Keep the macOS packages for publishing
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-mac
           path: artifacts/mac/
