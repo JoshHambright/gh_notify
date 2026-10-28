@@ -89,6 +89,40 @@ public class SettingsWindowTests
     }
 
     [AvaloniaFact]
+    public void A_skill_found_only_in_a_repo_can_be_installed_for_the_user()
+    {
+        var dir = TempDir();
+        try
+        {
+            var store = StoreWith(dir, """{ "agentProfiles": { "summarize": { "prompt": "/summarize {url}", "requiresSkill": "summarize" } } }""");
+            var w = Show(new SampleSettingsHost(store));
+            w.ShowPage(SettingsPage.Workflows);
+            var workflows = (WorkflowsPage)w.CurrentPage;
+
+            Assert.False(workflows.SkillNoteShown); // no profile selected
+            workflows.SelectProfile("peer-review");
+            Assert.False(workflows.SkillNoteShown); // installed
+
+            workflows.SelectProfile("summarize");
+            Assert.True(workflows.SkillNoteShown);
+            Assert.True(workflows.SkillInstallShown);
+            Assert.Contains(@"C:\dev\acme-api\.claude\skills\summarize", workflows.SkillNoteText);
+
+            workflows.RequiresSkillBox.Text = "peer-review"; // the note follows the field
+            Assert.False(workflows.SkillNoteShown);
+            workflows.RequiresSkillBox.Text = "summarize";
+            Assert.True(workflows.SkillInstallShown);
+
+            workflows.OnInstallSkill();
+            Assert.Equal("✓ Installed to " + Path.Combine(@"C:\Users\alice\.claude\skills", "summarize"), workflows.SkillResultText);
+            Assert.False(workflows.SkillInstallShown);
+            Assert.False(w.Draft.IsDirty); // installing a skill isn't a config change
+            w.Discard();
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [AvaloniaFact]
     public void The_general_page_shows_the_loaded_values()
     {
         var w = Open(new SampleSettingsHost());

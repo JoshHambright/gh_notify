@@ -13,6 +13,7 @@ public sealed class RepoLocator(Func<IReadOnlyList<string>> roots, int maxDepth 
     readonly TimeProvider _time = time ?? TimeProvider.System;
     readonly object _gate = new();
     Dictionary<string, string>? _map;
+    List<string> _clones = [];
     DateTimeOffset _scannedAt;
 
     public string? FindClone(string cloneUrl)
@@ -38,9 +39,20 @@ public sealed class RepoLocator(Func<IReadOnlyList<string>> roots, int maxDepth 
         }
     }
 
+    /// <summary>Every main clone found under repoRoots, including second clones of one remote and clones with no origin (scanning first if the last scan is over an hour old).</summary>
+    public IReadOnlyList<string> Clones()
+    {
+        lock (_gate)
+        {
+            if (_map is null || _time.GetUtcNow() - _scannedAt > TimeSpan.FromHours(1)) Rescan();
+            return _clones.ToList();
+        }
+    }
+
     public void Rescan()
     {
         var map = new Dictionary<string, string>();
+        var clones = new List<string>();
         IReadOnlyList<string>? list;
         try { list = roots(); }
         catch (Exception ex)
@@ -50,20 +62,22 @@ public sealed class RepoLocator(Func<IReadOnlyList<string>> roots, int maxDepth 
         }
         if (list is null) Log.Info("no repoRoots configured; no local clones will be found");
         foreach (var root in list ?? [])
-            if (!string.IsNullOrWhiteSpace(root) && Directory.Exists(root)) Walk(root, 0, map);
+            if (!string.IsNullOrWhiteSpace(root) && Directory.Exists(root)) Walk(root, 0, map, clones);
         lock (_gate)
         {
             _map = map;
+            _clones = clones;
             _scannedAt = _time.GetUtcNow();
         }
         Log.Info($"repo scan found {map.Count} clones");
     }
 
-    void Walk(string dir, int depth, Dictionary<string, string> map)
+    void Walk(string dir, int depth, Dictionary<string, string> map, List<string> clones)
     {
         var dotGit = Path.Combine(dir, ".git");
         if (Directory.Exists(dotGit))
         {
+            clones.Add(dir);
             if (ReadOriginUrl(Path.Combine(dotGit, "config")) is { } url && RemoteUrl.Normalize(url) is { } key)
                 map.TryAdd(key, dir);
             return;
@@ -76,7 +90,7 @@ public sealed class RepoLocator(Func<IReadOnlyList<string>> roots, int maxDepth 
         {
             var name = Path.GetFileName(sub);
             if (name.StartsWith('.') || Skip.Contains(name)) continue;
-            Walk(sub, depth + 1, map);
+            Walk(sub, depth + 1, map, clones);
         }
     }
 

@@ -25,9 +25,18 @@ The exact built-in prompts:
 - `peer-review`: */peer-review {url} — run unattended: complete the review through writing the findings report, then STOP. Do not post anything. End with a 1–3 line summary starting "SUMMARY:".*
 - `pr-shepherd`: */pr-shepherd {url} — diagnose only: find the real reason for each failure and triage comments. Make no commits, pushes, or thread replies. End with a 1–3 line summary starting "SUMMARY:".*
 
-A skill counts as installed if its `SKILL.md` is in `~/.claude/skills/<name>/` or in an installed Claude Code plugin. Skills in a
-repo's own `.claude/skills/` don't count, because agents ignore the PR's own settings (see [security.md](security.md)). If a
-required skill is missing, the button is disabled and its tooltip says why.
+### Installing skills
+
+Install the skills a profile needs **at user level**, not in a project. A skill counts as installed if its `SKILL.md` is in
+`~/.claude/skills/<name>/` (or `$CLAUDE_CONFIG_DIR/skills/<name>/` when that variable is set) or in an installed Claude Code
+plugin. Skills in a repo's own `.claude/skills/` don't count, because agents ignore the PR's own settings (see
+[security.md](security.md)). If you install skills with a package manager or other tool, pick its user or global option;
+its default may be the current project.
+
+If a required skill is missing, the button is disabled and its tooltip says why. **Settings › Workflows** marks each profile
+✓ or ✗; select a ✗ profile to see what's missing. When one of your clones under `repoRoots` has the skill in its own
+`.claude/skills/`, the note names it and **Install for my user** copies it to your user skills folder. The copy doesn't
+follow later updates to the repo's copy, so reinstall at user level when the skill changes.
 
 ## How rules pick a profile
 
