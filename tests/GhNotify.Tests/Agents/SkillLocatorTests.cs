@@ -70,6 +70,39 @@ public class SkillLocatorTests
     }
 
     [Fact]
+    public void Install_replaces_a_leftover_but_never_an_installed_skill()
+    {
+        var home = Directory.CreateTempSubdirectory("ghn-claude").FullName;
+        var copy = Path.Combine(Directory.CreateTempSubdirectory("ghn-repo").FullName, ".claude", "skills", "peer-review");
+        Skill(copy);
+        var leftover = Path.Combine(home, "skills", "peer-review");
+        Directory.CreateDirectory(leftover);
+        File.WriteAllText(Path.Combine(leftover, "stale.md"), "x");
+        var s = new SkillLocator(home);
+
+        s.InstallFrom(copy, "peer-review");
+        Assert.False(File.Exists(Path.Combine(leftover, "stale.md")));
+        Assert.Throws<IOException>(() => s.InstallFrom(copy, "peer-review"));
+    }
+
+    [WindowsFact] // only Windows locks a file against reading
+    public void A_failed_install_leaves_nothing_behind()
+    {
+        var home = Directory.CreateTempSubdirectory("ghn-claude").FullName;
+        var copy = Path.Combine(Directory.CreateTempSubdirectory("ghn-repo").FullName, ".claude", "skills", "peer-review");
+        Skill(copy);
+        var script = Path.Combine(copy, "zz-script.sh");
+        File.WriteAllText(script, "echo");
+        var s = new SkillLocator(home);
+
+        using (new FileStream(script, FileMode.Open, FileAccess.Read, FileShare.None))
+            Assert.ThrowsAny<IOException>(() => s.InstallFrom(copy, "peer-review"));
+
+        Assert.False(s.IsInstalled("peer-review", null));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Path.Combine(home, "skills")));
+    }
+
+    [Fact]
     public void Default_home_follows_CLAUDE_CONFIG_DIR()
     {
         var before = Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR");
