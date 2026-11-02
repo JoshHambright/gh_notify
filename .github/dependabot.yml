@@ -4,6 +4,9 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    commit-message:
+      # chore: so release-please neither cuts a release nor asks for release notes for a bump.
+      prefix: "chore(deps)"
     groups:
       # Avalonia's packages must move together; a lone bump (e.g. Headless.XUnit) doesn't build.
       avalonia:
@@ -16,3 +19,6 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    commit-message:
+      # chore: so release-please neither cuts a release nor asks for release notes for a bump.
+      prefix: "chore(deps)"

@@ -1,0 +1,64 @@
+name: Dependabot auto-merge
+# Routine Dependabot bumps merge themselves once CI is green; the rest wait for a human.
+#   classify (pull_request): labels the PR `automerge` (NuGet patch/minor, any GitHub Actions bump) or `needs-review`.
+#   merge (workflow_run): when CI succeeds on an `automerge` PR's current head, squash-merges it. --auto still waits
+#   for the ruleset's CodeQL and code-quality results if they haven't landed yet.
+# CI is not a required check in the main ruleset (the release PR gets no CI runs, so requiring it would block releases);
+# gating on the CI workflow_run here is what keeps a red build from auto-merging.
+# A merge made with GITHUB_TOKEN starts no push workflows on main; release-please and CodeQL catch up on the next push.
+on:
+  pull_request:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  classify:
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v3
+      - name: Label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.html_url }}
+          ECOSYSTEM: ${{ steps.meta.outputs.package-ecosystem }}
+          UPDATE: ${{ steps.meta.outputs.update-type }}
+        run: |
+          if [[ "$ECOSYSTEM" == github_actions || "$UPDATE" == version-update:semver-patch || "$UPDATE" == version-update:semver-minor ]]; then
+            add=automerge; remove=needs-review
+          else
+            add=needs-review; remove=automerge
+          fi
+          echo "$ECOSYSTEM $UPDATE -> $add"
+          gh pr edit "$PR" --remove-label "$remove" >/dev/null 2>&1 || true
+          gh pr edit "$PR" --add-label "$add"
+  merge:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.head_branch, 'dependabot/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          pr=$(gh pr list --head "$BRANCH" --state open --json number,author,headRefOid,labels --jq \
+            ".[] | select(.author.login == \"app/dependabot\" and .headRefOid == \"$SHA\" and any(.labels[]; .name == \"automerge\")) | .number")
+          if [[ -z "$pr" ]]; then
+            echo "No open automerge Dependabot PR at $SHA on $BRANCH; nothing to do."
+            exit 0
+          fi
+          gh pr merge "$pr" --squash --auto --delete-branch --match-head-commit "$SHA"
