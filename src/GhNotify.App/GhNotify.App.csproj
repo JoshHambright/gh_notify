@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.23" />
     <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
