@@ -59,6 +59,10 @@ public interface IPopupHost
     // Named SnoozeItem, not Snooze: that would shadow the Snooze record inside AppController.
     void SnoozeItem(string key, SnoozeChoice choice);
     void Unsnooze(string key);
+    /// <summary>Dismisses a pipeline row: it leaves the inbox and stays gone (saved in state.json).</summary>
+    void DismissPipeline(string key);
+    /// <summary>Dismisses every pipeline row shown in the Pipelines section.</summary>
+    void DismissAllPipelines();
     void Mute(string key, MuteScope scope, MuteDuration duration);
     IReadOnlyList<ActiveMute> ActiveMutes();
     void Unmute(string pattern);

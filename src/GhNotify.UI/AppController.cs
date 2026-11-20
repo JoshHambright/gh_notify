@@ -35,6 +35,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     readonly object _filterGate = new();
     List<TimedMute> _mutes;
     List<Snooze> _snoozes;
+    List<DismissedRun> _dismissed;
     bool _waitingExpanded;
     bool _snoozedExpanded;
     bool _mutedExpanded;
@@ -85,6 +86,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         _themeMode = state.ThemeMode;
         _mutes = state.Mutes.ToList();
         _snoozes = state.Snoozes.ToList();
+        _dismissed = PipelineSource.PruneDismissed(state.DismissedPipelineRuns, DateTimeOffset.Now).ToList();
         _waitingExpanded = state.WaitingExpanded;
         _snoozedExpanded = state.SnoozedExpanded;
         _mutedExpanded = state.MutedExpanded;
@@ -212,6 +214,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
             _snoozes = result.Kept.ToList();
             woken = result.Woken;
             _mutes = Snoozes.PruneMutes(_mutes, now).ToList();
+            _dismissed = PipelineSource.PruneDismissed(_dismissed, now).ToList();
         }
         var view = CurrentView();
         var plan = NotificationPlanner.Plan(diff, woken, view, cfg, WorkHours.IsWithin(cfg.WorkHours, DateTime.Now));
@@ -318,14 +321,18 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
 
     InboxView CurrentView()
     {
-        var entries = _doneHidden.IsEmpty ? _reconciler.Entries : _reconciler.Entries.Where(e => !_doneHidden.ContainsKey(e.Item.Key)).ToList();
         TimedMute[] mutes;
         Snooze[] snoozes;
+        HashSet<string> dismissed;
         lock (_filterGate)
         {
             mutes = _mutes.ToArray();
             snoozes = _snoozes.ToArray();
+            dismissed = _dismissed.Select(d => d.Key).ToHashSet(StringComparer.Ordinal);
         }
+        var entries = _doneHidden.IsEmpty && dismissed.Count == 0
+            ? _reconciler.Entries
+            : _reconciler.Entries.Where(e => !_doneHidden.ContainsKey(e.Item.Key) && !dismissed.Contains(e.Item.Key)).ToList();
         return InboxView.Compose(entries, _config.Current.Filters, mutes, snoozes, DateTimeOffset.Now);
     }
 
@@ -333,7 +340,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     {
         var searching = !string.IsNullOrWhiteSpace(query);
         var sections = InboxFilter.Apply(Present(searching), query);
-        if (searching) sections = sections.Select(s => s.BatchButtons ? s with { BatchButtons = false } : s).ToList();
+        if (searching) sections = sections.Select(s => s.BatchButtons || s.DismissAll ? s with { BatchButtons = false, DismissAll = false } : s).ToList();
         if (!Batch.Active) return sections;
         return BatchApproval.Lock(sections, key => Find(key)?.Kind == ItemKind.ApprovalPending, BatchBusy);
     }
@@ -547,6 +554,43 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.For(key)));
         _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.ForAgent(key)));
         _rowStates.TryRemove(key, out _);
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Keys of dismissed pipeline rows; the pipeline sources stop returning them.</summary>
+    public IReadOnlySet<string> DismissedPipelineKeys
+    {
+        get { lock (_filterGate) return _dismissed.Select(d => d.Key).ToHashSet(StringComparer.Ordinal); }
+    }
+
+    public void DismissPipeline(string key)
+    {
+        if (Find(key) is not { Kind: ItemKind.PipelineRun } item) return;
+        Dismiss([item]);
+    }
+
+    public void DismissAllPipelines()
+    {
+        var view = CurrentView();
+        Dismiss(view.Active.Where(v => v.Entry.Item.Kind == ItemKind.PipelineRun).Select(v => v.Entry.Item).ToList());
+    }
+
+    void Dismiss(IReadOnlyList<InboxItem> items)
+    {
+        if (items.Count == 0) return;
+        lock (_filterGate)
+            foreach (var i in items)
+            {
+                _dismissed.RemoveAll(d => d.Key == i.Key);
+                _dismissed.Add(new DismissedRun(i.Key, i.Finished ?? i.UpdatedAt));
+            }
+        foreach (var i in items)
+        {
+            _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.For(i.Key)));
+            _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.ForAgent(i.Key)));
+            _rowStates.TryRemove(i.Key, out _);
+        }
         Save();
         Changed?.Invoke();
     }
@@ -875,6 +919,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
                         ThemeMode = _themeMode,
                         Mutes = _mutes.ToList(),
                         Snoozes = _snoozes.ToList(),
+                        DismissedPipelineRuns = _dismissed.ToList(),
                         WaitingExpanded = _waitingExpanded,
                         SnoozedExpanded = _snoozedExpanded,
                         MutedExpanded = _mutedExpanded,

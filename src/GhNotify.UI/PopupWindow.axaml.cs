@@ -403,12 +403,17 @@ public partial class PopupWindow : Window
                     case RowMenuKind.Mute: _host.Mute(key, cmd.Scope!.Value, cmd.Duration!.Value); break;
                     case RowMenuKind.Unsnooze: _host.Unsnooze(key); break;
                     case RowMenuKind.Hide: _host.HideMatching(key, cmd.Scope!.Value); break;
+                    case RowMenuKind.Dismiss: _host.DismissPipeline(key); break;
                 }
             };
         return item;
     }
 
     void OnUnsnooze(object? sender, RoutedEventArgs e) => WithKey(sender, _host.Unsnooze);
+
+    void OnDismiss(object? sender, RoutedEventArgs e) => WithKey(sender, _host.DismissPipeline);
+
+    void OnDismissAll(object? sender, RoutedEventArgs e) => _host.DismissAllPipelines();
 
     void OnToggleSection(object? sender, RoutedEventArgs e) => WithKey(sender, _host.ToggleSection);
 

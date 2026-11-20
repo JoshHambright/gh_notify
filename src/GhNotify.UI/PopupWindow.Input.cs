@@ -189,6 +189,7 @@ public partial class PopupWindow
             SearchEmpty: string.IsNullOrEmpty(SearchBox.Text),
             SelectedRowMode: row?.Mode,
             SelectedRowActions: row?.Actions.Select(a => a.Action).ToList(),
+            SelectedRowCanDismiss: row?.CanDismiss == true,
             ConfirmOpen: batch,
             BatchOpen: batch,
             ButtonFocused: focused is Button);
@@ -228,6 +229,9 @@ public partial class PopupWindow
                 return true;
             case KeyCommandKind.OpenSnoozeMenu:
                 if (row is not null && RingFor(row.Key) is { } ring && RowMenuFor(ring, row.Key) is { } menu) ShowMenu(menu, ring);
+                return true;
+            case KeyCommandKind.Dismiss:
+                if (row is not null) _host.DismissPipeline(row.Key);
                 return true;
             case KeyCommandKind.Confirm:
                 ConfirmFromKeyboard(row);

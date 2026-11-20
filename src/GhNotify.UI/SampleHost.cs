@@ -353,6 +353,8 @@ public sealed class SampleHost : IPopupHost
     public void CopyText(string text) => Calls.Add("copy " + text.Length);
     public void SnoozeItem(string key, SnoozeChoice choice) => Calls.Add($"snooze {key} {choice}");
     public void Unsnooze(string key) => Calls.Add("unsnooze " + key);
+    public void DismissPipeline(string key) => Calls.Add("dismiss " + key);
+    public void DismissAllPipelines() => Calls.Add("dismiss-all");
     public void Mute(string key, MuteScope scope, MuteDuration duration) => Calls.Add($"mute {key} {scope} {duration}");
     public IReadOnlyList<ActiveMute> ActiveMutes() => NoMutes ? [] :
         [new ActiveMute("gh:acme/legacy-*", "forever", true), new ActiveMute("ado:contoso/platform", "45m left", false)];
