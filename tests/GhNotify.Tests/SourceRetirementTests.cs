@@ -41,4 +41,30 @@ public class SourceRetirementTests
         Assert.False(SourceRetirement.ShouldRetireAdoPseudoSource([new("ADO", false, "x", null), new("ADO:a", false, "y", null)]));
         Assert.False(SourceRetirement.ShouldRetireAdoPseudoSource([]));
     }
+
+    static PipelineSubscription PSub(Provider p, string? org = null, bool enabled = true) =>
+        new() { Id = Guid.NewGuid().ToString(), Provider = p, Org = org, Project = "P", Repo = "a/b", PipelineId = 1, Enabled = enabled };
+
+    [Fact]
+    public void Pipeline_sources_retire_with_their_last_subscription()
+    {
+        var none = Cfg();
+        Assert.True(SourceRetirement.IsDisabled("GitHub-Pipelines", none));
+        Assert.True(SourceRetirement.IsDisabled("ADO-Pipelines:acme", none));
+        var c = Cfg(c => { c.PipelineSubscriptions.Add(PSub(Provider.GitHub)); c.PipelineSubscriptions.Add(PSub(Provider.Ado, "Acme")); });
+        Assert.False(SourceRetirement.IsDisabled("GitHub-Pipelines", c));
+        Assert.False(SourceRetirement.IsDisabled("ADO-Pipelines:acme", c));
+        Assert.True(SourceRetirement.IsDisabled("ADO-Pipelines:other", c));
+    }
+
+    [Fact]
+    public void Pipeline_sources_retire_when_disabled_or_their_provider_is_off()
+    {
+        var off = Cfg(c => c.PipelineSubscriptions.Add(PSub(Provider.GitHub, enabled: false)));
+        Assert.True(SourceRetirement.IsDisabled("GitHub-Pipelines", off));
+        var gh = Cfg(c => { c.GitHub.Enabled = false; c.PipelineSubscriptions.Add(PSub(Provider.GitHub)); });
+        Assert.True(SourceRetirement.IsDisabled("GitHub-Pipelines", gh));
+        var ado = Cfg(c => { c.Ado.Enabled = false; c.PipelineSubscriptions.Add(PSub(Provider.Ado, "acme")); });
+        Assert.True(SourceRetirement.IsDisabled("ADO-Pipelines:acme", ado));
+    }
 }
