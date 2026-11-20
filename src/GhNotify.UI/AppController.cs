@@ -588,6 +588,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         Dismiss(view.Active.Where(v => v.Entry.Item.Kind == ItemKind.PipelineRun).Select(v => v.Entry.Item).ToList());
     }
 
+    static DateTimeOffset Later(DateTimeOffset a, DateTimeOffset b) => a > b ? a : b;
+
     void Dismiss(IReadOnlyList<InboxItem> items)
     {
         if (items.Count == 0) return;
@@ -595,7 +597,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
             foreach (var i in items)
             {
                 _dismissed.RemoveAll(d => d.Key == i.Key);
-                _dismissed.Add(new DismissedRun(i.Key, i.Finished ?? i.UpdatedAt));
+                _dismissed.Add(new DismissedRun(i.Key, Later(i.Finished ?? i.UpdatedAt, DateTimeOffset.Now))); // retention counts from the dismissal, not the run
             }
         foreach (var i in items)
         {

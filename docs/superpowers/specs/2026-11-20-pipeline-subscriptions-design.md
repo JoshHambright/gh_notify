@@ -31,7 +31,6 @@ they care about: "whenever it fails", or "only when the PROD stage fails". Pipel
   `NotificationPlanner` toasts `Added` items; `InboxView` classifies but never removes. A pipeline run is an *event*, so the
   source must keep returning it until it is dismissed (see Lifecycle).
 - State lives in `AppState` (`state.json`), config in `AppConfig` (`config.json`, unknown keys round-trip through `Extra`).
-- Public repo: no mention of ATK in the app or docs. Release notes for the feature PR go in `docs/releases/vX.Y.Z.md`.
 - New `ItemKind` values need handling everywhere kinds are switched on: `NotificationPolicy.TitleFor` (it throws on unknown kinds),
   `NotificationPlanner.Priority`, `InboxPresenter`/`InboxSections`, `ItemText`, `RowMenus`, `KeyMap`, `ItemMatch`, the sounds rule UI.
 

@@ -77,7 +77,7 @@ public class ConfigValidatorTests
 
     static PipelineSubscription Sub(Action<PipelineSubscription>? edit = null)
     {
-        var s = new PipelineSubscription { Id = "a", Provider = Provider.Ado, Org = "acme", Project = "P", PipelineId = 42, Pipeline = "Deploy", On = [PipelineOutcome.Failed] };
+        var s = new PipelineSubscription { Id = "a", Provider = Provider.Ado, Org = "acme", Project = "P", PipelineId = 42, Pipeline = "Deploy", On = [PipelineOutcome.Failed], CreatedAt = DateTimeOffset.UnixEpoch };
         edit?.Invoke(s);
         return s;
     }

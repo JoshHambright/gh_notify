@@ -199,4 +199,15 @@ public class PipelineSourceTests
         Assert.Single(gone.Removed);
         Assert.Empty(restarted.Entries);
     }
+
+    [Fact]
+    public async Task A_subscription_without_a_createdAt_is_skipped_and_does_not_fail_the_source_or_its_neighbours()
+    {
+        var feed = new FakeFeed();
+        feed.Runs["ok"] = [Run("1001", pipelineId: 43)];
+        var r = await Source(feed, [Sub("bad", edit: s => s.CreatedAt = default), Sub("ok", 43)]).FetchAsync(default);
+        Assert.True(r.Healthy);
+        Assert.Equal("ok", r.Items.Single().SubscriptionId);
+        Assert.DoesNotContain(feed.Calls, c => c.Sub == "bad");
+    }
 }

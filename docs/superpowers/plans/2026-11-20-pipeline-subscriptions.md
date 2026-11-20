@@ -12,7 +12,6 @@
 
 ## Global Constraints
 
-- Public repo: **no mention of ATK** in code, docs or release notes.
 - Config JSON uses camelCase, enums by camelCase name (`Json.Options`); unknown keys must still round-trip (`AppConfig.Extra`).
 - State enums are stored by name, so `ItemKind.PipelineRun` is appended at the end of the enum. Old `state.json` and `config.json` files without the new fields must load. Upgrade compatibility only.
 - Outcomes: `Failed`, `Succeeded`, `PartiallySucceeded` (hidden for GitHub). Cancelled never alerts.
@@ -255,6 +254,6 @@
 - Modify: `docs/notifications.md`, `docs/configuration.md`, `docs/security.md` (only if Task 0 found new scopes), `docs/roadmap.md`, `README.md`
 - Create: `docs/releases/v<next>.md` (from `TEMPLATE.md`)
 
-- [ ] **Step 1:** Document: the Pipelines page, each subscription field with the JSON example from the spec, the outcome/stage/branch/onlyMine semantics, baselining, dismiss vs mute/snooze, that only failures light the badge, and the GitHub stage caveat. No ATK mentions.
+- [ ] **Step 1:** Document: the Pipelines page, each subscription field with the JSON example from the spec, the outcome/stage/branch/onlyMine semantics, baselining, dismiss vs mute/snooze, that only failures light the badge, and the GitHub stage caveat.
 - [ ] **Step 2:** Run `dotnet test GhNotify.slnx` and `pwsh build/check-coverage.ps1`; run `pwsh build/leak-scan.ps1`. Expected: all pass.
 - [ ] **Step 3:** Commit: `docs: pipeline subscriptions`.

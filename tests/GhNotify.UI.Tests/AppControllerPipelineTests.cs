@@ -68,7 +68,7 @@ public sealed class AppControllerPipelineTests : IDisposable
         Assert.Contains("pipe:ado:acme/P:42:1:1", _controller.DismissedPipelineKeys);
         var saved = Assert.Single(_state.Load().DismissedPipelineRuns);
         Assert.Equal("pipe:ado:acme/P:42:1:1", saved.Key);
-        Assert.Equal(Finished, saved.Finished);
+        Assert.True(saved.Finished >= Finished && DateTimeOffset.Now - saved.Finished < TimeSpan.FromMinutes(1)); // anchored at the dismissal, so retention counts from then
 
         _controller.Dispose();
         _controller = Make();

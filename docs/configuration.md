@@ -127,7 +127,7 @@ One entry per followed pipeline. Settings › Pipelines writes these for you; se
 | `branches` | string[] | `[]` | Globs on the branch name. Empty means any branch. |
 | `onlyMine` | bool | `false` | Only runs you triggered. If the run's requester can't be determined, it doesn't alert. |
 | `enabled` | bool | `true` | Pause without deleting. |
-| `createdAt` | timestamp | now | Baseline: runs that finished before it never alert. Settings resets it on every edit. |
+| `createdAt` | timestamp | required | Baseline: runs that finished before it never alert. Settings sets it when you add a pipeline and resets it on every edit and re-enable. |
 
 ## `rules[]`
 

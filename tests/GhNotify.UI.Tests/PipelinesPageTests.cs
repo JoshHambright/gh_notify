@@ -155,6 +155,33 @@ public class PipelinesPageTests
     }
 
     [AvaloniaFact]
+    public void Re_enabling_a_subscription_restarts_its_baseline_so_old_runs_do_not_toast_again()
+    {
+        var (w, page) = Open(Existing);
+        page.EnabledBox(0).IsChecked = false;
+        w.Draft.Config.PipelineSubscriptions[0].CreatedAt = DateTimeOffset.Parse("2026-01-01T00:00:00Z");
+        page.EnabledBox(0).IsChecked = true;
+        Assert.True(DateTimeOffset.Now - w.Draft.Config.PipelineSubscriptions[0].CreatedAt < TimeSpan.FromMinutes(1));
+        w.Discard();
+    }
+
+    [AvaloniaFact]
+    public void Changing_the_repository_after_picking_a_workflow_forgets_the_pick()
+    {
+        var (w, page) = Open();
+        page.BeginAdd();
+        page.Choose(Provider.GitHub);
+        page.RepoBox.Text = "acme/api";
+        Click(page.FindWorkflowsButton);
+        page.WorkflowCombo.SelectedIndex = 1;
+        Assert.True(page.SaveButton.IsEnabled);
+        page.RepoBox.Text = "acme/web";
+        Assert.False(page.SaveButton.IsEnabled);
+        Assert.Empty(page.WorkflowCombo.ItemsSource!.Cast<string>());
+        w.Discard();
+    }
+
+    [AvaloniaFact]
     public void A_picker_failure_is_shown_inline_and_nothing_is_saved()
     {
         SettingsTokens.Ensure();

@@ -28,6 +28,7 @@ public sealed class PipelinesPage : SettingsPageBase
     List<PipelinePick> _picks = [];
     PipelinePick? _chosen;
     bool _loading;
+    int _generation; // bumped whenever a selection changes, so a slow picker result for an older selection is dropped
 
     public PipelinesPage(SettingsDraft draft, ISettingsHost host, Action changed) : base(draft, host, changed)
     {
@@ -49,7 +50,7 @@ public sealed class PipelinesPage : SettingsPageBase
         ProjectCombo.SelectionChanged += (_, _) => OnProjectChanged();
         PipelineCombo.SelectionChanged += (_, _) => OnPickChanged(PipelineCombo);
         WorkflowCombo.SelectionChanged += (_, _) => OnPickChanged(WorkflowCombo);
-        RepoBox = Ui.Box("", "owner/repo", 220, _ => UpdateSave());
+        RepoBox = Ui.Box("", "owner/repo", 220, _ => OnRepoChanged());
         FindWorkflowsButton = Ui.Btn("Find workflows", () => _ = LoadWorkflowsAsync(), "pill");
         FailedBox = Ui.Check("Failed", true, _ => UpdateSave());
         SucceededBox = Ui.Check("Succeeded", false, _ => UpdateSave());
@@ -122,7 +123,12 @@ public sealed class PipelinesPage : SettingsPageBase
         foreach (var sub in Config.PipelineSubscriptions.ToList())
         {
             var summary = SettingsDraft.PipelineSubscriptionSummary(sub);
-            var enabled = Ui.Check(summary, sub.Enabled, on => { sub.Enabled = on; Changed(); });
+            var enabled = Ui.Check(summary, sub.Enabled, on =>
+            {
+                sub.Enabled = on;
+                if (on) sub.CreatedAt = DateTimeOffset.Now; // re-enabling restarts the baseline, so runs seen before don't toast again
+                Changed();
+            });
             var remove = Ui.Remove(() =>
             {
                 Draft.RemovePipelineSubscription(sub.Id);
@@ -266,9 +272,20 @@ public sealed class PipelinesPage : SettingsPageBase
 
     // ----- pickers -----
 
+    void OnRepoChanged()
+    {
+        if (_loading) return;
+        _generation++;
+        _chosen = null; // a workflow id belongs to the repo it was listed for
+        _picks = [];
+        WorkflowCombo.ItemsSource = new List<string>();
+        UpdateSave();
+    }
+
     void OnOrgChanged()
     {
         if (_loading) return;
+        _generation++;
         ProjectCombo.ItemsSource = new List<string>();
         PipelineCombo.ItemsSource = new List<string>();
         _chosen = null;
@@ -280,6 +297,7 @@ public sealed class PipelinesPage : SettingsPageBase
     void OnProjectChanged()
     {
         if (_loading) return;
+        _generation++;
         PipelineCombo.ItemsSource = new List<string>();
         _chosen = null;
         _message.Text = "";
@@ -296,9 +314,11 @@ public sealed class PipelinesPage : SettingsPageBase
 
     async Task LoadProjectsAsync(string org)
     {
+        var gen = _generation;
         try
         {
             var projects = (await Host.ListAdoProjectsAsync(org)).ToList();
+            if (gen != _generation) return;
             ProjectCombo.ItemsSource = projects;
             ProjectCombo.SelectedIndex = -1;
             if (projects.Count == 0) _message.Text = $"{org} has no projects you can see.";
@@ -308,9 +328,12 @@ public sealed class PipelinesPage : SettingsPageBase
 
     async Task LoadPipelinesAsync(string org, string project)
     {
+        var gen = _generation;
         try
         {
-            _picks = (await Host.ListAdoPipelinesAsync(org, project)).ToList();
+            var picks = (await Host.ListAdoPipelinesAsync(org, project)).ToList();
+            if (gen != _generation) return;
+            _picks = picks;
             PipelineCombo.ItemsSource = _picks.Select(p => p.Name).ToList();
             PipelineCombo.SelectedIndex = -1;
             if (_picks.Count == 0) _message.Text = $"{project} has no build pipelines you can see.";
@@ -323,9 +346,12 @@ public sealed class PipelinesPage : SettingsPageBase
         var repo = (RepoBox.Text ?? "").Trim();
         if (!ValidRepo(repo)) { _message.Text = "Enter the repository as owner/repo."; return; }
         _message.Text = "";
+        var gen = _generation;
         try
         {
-            _picks = (await Host.ListGitHubWorkflowsAsync(repo)).ToList();
+            var picks = (await Host.ListGitHubWorkflowsAsync(repo)).ToList();
+            if (gen != _generation) return;
+            _picks = picks;
             WorkflowCombo.ItemsSource = _picks.Select(p => p.Name).ToList();
             WorkflowCombo.SelectedIndex = -1;
             _chosen = null;

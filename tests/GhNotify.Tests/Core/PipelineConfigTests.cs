@@ -44,4 +44,12 @@ public class PipelineConfigTests
     [Fact]
     public void A_github_subscription_scopes_to_its_repo() =>
         Assert.Equal("acme/shop", new PipelineSubscription { Provider = Provider.GitHub, Repo = "acme/shop" }.Scope);
+
+    [Fact]
+    public void A_subscription_must_have_a_createdAt()
+    {
+        var cfg = new AppConfig();
+        cfg.PipelineSubscriptions.Add(new PipelineSubscription { Id = "a", Provider = Provider.Ado, Org = "o", Project = "p", PipelineId = 1, Pipeline = "x", On = [PipelineOutcome.Failed] });
+        Assert.Contains(ConfigValidator.Errors(cfg), e => e.Field == "pipelineSubscriptions[0].createdAt");
+    }
 }

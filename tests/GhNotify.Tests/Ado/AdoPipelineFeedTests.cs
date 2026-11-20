@@ -76,7 +76,7 @@ public class AdoPipelineFeedTests
         Assert.Equal("Deploy", failed.Pipeline);
         Assert.Equal("1001", failed.RunId);
         Assert.Equal("20261120.1", failed.RunNumber);
-        Assert.Equal(1, failed.Attempt);
+        Assert.True(failed.Attempt > 1); // the completion minute: a stage retry completes the build again
         Assert.Equal("main", failed.Branch);
         Assert.Equal("Me", failed.RequestedBy);
         Assert.Equal("abc123", failed.CommitSha);
@@ -181,5 +181,49 @@ public class AdoPipelineFeedTests
         Assert.Equal(["Core Platform", "Other"], await feed.ListProjectsAsync("acme", default));
         var pipelines = await feed.ListPipelinesAsync("acme", "Core Platform", default);
         Assert.Equal([new PipelinePick(42, "Deploy"), new PipelinePick(7, "CI")], pipelines);
+    }
+
+    static string OneBuild(string finish) => $$"""
+        { "value": [ { "id": 1001, "buildNumber": "1", "status": "completed", "result": "failed", "sourceBranch": "refs/heads/main",
+          "finishTime": "{{finish}}", "definition": { "id": 42, "name": "Deploy" }, "requestedFor": { "id": "me-id" }, "_links": { } } ] }
+        """;
+
+    static string OneStage(string result, int attempt) => $$"""
+        { "records": [ { "type": "Stage", "name": "PROD", "state": "completed", "result": "{{result}}", "attempt": {{attempt}}, "finishTime": "2026-11-20T10:20:00Z" } ] }
+        """;
+
+    [Fact]
+    public async Task A_stage_retry_that_completes_the_same_build_again_is_read_afresh_not_from_the_cache()
+    {
+        string builds = OneBuild("2026-11-20T10:00:00Z"), timeline = OneStage("failed", 1);
+        var http = new FakeHttpHandler()
+            .On(r => r.RequestUri!.AbsoluteUri.Contains("_apis/build/builds?"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, builds))
+            .On(r => r.RequestUri!.AbsoluteUri.Contains("/timeline"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, timeline));
+        var client = new AdoClient(new HttpClient(http), new FakeTokenProvider());
+        var feed = new AdoPipelineFeed(client, new AdoDirectory(client));
+        var sub = Sub(s => s.Stages = ["PROD"]);
+
+        var first = (await feed.RecentRunsAsync(sub, Since, true, default)).Single();
+        Assert.Equal(PipelineOutcome.Failed, first.Stages.Single().Outcome);
+
+        builds = OneBuild("2026-11-20T10:20:00Z");
+        timeline = OneStage("succeeded", 2);
+        var second = (await feed.RecentRunsAsync(sub, Since, true, default)).Single();
+        Assert.Equal(PipelineOutcome.Succeeded, second.Stages.Single().Outcome);
+        Assert.Equal(2, second.Stages.Single().Attempt);
+    }
+
+    [Fact]
+    public async Task A_whole_run_that_completes_again_gets_a_new_key_so_a_retry_is_a_new_row()
+    {
+        string builds = OneBuild("2026-11-20T10:00:00Z");
+        var http = new FakeHttpHandler().On(r => r.RequestUri!.AbsoluteUri.Contains("_apis/build/builds?"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, builds));
+        var client = new AdoClient(new HttpClient(http), new FakeTokenProvider());
+        var feed = new AdoPipelineFeed(client, new AdoDirectory(client));
+        var first = (await feed.RecentRunsAsync(Sub(), Since, false, default)).Single();
+        builds = OneBuild("2026-11-20T10:20:00Z");
+        var second = (await feed.RecentRunsAsync(Sub(), Since, false, default)).Single();
+        Assert.NotEqual(PipelineMatcher.Key(first, null), PipelineMatcher.Key(second, null));
+        Assert.Equal(PipelineMatcher.Key(first, null), PipelineMatcher.Key(first, null));
     }
 }

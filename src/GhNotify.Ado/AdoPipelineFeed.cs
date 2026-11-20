@@ -11,7 +11,7 @@ public sealed class AdoPipelineFeed(AdoClient client, AdoDirectory directory) : 
     const int PageSize = 50;
 
     // Timelines of completed builds never change, so each is read once. Running builds are re-read every poll.
-    readonly ConcurrentDictionary<(string Org, string Project, long Build), IReadOnlyList<PipelineStageInfo>> _completedTimelines = new();
+    readonly ConcurrentDictionary<(string Org, string Project, long Build, DateTimeOffset? Finished), IReadOnlyList<PipelineStageInfo>> _completedTimelines = new();
 
     public async Task<IReadOnlyList<PipelineRunInfo>> RecentRunsAsync(PipelineSubscription sub, DateTimeOffset since, bool includeInProgress, CancellationToken ct)
     {
@@ -37,10 +37,10 @@ public sealed class AdoPipelineFeed(AdoClient client, AdoDirectory directory) : 
             IReadOnlyList<PipelineStageInfo> stages = [];
             var wanted = (sub.Branches.Count == 0 || (branch is not null && sub.Branches.Any(g => ItemMatcher.Glob(g, branch)))) && byMe != false;
             if (sub.Stages.Count > 0 && wanted && b.Str("status") is "completed" or "inProgress")
-                stages = await TimelineAsync(org, sub.Project ?? "", baseUrl, id, completed, ct);
+                stages = await TimelineAsync(org, sub.Project ?? "", baseUrl, id, completed, b.Date("finishTime"), ct);
 
             runs.Add(new PipelineRunInfo(Provider.Ado, $"{org}/{sub.Project}", sub.PipelineId, b.Obj("definition").Str("name") ?? sub.Pipeline,
-                id.ToString(CultureInfo.InvariantCulture), b.Str("buildNumber") ?? id.ToString(CultureInfo.InvariantCulture), 1, branch,
+                id.ToString(CultureInfo.InvariantCulture), b.Str("buildNumber") ?? id.ToString(CultureInfo.InvariantCulture), RunAttempt(completed, b.Date("finishTime")), branch,
                 requester.Str("displayName"), byMe,
                 b.Obj("_links").Obj("web").Str("href") ?? $"{baseUrl}/_build/results?buildId={id}",
                 b.Str("sourceVersion"), outcome is null ? null : b.Date("finishTime"), outcome, stages));
@@ -48,9 +48,10 @@ public sealed class AdoPipelineFeed(AdoClient client, AdoDirectory directory) : 
         return runs;
     }
 
-    async Task<IReadOnlyList<PipelineStageInfo>> TimelineAsync(string org, string project, string baseUrl, long build, bool completed, CancellationToken ct)
+    async Task<IReadOnlyList<PipelineStageInfo>> TimelineAsync(string org, string project, string baseUrl, long build, bool completed, DateTimeOffset? finished, CancellationToken ct)
     {
-        if (completed && _completedTimelines.TryGetValue((org, project, build), out var cached)) return cached;
+        // Keyed by finish time too: a retried stage completes the same build again, and its timeline must be read afresh.
+        if (completed && _completedTimelines.TryGetValue((org, project, build, finished), out var cached)) return cached;
         var json = await client.GetAsync($"{baseUrl}/_apis/build/builds/{build}/timeline?api-version=7.1", ct);
         var stages = json.Arr("records")
             .Where(r => r.Str("type") == "Stage" && r.Str("name") is not null)
@@ -60,7 +61,7 @@ public sealed class AdoPipelineFeed(AdoClient client, AdoDirectory directory) : 
                 return new PipelineStageInfo(r.Str("name")!, outcome, outcome is null ? null : r.Date("finishTime"), r.Int("attempt") ?? 0);
             })
             .ToList();
-        if (completed) _completedTimelines[(org, project, build)] = stages;
+        if (completed) _completedTimelines[(org, project, build, finished)] = stages;
         return stages;
     }
 
@@ -74,6 +75,12 @@ public sealed class AdoPipelineFeed(AdoClient client, AdoDirectory directory) : 
             .Select(d => d.Long("id") is { } id && d.Str("name") is { } name ? new PipelinePick(id, name) : null)
             .OfType<PipelinePick>().ToList();
     }
+
+    static readonly DateTimeOffset AttemptEpoch = new(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    /// <summary>ADO builds have no run attempt, and a stage retry completes the same build again, so a completed run's attempt is the minute it finished.</summary>
+    static int RunAttempt(bool completed, DateTimeOffset? finished) =>
+        completed && finished is { } f ? Math.Max(1, (int)Math.Min(int.MaxValue, (f - AttemptEpoch).TotalMinutes)) : 1;
 
     static string ProjectUrl(string org, string project) => $"https://dev.azure.com/{org}/{Uri.EscapeDataString(project)}";
 

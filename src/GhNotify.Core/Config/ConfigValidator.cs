@@ -44,6 +44,7 @@ public static class ConfigValidator
                 }
                 else if (s.Repo is not { } r || r.Split('/') is not [{ Length: > 0 }, { Length: > 0 }])
                     Add($"{f}.repo", $"{f}.repo must be owner/repo");
+                if (s.CreatedAt == default) Add($"{f}.createdAt", $"{f}.createdAt must be set (the time you started following it)");
                 if (s.PipelineId <= 0) Add($"{f}.pipelineId", $"{f}.pipelineId must be a pipeline id");
                 if (!NotNull(s.On, $"{f}.on") || !Entries(s.On, $"{f}.on")) continue;
                 if (s.On.Count == 0) Add($"{f}.on", $"{f}.on must list at least one outcome");

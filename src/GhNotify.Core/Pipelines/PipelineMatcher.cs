@@ -35,7 +35,7 @@ public static class PipelineMatcher
         {
             SubscriptionId = sub.Id,
             Finished = hit.Finished,
-            Details = DetailList.Of(("Pipeline", run.Pipeline), ("Run", run.RunNumber), ("Attempt", run.Attempt.ToString()), ("Stage", hit.Stage),
+            Details = DetailList.Of(("Pipeline", run.Pipeline), ("Run", run.RunNumber), ("Attempt", run.Provider == Provider.Ado ? null : run.Attempt.ToString()), ("Stage", hit.Stage),
                 ("Branch", run.Branch), ("Triggered by", run.RequestedBy), ("Result", hit.Outcome.ToString()), ("Finished", DetailList.Local(hit.Finished))),
         };
 }

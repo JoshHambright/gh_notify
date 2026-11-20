@@ -44,6 +44,11 @@ public sealed class PipelineSource(
 
             foreach (var sub in subs)
             {
+                if (sub.CreatedAt == default)
+                {
+                    Log.Error($"pipeline {sub.Scope}/{sub.Pipeline} skipped: createdAt is missing");
+                    continue;
+                }
                 var since = Max(sub.CreatedAt - BaselineSlack, now - MaxLookback);
                 IReadOnlyList<PipelineRunInfo> runs;
                 try
