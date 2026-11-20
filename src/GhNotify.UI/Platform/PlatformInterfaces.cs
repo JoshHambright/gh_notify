@@ -49,7 +49,14 @@ public interface IShell
     void OpenTerminal(string workingDir, string command);
 }
 
-public sealed record PlatformServices(INotifier Notifier, IHotkeyService Hotkey, IStartupService Startup, ISoundService Sound, ISystemTheme Theme, IShell Shell);
+/// <summary>Whether the OS says the user is presenting or has a full-screen app in front, so toasts would be seen by an audience.</summary>
+public interface IPresenceService
+{
+    bool IsPresenting { get; }
+}
+
+public sealed record PlatformServices(INotifier Notifier, IHotkeyService Hotkey, IStartupService Startup, ISoundService Sound, ISystemTheme Theme, IShell Shell,
+    IPresenceService? Presence = null);
 
 /// <summary>
 /// The <c>action</c> string of <see cref="INotifier.Activated"/>: <see cref="Open"/> (show the popup) or <c>url:&lt;https url&gt;</c>

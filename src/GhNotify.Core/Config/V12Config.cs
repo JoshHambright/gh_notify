@@ -9,6 +9,8 @@ public sealed class UpdatesConfig
 public sealed class NotificationsConfig
 {
     public List<SoundRule> Sounds { get; set; } = [];
+    /// <summary>Hold toasts and sounds while the OS reports the user is presenting or has a full-screen app (Windows only).</summary>
+    public bool HoldWhilePresenting { get; set; } = true;
 }
 
 public sealed class SoundRule
