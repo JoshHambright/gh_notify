@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0](https://github.com/JoshHambright/gh_notify/compare/v2.2.0...v2.3.0) (2026-11-20)
+
+
+### Features
+
+* pipeline subscriptions ([#34](https://github.com/JoshHambright/gh_notify/issues/34)) ([7c8dd81](https://github.com/JoshHambright/gh_notify/commit/7c8dd812d2ee6106e626995359ce8e63a7286531))
+
 ## [2.2.0](https://github.com/JoshHambright/gh_notify/compare/v2.1.0...v2.2.0) (2026-10-28)
 
 
