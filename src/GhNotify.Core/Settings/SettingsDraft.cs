@@ -90,6 +90,7 @@ public sealed class SettingsDraft
         ItemKind.MyPrNeedsResponse => "My PR — needs response",
         ItemKind.MyPrReadyToMerge => "My PR — ready to merge",
         ItemKind.MyPrWaiting => "My PR — waiting on others",
+        ItemKind.PipelineRun => "Pipeline run",
         _ => kind.ToString()!,
     };
 

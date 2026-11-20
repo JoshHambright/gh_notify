@@ -110,4 +110,17 @@ public class StateStoreTests
         Assert.Empty(state.Snoozes);
         Assert.False(state.WaitingExpanded);
     }
+
+    [Fact]
+    public void Dismissed_pipeline_runs_round_trip_and_old_state_loads()
+    {
+        var dir = Directory.CreateTempSubdirectory("ghn-state").FullName;
+        var path = Path.Combine(dir, "state.json");
+        var when = DateTimeOffset.Parse("2026-11-20T10:00:00Z");
+        new StateStore(path).Save(new AppState { DismissedPipelineRuns = [new DismissedRun("pipe:k", when)] });
+        Assert.Equal(new DismissedRun("pipe:k", when), new StateStore(path).Load().DismissedPipelineRuns.Single());
+
+        File.WriteAllText(path, "{\"themeMode\":\"light\"}");
+        Assert.Empty(new StateStore(path).Load().DismissedPipelineRuns);
+    }
 }

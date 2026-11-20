@@ -339,4 +339,12 @@ public class InboxPresenterTests
         Assert.Single(Row(withPr).Details, d => d.Label == "PR");
         Assert.DoesNotContain(Row(It(ItemKind.ApprovalPending)).Details, d => d.Label == "PR");
     }
+
+    [Fact]
+    public void Pipeline_runs_get_their_own_section_after_my_pr_sections()
+    {
+        var sections = Build([E("p", ItemKind.PipelineRun, TimeSpan.FromHours(1)), E("f", ItemKind.MyPrCiFailing, TimeSpan.FromHours(1))]);
+        Assert.Equal(["My PRs — failing", "Pipelines"], sections.Select(s => s.Title));
+        Assert.Equal("PipelineRun", sections[1].Id);
+    }
 }

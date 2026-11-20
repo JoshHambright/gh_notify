@@ -49,6 +49,7 @@ public static class InboxPresenter
         (ItemKind.MyPrCiFailing, "My PRs — failing"),
         (ItemKind.MyPrNeedsResponse, "My PRs — needs response"),
         (ItemKind.MyPrReadyToMerge, "My PRs — ready to merge"),
+        (ItemKind.PipelineRun, "Pipelines"),
         (ItemKind.MyPrWaiting, "Waiting on others"),
     ];
 

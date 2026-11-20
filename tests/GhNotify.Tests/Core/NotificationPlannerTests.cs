@@ -163,4 +163,31 @@ public class NotificationPlannerTests
         Assert.Equal(2, bodies.Count(x => x == "acme/api #7: T a"));
         Assert.Contains("acme/api: T b", bodies);
     }
+
+    static InboxItem Pipe(string key, string outcome, int ageMin = 0) =>
+        It(key, ItemKind.PipelineRun, ageMin: ageMin) with { Detail = outcome };
+
+    [Theory]
+    [InlineData("Failed", "Pipeline failed")]
+    [InlineData("Succeeded", "Pipeline succeeded")]
+    [InlineData("PartiallySucceeded", "Pipeline succeeded with issues")]
+    public void Pipeline_runs_toast_with_an_outcome_title(string outcome, string title)
+    {
+        var a = Pipe("a", outcome);
+        var p = NotificationPlanner.Plan(Added(a), [], View([a]), new AppConfig(), true);
+        Assert.Equal(title, Shown(p).Single().Title);
+    }
+
+    [Fact]
+    public void A_failed_pipeline_outranks_a_succeeded_one_and_both_follow_ci_failing()
+    {
+        var ok = Pipe("ok", "Succeeded", ageMin: 9);
+        var bad = Pipe("bad", "Failed", ageMin: 1);
+        var ci = It("ci", ItemKind.MyPrCiFailing, ageMin: 1);
+        var p = NotificationPlanner.Plan(Added(ok, bad, ci), [], View([ok, bad, ci]), new AppConfig(), true);
+        Assert.False(Shown(p).Single(t => t.Tag == ItemTag.For("ci")).Silent);
+        var p2 = NotificationPlanner.Plan(Added(ok, bad), [], View([ok, bad]), new AppConfig(), true);
+        Assert.False(Shown(p2).Single(t => t.Tag == ItemTag.For("bad")).Silent);
+        Assert.True(Shown(p2).Single(t => t.Tag == ItemTag.For("ok")).Silent);
+    }
 }
