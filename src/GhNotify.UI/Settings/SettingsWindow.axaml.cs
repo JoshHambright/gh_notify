@@ -36,6 +36,7 @@ public partial class SettingsWindow : Window
             [SettingsPage.Notifications] = (NavNotifications, DotNotifications),
             [SettingsPage.Filters] = (NavFilters, DotFilters),
             [SettingsPage.Workflows] = (NavWorkflows, DotWorkflows),
+            [SettingsPage.Pipelines] = (NavPipelines, DotPipelines),
             [SettingsPage.Advanced] = (NavAdvanced, DotAdvanced),
         };
         foreach (var (page, (nav, _)) in _nav)
@@ -78,6 +79,7 @@ public partial class SettingsWindow : Window
         _pages[SettingsPage.Notifications] = new NotificationsPage(Draft, _host, Changed);
         _pages[SettingsPage.Filters] = new FiltersPage(Draft, _host, Changed);
         _pages[SettingsPage.Workflows] = new WorkflowsPage(Draft, _host, Changed);
+        _pages[SettingsPage.Pipelines] = new PipelinesPage(Draft, _host, Changed);
         var advanced = new AdvancedPage(Draft, _host, Changed);
         advanced.ResetConfirmed += ResetToDefaults;
         _pages[SettingsPage.Advanced] = advanced;

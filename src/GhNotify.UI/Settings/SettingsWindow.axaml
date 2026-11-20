@@ -38,6 +38,9 @@
           <RadioButton x:Name="NavWorkflows" Classes="nav" Tag="Workflows">
             <Grid><TextBlock Text="Workflows" /><Ellipse x:Name="DotWorkflows" Classes="navdot" IsVisible="False" /></Grid>
           </RadioButton>
+          <RadioButton x:Name="NavPipelines" Classes="nav" Tag="Pipelines">
+            <Grid><TextBlock Text="Pipelines" /><Ellipse x:Name="DotPipelines" Classes="navdot" IsVisible="False" /></Grid>
+          </RadioButton>
           <RadioButton x:Name="NavAdvanced" Classes="nav" Tag="Advanced">
             <Grid><TextBlock Text="Advanced" /><Ellipse x:Name="DotAdvanced" Classes="navdot" IsVisible="False" /></Grid>
           </RadioButton>
