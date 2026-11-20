@@ -79,8 +79,8 @@ public sealed class PipelineSource(
     }
 
     /// <summary>Forgets dismissals whose run finished more than <see cref="DismissedRetention"/> ago (it can no longer come back).</summary>
-    public static IReadOnlyList<DismissedRun> PruneDismissed(IReadOnlyList<DismissedRun> dismissed, DateTimeOffset now) =>
-        dismissed.Where(d => now - d.Finished <= DismissedRetention).ToList();
+    public static IReadOnlyList<DismissedRun> PruneDismissed(IReadOnlyList<DismissedRun> dismissed, DateTimeOffset now, IReadOnlySet<string>? stillHeld = null) =>
+        dismissed.Where(d => now - d.Finished <= DismissedRetention || stillHeld?.Contains(d.Key) == true).ToList();
 
     static DateTimeOffset Max(DateTimeOffset a, DateTimeOffset b) => a > b ? a : b;
 }

@@ -112,4 +112,18 @@ public sealed class AppControllerPipelineTests : IDisposable
         Assert.All(section.Rows, r => Assert.True(r.CanDismiss));
         Assert.False(_controller.BuildSections("deploy").Single(s => s.Id == "PipelineRun").DismissAll); // not while searching
     }
+
+    [Fact]
+    public void A_dismissal_older_than_the_retention_window_does_not_bring_a_snapshotted_row_back_after_a_restart()
+    {
+        _controller.Dispose();
+        var old = DateTimeOffset.Now.AddDays(-30);
+        _state.Save(new AppState
+        {
+            Snapshot = new() { ["ADO-Pipelines:acme"] = [Pipe("pipe:ado:acme/P:42:1:1", "Failed")] },
+            DismissedPipelineRuns = [new DismissedRun("pipe:ado:acme/P:42:1:1", old)],
+        });
+        _controller = Make();
+        Assert.DoesNotContain("pipe:ado:acme/P:42:1:1", Keys());
+    }
 }

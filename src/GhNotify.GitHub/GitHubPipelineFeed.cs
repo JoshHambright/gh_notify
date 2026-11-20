@@ -11,6 +11,9 @@ namespace GhNotify.GitHub;
 public sealed class GitHubPipelineFeed(GitHubClient client) : IPipelineRunFeed
 {
     const int PageSize = 50;
+    const int MaxRunPages = 5; // 250 runs per poll
+    const int JobPageSize = 100;
+    const int MaxJobPages = 10;
 
     // Jobs of a completed run attempt never change, so each is read once. Running runs are re-read every poll.
     const int MaxCachedRuns = 500;
@@ -21,13 +24,20 @@ public sealed class GitHubPipelineFeed(GitHubClient client) : IPipelineRunFeed
     public async Task<IReadOnlyList<PipelineRunInfo>> RecentRunsAsync(PipelineSubscription sub, DateTimeOffset since, bool includeInProgress, CancellationToken ct)
     {
         var repo = sub.Repo ?? "";
-        var created = Uri.EscapeDataString(">=" + since.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture));
-        var url = $"repos/{repo}/actions/workflows/{sub.PipelineId}/runs?per_page={PageSize}&created={created}" + (includeInProgress ? "" : "&status=completed");
-        var json = await client.GetAsync(url, ct);
+        // No `created` filter: it would hide an old run that was re-run today, or a long run that finishes today. The finish-time
+        // baseline is applied by the matcher instead, so `since` is only the matcher's concern.
+        var url = $"repos/{repo}/actions/workflows/{sub.PipelineId}/runs?per_page={PageSize}" + (includeInProgress ? "" : "&status=completed");
+        var items = new List<System.Text.Json.JsonElement>();
+        for (var page = 1; page <= MaxRunPages; page++)
+        {
+            var batch = (await client.GetAsync($"{url}&page={page}", ct)).Arr("workflow_runs").ToList();
+            items.AddRange(batch);
+            if (batch.Count < PageSize) break;
+        }
 
         var viewer = sub.OnlyMine ? await ViewerAsync(ct) : null;
         var runs = new List<PipelineRunInfo>();
-        foreach (var r in json.Arr("workflow_runs"))
+        foreach (var r in items)
         {
             if (r.Long("id") is not { } id) continue;
             var status = r.Str("status");
@@ -61,8 +71,14 @@ public sealed class GitHubPipelineFeed(GitHubClient client) : IPipelineRunFeed
     async Task<IReadOnlyList<PipelineStageInfo>> JobsAsync(string repo, long run, int attempt, bool completed, CancellationToken ct)
     {
         if (completed && _completedJobs.TryGetValue((repo, run, attempt), out var cached)) return cached;
-        var json = await client.GetAsync($"repos/{repo}/actions/runs/{run}/jobs?filter=latest&per_page=100", ct);
-        var stages = json.Arr("jobs")
+        var jobs = new List<System.Text.Json.JsonElement>();
+        for (var page = 1; page <= MaxJobPages; page++)
+        {
+            var batch = (await client.GetAsync($"repos/{repo}/actions/runs/{run}/jobs?filter=latest&per_page={JobPageSize}&page={page}", ct)).Arr("jobs").ToList();
+            jobs.AddRange(batch);
+            if (batch.Count < JobPageSize) break;
+        }
+        var stages = jobs
             .Where(j => j.Str("name") is not null)
             .Select(j =>
             {

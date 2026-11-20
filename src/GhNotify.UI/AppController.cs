@@ -88,7 +88,9 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         _themeMode = state.ThemeMode;
         _mutes = state.Mutes.ToList();
         _snoozes = state.Snoozes.ToList();
-        _dismissed = PipelineSource.PruneDismissed(state.DismissedPipelineRuns, DateTimeOffset.Now).ToList();
+        // A dismissal outlives its retention window while the snapshot still holds its row, or a long shutdown would bring the row back.
+        var snapshotKeys = state.Snapshot.Values.SelectMany(items => items).Select(i => i.Key).ToHashSet(StringComparer.Ordinal);
+        _dismissed = PipelineSource.PruneDismissed(state.DismissedPipelineRuns, DateTimeOffset.Now, snapshotKeys).ToList();
         _waitingExpanded = state.WaitingExpanded;
         _snoozedExpanded = state.SnoozedExpanded;
         _mutedExpanded = state.MutedExpanded;
@@ -226,7 +228,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
             _snoozes = result.Kept.ToList();
             woken = result.Woken;
             _mutes = Snoozes.PruneMutes(_mutes, now).ToList();
-            _dismissed = PipelineSource.PruneDismissed(_dismissed, now).ToList();
+            _dismissed = PipelineSource.PruneDismissed(_dismissed, now, _reconciler.Entries.Select(e => e.Item.Key).ToHashSet(StringComparer.Ordinal)).ToList();
         }
         var view = CurrentView();
         var plan = NotificationPlanner.Plan(diff, woken, view, cfg, WorkHours.IsWithin(cfg.WorkHours, DateTime.Now));

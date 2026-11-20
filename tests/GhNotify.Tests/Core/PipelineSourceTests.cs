@@ -216,4 +216,12 @@ public class PipelineSourceTests
         Assert.Equal("ok", r.Items.Single().SubscriptionId);
         Assert.DoesNotContain(feed.Calls, c => c.Sub == "bad");
     }
+
+    [Fact]
+    public void A_dismissal_whose_row_is_still_held_is_kept_past_the_retention_window()
+    {
+        var held = new DismissedRun("held", Now.AddDays(-30));
+        var gone = new DismissedRun("gone", Now.AddDays(-30));
+        Assert.Equal([held], PipelineSource.PruneDismissed([held, gone], Now, new HashSet<string> { "held" }));
+    }
 }

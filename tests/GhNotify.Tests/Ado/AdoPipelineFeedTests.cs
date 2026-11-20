@@ -245,4 +245,38 @@ public class AdoPipelineFeedTests
         var second = (await feed.RecentRunsAsync(Sub(), Since, false, default)).Single();
         Assert.NotEqual(PipelineMatcher.Key(first, null), PipelineMatcher.Key(second, null));
     }
+
+    static string BuildJson(long id) => $$"""
+        { "id": {{id}}, "buildNumber": "{{id}}", "status": "completed", "result": "failed", "sourceBranch": "refs/heads/main",
+          "finishTime": "2026-11-20T10:00:00Z", "definition": { "id": 42, "name": "Deploy" }, "requestedFor": { "id": "me-id" }, "_links": { } }
+        """;
+
+    [Fact]
+    public async Task Builds_are_read_page_by_page_through_the_continuation_token()
+    {
+        var http = new FakeHttpHandler().On(r => r.RequestUri!.AbsoluteUri.Contains("_apis/build/builds?"), r =>
+        {
+            var second = r.RequestUri!.Query.Contains("continuationToken=tok");
+            var resp = FakeHttpHandler.Respond(HttpStatusCode.OK, $$"""{ "value": [ {{BuildJson(second ? 2002 : 2001)}} ] }""");
+            if (!second) resp.Headers.Add("x-ms-continuationtoken", "tok");
+            return resp;
+        });
+        var client = new AdoClient(new HttpClient(http), new FakeTokenProvider());
+        var runs = await new AdoPipelineFeed(client, new AdoDirectory(client)).RecentRunsAsync(Sub(), Since, false, default);
+        Assert.Equal(["2001", "2002"], runs.Select(r => r.RunId));
+    }
+
+    [Fact]
+    public async Task Paging_stops_at_a_page_cap_even_if_the_server_keeps_offering_more()
+    {
+        var http = new FakeHttpHandler().On(r => r.RequestUri!.AbsoluteUri.Contains("_apis/build/builds?"), _ =>
+        {
+            var resp = FakeHttpHandler.Respond(HttpStatusCode.OK, $$"""{ "value": [ {{BuildJson(1)}} ] }""");
+            resp.Headers.Add("x-ms-continuationtoken", "more");
+            return resp;
+        });
+        var client = new AdoClient(new HttpClient(http), new FakeTokenProvider());
+        await new AdoPipelineFeed(client, new AdoDirectory(client)).RecentRunsAsync(Sub(), Since, false, default);
+        Assert.Equal(5, http.Requests.Count(r => r.RequestUri!.AbsoluteUri.Contains("_apis/build/builds?")));
+    }
 }

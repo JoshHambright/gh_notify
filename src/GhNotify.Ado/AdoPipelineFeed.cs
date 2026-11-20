@@ -20,12 +20,19 @@ public sealed class AdoPipelineFeed(AdoClient client, AdoDirectory directory) : 
         // finishTime ordering would drop running builds (no finish time yet), so a stage subscription is ordered by queue time instead.
         var query = includeInProgress ? "queryOrder=queueTimeDescending" : "queryOrder=finishTimeDescending&statusFilter=completed";
         var minTime = Uri.EscapeDataString(since.UtcDateTime.ToString("o", CultureInfo.InvariantCulture));
-        var json = await client.GetAsync(
-            $"{baseUrl}/_apis/build/builds?definitions={sub.PipelineId}&{query}&minTime={minTime}&%24top={PageSize}&api-version=7.1", ct);
+        var url = $"{baseUrl}/_apis/build/builds?definitions={sub.PipelineId}&{query}&minTime={minTime}&%24top={PageSize}&api-version=7.1";
+        var builds = new List<JsonElement>();
+        string? continuation = null;
+        for (var page = 0; page < MaxPages; page++)
+        {
+            var (json, next) = await client.GetPageAsync(url, continuation, ct);
+            builds.AddRange(json.Arr("value"));
+            if ((continuation = next) is null) break;
+        }
 
         var mine = sub.OnlyMine ? (await directory.GetOrgContextAsync(org, ct)).MyIdentityIds : null;
         var runs = new List<PipelineRunInfo>();
-        foreach (var b in json.Arr("value"))
+        foreach (var b in builds)
         {
             if (b.Long("id") is not { } id) continue;
             var completed = b.Str("status") == "completed";
@@ -80,6 +87,7 @@ public sealed class AdoPipelineFeed(AdoClient client, AdoDirectory directory) : 
             .OfType<PipelinePick>().ToList();
     }
 
+    const int MaxPages = 5; // 250 builds per poll is plenty for one pipeline; a hostile or buggy server cannot loop us
     const int MaxCachedTimelines = 500;
 
     static readonly DateTimeOffset AttemptEpoch = new(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);

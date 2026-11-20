@@ -103,7 +103,7 @@ public class GitHubPipelineFeedTests
         var url = Uri.UnescapeDataString(http.Requests.Single(r => r.RequestUri!.AbsoluteUri.Contains("/actions/workflows/555/runs")).RequestUri!.AbsoluteUri);
         Assert.Contains("repos/acme/shop/actions/workflows/555/runs", url);
         Assert.Contains("status=completed", url);
-        Assert.Contains("created=>=2026-11-19T09:00:00Z", url);
+        Assert.DoesNotContain("created=", url); // the finish-time baseline is applied locally: an old run re-run today must still be seen
     }
 
     [Fact]
@@ -186,5 +186,54 @@ public class GitHubPipelineFeedTests
     {
         var (feed, _) = Make();
         Assert.Equal([new PipelinePick(555, "Deploy")], await feed.ListWorkflowsAsync("acme/shop", default));
+    }
+
+    static string RunJson(long id) =>
+        $$"""{ "id": {{id}}, "run_number": 1, "run_attempt": 1, "status": "completed", "conclusion": "failure", "head_branch": "main", "updated_at": "2026-11-20T10:00:00Z", "html_url": "u", "actor": { "login": "me" } }""";
+
+    [Fact]
+    public async Task A_full_page_of_runs_is_followed_by_the_next_page()
+    {
+        var http = new FakeHttpHandler().On(r => r.RequestUri!.AbsoluteUri.Contains("/actions/workflows/555/runs"), r =>
+        {
+            var second = r.RequestUri!.Query.Contains("page=2");
+            var ids = second ? new[] { 1000L } : Enumerable.Range(1, 50).Select(i => (long)i).ToArray();
+            return FakeHttpHandler.Respond(HttpStatusCode.OK, "{ \"workflow_runs\": [" + string.Join(",", ids.Select(RunJson)) + "] }");
+        });
+        var feed = new GitHubPipelineFeed(new GitHubClient(new HttpClient(http), new FakeTokenProvider()));
+        var runs = await feed.RecentRunsAsync(Sub(), Since, false, default);
+        Assert.Equal(51, runs.Count);
+        Assert.Equal(2, http.Requests.Count);
+    }
+
+    [Fact]
+    public async Task Run_paging_stops_at_a_page_cap()
+    {
+        var http = new FakeHttpHandler().On(r => r.RequestUri!.AbsoluteUri.Contains("/actions/workflows/555/runs"), _ =>
+            FakeHttpHandler.Respond(HttpStatusCode.OK, "{ \"workflow_runs\": [" + string.Join(",", Enumerable.Range(1, 50).Select(i => RunJson(i))) + "] }"));
+        var feed = new GitHubPipelineFeed(new GitHubClient(new HttpClient(http), new FakeTokenProvider()));
+        await feed.RecentRunsAsync(Sub(), Since, false, default);
+        Assert.Equal(5, http.Requests.Count);
+    }
+
+    [Fact]
+    public async Task A_job_on_the_second_page_of_a_large_matrix_is_found_and_the_whole_list_is_cached()
+    {
+        var http = new FakeHttpHandler()
+            .On("/actions/workflows/555/runs", "{ \"workflow_runs\": [" + RunJson(9001) + "] }")
+            .On(r => r.RequestUri!.AbsoluteUri.Contains("/actions/runs/9001/jobs"), r =>
+            {
+                var second = r.RequestUri!.Query.Contains("page=2");
+                var jobs = second
+                    ? new[] { """{ "name": "deploy-prod", "status": "completed", "conclusion": "failure", "run_attempt": 1, "completed_at": "2026-11-20T10:00:00Z" }""" }
+                    : Enumerable.Range(1, 100).Select(i => $$"""{ "name": "m{{i}}", "status": "completed", "conclusion": "success", "run_attempt": 1, "completed_at": "2026-11-20T09:00:00Z" }""").ToArray();
+                return FakeHttpHandler.Respond(HttpStatusCode.OK, "{ \"jobs\": [" + string.Join(",", jobs) + "] }");
+            });
+        var feed = new GitHubPipelineFeed(new GitHubClient(new HttpClient(http), new FakeTokenProvider()));
+        var sub = Sub(s => s.Stages = ["deploy-prod"]);
+        var run = (await feed.RecentRunsAsync(sub, Since, true, default)).Single();
+        Assert.Contains(run.Stages, s => s.Name == "deploy-prod" && s.Outcome == PipelineOutcome.Failed);
+        await feed.RecentRunsAsync(sub, Since, true, default);
+        Assert.Equal(2, http.Requests.Count(r => r.RequestUri!.AbsoluteUri.Contains("/jobs"))); // two pages, once
     }
 }
