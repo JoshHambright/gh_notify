@@ -20,6 +20,12 @@ public static class NotificationPolicy
         ItemKind.MyPrNeedsResponse => "Your PR needs a response",
         ItemKind.MyPrReadyToMerge => "Ready to merge",
         ItemKind.MyPrWaiting => "Waiting on others",
+        ItemKind.PipelineRun => i.Detail switch
+        {
+            nameof(PipelineOutcome.Failed) => "Pipeline failed",
+            nameof(PipelineOutcome.PartiallySucceeded) => "Pipeline succeeded with issues",
+            _ => "Pipeline succeeded",
+        },
         _ => throw new ArgumentOutOfRangeException(nameof(i), i.Kind, null),
     };
 }

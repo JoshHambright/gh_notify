@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace GhNotify.Core;
 
-public enum SettingsPage { General, Sources, Notifications, Filters, Workflows, Advanced }
+public enum SettingsPage { General, Sources, Notifications, Filters, Workflows, Pipelines, Advanced }
 
 public sealed record SettingsError(SettingsPage Page, string Field, string Message);
 
@@ -56,6 +56,33 @@ public sealed class SettingsDraft
         return null;
     }
 
+    /// <summary>Adds a subscription with a fresh id, enabled, baselined at <paramref name="now"/> (older runs never alert).</summary>
+    public PipelineSubscription AddPipelineSubscription(PipelineSubscription sub, DateTimeOffset now)
+    {
+        sub.Id = Guid.NewGuid().ToString();
+        sub.CreatedAt = now;
+        sub.Enabled = true;
+        Config.PipelineSubscriptions.Add(sub);
+        return sub;
+    }
+
+    public bool RemovePipelineSubscription(string id) => Config.PipelineSubscriptions.RemoveAll(s => s.Id == id) > 0;
+
+    /// <summary>"Deploy · acme/Platform · Failed, With issues on PROD*, QA · main · mine".</summary>
+    public static string PipelineSubscriptionSummary(PipelineSubscription s)
+    {
+        var outcomes = string.Join(", ", s.On.Select(o => o switch
+        {
+            PipelineOutcome.PartiallySucceeded => "With issues",
+            _ => o.ToString(),
+        }));
+        var text = $"{s.Pipeline} · {s.Scope} · {outcomes}";
+        if (s.Stages.Count > 0) text += " on " + string.Join(", ", s.Stages);
+        if (s.Branches.Count > 0) text += " · " + string.Join(", ", s.Branches);
+        if (s.OnlyMine) text += " · mine";
+        return text;
+    }
+
     static string Serialize(AppConfig c) => JsonSerializer.Serialize(c, Json.Options);
 
     public static SettingsPage PageFor(string field)
@@ -69,6 +96,7 @@ public sealed class SettingsDraft
             "notifications" => SettingsPage.Notifications,
             "filters" => SettingsPage.Filters,
             "rules" or "agentProfiles" or "defaultProfiles" or "hooks" or "agentAllowedTools" => SettingsPage.Workflows,
+            "pipelineSubscriptions" => SettingsPage.Pipelines,
             _ => SettingsPage.Advanced,
         };
     }
@@ -90,6 +118,7 @@ public sealed class SettingsDraft
         ItemKind.MyPrNeedsResponse => "My PR — needs response",
         ItemKind.MyPrReadyToMerge => "My PR — ready to merge",
         ItemKind.MyPrWaiting => "My PR — waiting on others",
+        ItemKind.PipelineRun => "Pipeline run",
         _ => kind.ToString()!,
     };
 

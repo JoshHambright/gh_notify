@@ -13,6 +13,20 @@ public sealed record InboxDiff(
 {
     public static readonly InboxDiff Empty = new([], [], [], []);
     public bool IsEmpty => Added.Count == 0 && Removed.Count == 0 && Changed.Count == 0 && InitialLoad.Count == 0;
+
+    /// <summary>
+    /// A pipeline source's first poll is not a "first look at my inbox": its rows are post-baseline events, so they toast one by one
+    /// (and fire hooks) instead of joining the first-poll summary.
+    /// </summary>
+    public InboxDiff WithPipelineInitialAsAdded()
+    {
+        if (!InitialLoad.Any(i => i.Kind == ItemKind.PipelineRun)) return this;
+        return this with
+        {
+            Added = [.. Added, .. InitialLoad.Where(i => i.Kind == ItemKind.PipelineRun)],
+            InitialLoad = InitialLoad.Where(i => i.Kind != ItemKind.PipelineRun).ToList(),
+        };
+    }
 }
 
 public sealed record SourceStatus(string Name, bool Healthy, string? Problem, DateTimeOffset? LastSuccess);

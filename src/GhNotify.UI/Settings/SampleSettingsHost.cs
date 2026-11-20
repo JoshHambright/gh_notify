@@ -31,6 +31,11 @@ public sealed class SampleSettingsHost : ISettingsHost
             ],
         },
         Filters = new FiltersConfig { Mute = ["acme/legacy-*"], Hide = ["gh:fabrikam/sandbox"] },
+        PipelineSubscriptions =
+        [
+            new PipelineSubscription { Id = "sample-1", Provider = Provider.Ado, Org = "contoso", Project = "Core Platform", PipelineId = 42, Pipeline = "Deploy", On = [PipelineOutcome.Failed], Stages = ["PROD*"], CreatedAt = DateTimeOffset.UnixEpoch },
+            new PipelineSubscription { Id = "sample-2", Provider = Provider.GitHub, Repo = "acme/api", PipelineId = 556, Pipeline = "CI", On = [PipelineOutcome.Failed, PipelineOutcome.Succeeded], Branches = ["main"], OnlyMine = true, CreatedAt = DateTimeOffset.UnixEpoch },
+        ],
         Rules =
         [
             new Rule { Match = new ItemMatch { Kind = ItemKind.ReviewRequested, Repo = "acme/*", MaxChangedLines = 400 }, Agent = AgentMode.Auto, Profile = "peer-review" },
@@ -62,6 +67,16 @@ public sealed class SampleSettingsHost : ISettingsHost
     }
 
     public IReadOnlyList<string> DiscoveredAdoOrgs() => ["contoso", "fabrikam"];
+    /// <summary>When set, the pipeline pickers fail with this message (tests the inline error).</summary>
+    public string? PickerError { get; set; }
+
+    Task<IReadOnlyList<T>> Pick<T>(params T[] items) =>
+        PickerError is { } e ? Task.FromException<IReadOnlyList<T>>(new HttpRequestException(e)) : Task.FromResult<IReadOnlyList<T>>(items);
+
+    public Task<IReadOnlyList<string>> ListAdoProjectsAsync(string org) => Pick("Core Platform", "Portal");
+    public Task<IReadOnlyList<PipelinePick>> ListAdoPipelinesAsync(string org, string project) => Pick(new PipelinePick(42, "Deploy"), new PipelinePick(7, "CI"));
+    public Task<IReadOnlyList<PipelinePick>> ListGitHubWorkflowsAsync(string repo) => Pick(new PipelinePick(555, "Deploy"), new PipelinePick(556, "CI"));
+    public IReadOnlyList<string> KnownGitHubRepos() => ["acme/api", "acme/web"];
     public Task<string> TestAdoSignInAsync(string? subscription, string? tenant) => Task.FromResult("✓ Signed in");
     readonly HashSet<string> _skills = ["peer-review", "pr-shepherd"];
     public SkillStatus GetSkillStatus(string skill) =>

@@ -19,6 +19,14 @@ public interface ISettingsHost
     /// <summary>Throws InvalidDataException (invalid) or ConfigConflictException (changed on disk since expectedHash).</summary>
     void SaveConfig(AppConfig config, string? expectedHash);
     IReadOnlyList<string> DiscoveredAdoOrgs();
+    /// <summary>Projects of an ADO org, for the Pipelines page picker.</summary>
+    Task<IReadOnlyList<string>> ListAdoProjectsAsync(string org);
+    /// <summary>Build pipelines of an ADO project.</summary>
+    Task<IReadOnlyList<PipelinePick>> ListAdoPipelinesAsync(string org, string project);
+    /// <summary>Active Actions workflows of a GitHub repo ("owner/repo").</summary>
+    Task<IReadOnlyList<PipelinePick>> ListGitHubWorkflowsAsync(string repo);
+    /// <summary>GitHub repos worth suggesting: watched repos and the repos of current items.</summary>
+    IReadOnlyList<string> KnownGitHubRepos();
     Task<string> TestAdoSignInAsync(string? subscription, string? tenant);
     /// <summary>Whether agents can use a skill (user skills folder or a plugin); when not, the first clone under repoRoots with its own copy.</summary>
     SkillStatus GetSkillStatus(string skill);

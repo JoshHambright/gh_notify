@@ -13,6 +13,8 @@ public sealed record InboxRow(
     public string? SnoozeText { get; init; }
     public string? Number { get; init; }
     public string? Author { get; init; }
+    /// <summary>Pipeline rows: the row has a Dismiss button, a ⋯ menu entry and the D key.</summary>
+    public bool CanDismiss { get; init; }
     /// <summary>The action this row's confirm panel is for (null when it has none).</summary>
     public ItemAction? ActiveAction { get; init; }
     /// <summary>The live check refused the action: the panel shows the reason and offers no confirm.</summary>
@@ -36,6 +38,8 @@ public sealed record InboxSection(string Title, IReadOnlyList<InboxRow> Rows)
     public int Count { get; init; } = Rows.Count;
     /// <summary>Show Approve all / Reject all on this section's header (<see cref="BatchApproval.ShowsButtons(InboxSection)"/>).</summary>
     public bool BatchButtons { get; init; }
+    /// <summary>Show Dismiss all on this section's header (the Pipelines section, while expanded).</summary>
+    public bool DismissAll { get; init; }
 }
 
 public static class InboxPresenter
@@ -49,6 +53,7 @@ public static class InboxPresenter
         (ItemKind.MyPrCiFailing, "My PRs — failing"),
         (ItemKind.MyPrNeedsResponse, "My PRs — needs response"),
         (ItemKind.MyPrReadyToMerge, "My PRs — ready to merge"),
+        (ItemKind.PipelineRun, "Pipelines"),
         (ItemKind.MyPrWaiting, "Waiting on others"),
     ];
 
@@ -113,6 +118,7 @@ public static class InboxPresenter
                 Rows = expanded ? rows : [],
                 Expanded = expanded,
                 BatchButtons = expanded && id == BatchApproval.SectionId && BatchApproval.ShowsButtons(section),
+                DismissAll = expanded && kind == ItemKind.PipelineRun,
             });
         }
         // Muted rows sit in their own collapsed section, so they don't crowd the live ones. Waiting rows stay in Waiting, muted or not.
@@ -179,6 +185,7 @@ public static class InboxPresenter
             repoDisplay?.Invoke(i.Repo) ?? i.Repo)
         {
             Number = i.Number is { } n ? $"#{n}" : null,
+            CanDismiss = i.Kind == ItemKind.PipelineRun,
             Author = i.Author,
             ActiveAction = mode == RowMode.Collapsed || mode == RowMode.Expanded ? null : ui?.Action,
             Refused = preview is { Allowed: false },

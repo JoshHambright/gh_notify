@@ -339,4 +339,33 @@ public class InboxPresenterTests
         Assert.Single(Row(withPr).Details, d => d.Label == "PR");
         Assert.DoesNotContain(Row(It(ItemKind.ApprovalPending)).Details, d => d.Label == "PR");
     }
+
+    [Fact]
+    public void Pipeline_runs_get_their_own_section_after_my_pr_sections()
+    {
+        var sections = Build([E("p", ItemKind.PipelineRun, TimeSpan.FromHours(1)), E("f", ItemKind.MyPrCiFailing, TimeSpan.FromHours(1))]);
+        Assert.Equal(["My PRs — failing", "Pipelines"], sections.Select(s => s.Title));
+        Assert.Equal("PipelineRun", sections[1].Id);
+    }
+
+    [Fact]
+    public void Only_pipeline_rows_can_be_dismissed()
+    {
+        Assert.True(Row(It(ItemKind.PipelineRun)).CanDismiss);
+        Assert.False(Row(It(ItemKind.ReviewRequested)).CanDismiss);
+    }
+
+    [Fact]
+    public void The_pipelines_section_offers_dismiss_all_only_while_expanded_and_non_empty()
+    {
+        var pipe = new InboxItem("p", Provider.Ado, ItemKind.PipelineRun, "acme/P", "T", "https://u", "a", Now, null, null, "Failed");
+        var pr = It(ItemKind.ReviewRequested);
+        var view = InboxView.Compose([new InboxEntry(pipe, "S", false), new InboxEntry(pr, "S", false)], new FiltersConfig(), [], [], Now);
+        var open = BuildView(view, false, false);
+        Assert.True(open.Single(s => s.Id == "PipelineRun").DismissAll);
+        Assert.False(open.Single(s => s.Id == "ReviewRequested").DismissAll);
+        var collapsed = InboxPresenter.Build(view, _ => null, _ => Button(), (_, _) => null, Now, ActionText.DefaultActions, null, null, false, false, false,
+            new HashSet<string> { "PipelineRun" });
+        Assert.False(collapsed.Single(s => s.Id == "PipelineRun").DismissAll);
+    }
 }

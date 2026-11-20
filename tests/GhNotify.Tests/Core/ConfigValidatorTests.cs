@@ -74,4 +74,53 @@ public class ConfigValidatorTests
         Assert.Contains(E(c => c.Notifications.Sounds.Add(null!)), e => e.Field == "notifications.sounds[0]");
         Assert.Contains(E(c => c.Updates = null!), e => e.Field == "updates");
     }
+
+    static PipelineSubscription Sub(Action<PipelineSubscription>? edit = null)
+    {
+        var s = new PipelineSubscription { Id = "a", Provider = Provider.Ado, Org = "acme", Project = "P", PipelineId = 42, Pipeline = "Deploy", On = [PipelineOutcome.Failed], CreatedAt = DateTimeOffset.UnixEpoch };
+        edit?.Invoke(s);
+        return s;
+    }
+
+    [Fact]
+    public void A_good_pipeline_subscription_is_valid() => Assert.Empty(E(c => c.PipelineSubscriptions.Add(Sub())));
+
+    [Theory]
+    [InlineData("emptyId")]
+    [InlineData("noOrg")]
+    [InlineData("noProject")]
+    [InlineData("badPipelineId")]
+    [InlineData("noOutcome")]
+    public void Bad_ado_subscriptions_name_their_field(string which)
+    {
+        var errors = E(c => c.PipelineSubscriptions.Add(Sub(s =>
+        {
+            if (which == "emptyId") s.Id = "";
+            if (which == "noOrg") s.Org = null;
+            if (which == "noProject") s.Project = " ";
+            if (which == "badPipelineId") s.PipelineId = 0;
+            if (which == "noOutcome") s.On = [];
+        })));
+        Assert.Contains(errors, e => e.Field.StartsWith("pipelineSubscriptions[0]"));
+    }
+
+    [Fact]
+    public void Github_subscriptions_need_owner_slash_repo_and_cannot_use_partial_success()
+    {
+        var errors = E(c => c.PipelineSubscriptions.Add(Sub(s =>
+        {
+            s.Provider = Provider.GitHub; s.Org = null; s.Project = null; s.Repo = "shop"; s.On = [PipelineOutcome.PartiallySucceeded];
+        })));
+        Assert.Contains(errors, e => e.Field == "pipelineSubscriptions[0].repo");
+        Assert.Contains(errors, e => e.Field == "pipelineSubscriptions[0].on");
+    }
+
+    [Fact]
+    public void Duplicate_ids_and_null_entries_are_errors()
+    {
+        var dup = E(c => { c.PipelineSubscriptions.Add(Sub()); c.PipelineSubscriptions.Add(Sub()); });
+        Assert.Contains(dup, e => e.Field == "pipelineSubscriptions[1].id");
+        var nul = E(c => c.PipelineSubscriptions.Add(null!));
+        Assert.Contains(nul, e => e.Field == "pipelineSubscriptions[0]");
+    }
 }

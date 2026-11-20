@@ -11,7 +11,7 @@ namespace GhNotify.UI;
 public static class SettingsOptions
 {
     public static readonly IReadOnlyList<ItemKind?> Kinds =
-        [null, ItemKind.ReviewRequested, ItemKind.ApprovalPending, ItemKind.MyPrCiFailing, ItemKind.MyPrNeedsResponse, ItemKind.MyPrReadyToMerge, ItemKind.MyPrWaiting];
+        [null, ItemKind.ReviewRequested, ItemKind.ApprovalPending, ItemKind.MyPrCiFailing, ItemKind.MyPrNeedsResponse, ItemKind.MyPrReadyToMerge, ItemKind.MyPrWaiting, ItemKind.PipelineRun];
 
     public static readonly IReadOnlyList<string> KindLabels = Kinds.Select(SettingsDraft.KindLabel).ToList();
 

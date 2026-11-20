@@ -5,7 +5,7 @@ namespace GhNotify.Core;
 
 public enum Provider { GitHub, Ado }
 
-public enum ItemKind { ReviewRequested, ApprovalPending, MyPrCiFailing, MyPrNeedsResponse, MyPrReadyToMerge, MyPrWaiting }
+public enum ItemKind { ReviewRequested, ApprovalPending, MyPrCiFailing, MyPrNeedsResponse, MyPrReadyToMerge, MyPrWaiting, PipelineRun }
 
 public sealed record InboxItem(
     string Key,
@@ -37,6 +37,10 @@ public sealed record InboxItem(
     /// <summary>ADO project name.</summary>
     public string? Project { get; init; }
     public IReadOnlyList<ItemDetail>? Details { get; init; }
+    /// <summary>Pipeline runs: the subscription (<see cref="PipelineSubscription.Id"/>) that raised this row.</summary>
+    public string? SubscriptionId { get; init; }
+    /// <summary>Pipeline runs: when the run (or stage) finished; drives dismissal pruning.</summary>
+    public DateTimeOffset? Finished { get; init; }
 }
 
 public sealed record ItemDetail(string Label, string Value);

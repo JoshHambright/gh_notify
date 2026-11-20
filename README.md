@@ -34,6 +34,7 @@ gh_notify starts in the system tray (click the ^ arrow if it's hidden) and launc
 - your PRs needing a response
 - your PRs ready to merge
 - your other open PRs, as a quiet "Waiting on others" list
+- pipelines you follow, when a run ends the way you care about (for example the PROD stage failing)
 
 ## Tour
 
@@ -147,6 +148,7 @@ Check Windows Focus Assist / Do Not Disturb. Also, toasts are off outside your w
 - [Workflows](docs/workflows.md): profiles, rules, command scripts, hooks
 - [Actions and keyboard](docs/actions.md): approvals, merge, re-run, batch approvals, shortcuts, search
 - [Notifications](docs/notifications.md): work hours, sounds, mute, hide, snooze
+- [Pipelines](docs/pipelines.md): follow ADO pipelines and GitHub Actions workflows
 - [Security](docs/security.md): tokens, agent limits, approvals, updates
 - [Troubleshooting](docs/troubleshooting.md)
 - [Development](docs/development.md): build, test, quality gates, releases

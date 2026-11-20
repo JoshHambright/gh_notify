@@ -28,6 +28,7 @@ For tests and development, `GHNOTIFY_CONFIG_DIR` and `GHNOTIFY_DATA_DIR` overrid
 | `updates` | object | see below | Auto-update. |
 | `notifications` | object | `{ "sounds": [] }` | Sound rules. |
 | `filters` | object | `{ "mute": [], "hide": [] }` | Mute and hide patterns. |
+| `pipelineSubscriptions` | object[] | `[]` | Pipelines you follow; see [`pipelineSubscriptions[]`](#pipelinesubscriptions). |
 | `rules` | object[] | `[]` | Which profile runs for which item. |
 | `defaultProfiles` | object | `{}` | Item kind → profile, overriding the built-in defaults. |
 | `agentProfiles` | object | `{}` | Your own profiles, by name. |
@@ -109,6 +110,25 @@ First matching rule wins. See [notifications.md](notifications.md).
 Pattern syntax is in [notifications.md](notifications.md#pattern-syntax). Timed mutes and snoozes live in the state file,
 not here.
 
+## `pipelineSubscriptions[]`
+
+One entry per followed pipeline. Settings › Pipelines writes these for you; see [pipelines.md](pipelines.md).
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `id` | string | required | Unique id (Settings generates a GUID). |
+| `provider` | `"ado"` / `"gitHub"` | required | Where the pipeline lives. |
+| `org`, `project` | string | required for `ado` | Azure DevOps organization and project. |
+| `repo` | string | required for `gitHub` | `owner/repo`. |
+| `pipelineId` | int | required | The ADO build definition id, or the GitHub workflow id. |
+| `pipeline` | string | required | Display name. |
+| `on` | string[] | required, at least one | `failed`, `succeeded`, `partiallySucceeded` (ADO only). |
+| `stages` | string[] | `[]` | Globs. ADO: stage names. GitHub: job names. Empty judges the whole run. |
+| `branches` | string[] | `[]` | Globs on the branch name. Empty means any branch. |
+| `onlyMine` | bool | `false` | Only runs you triggered. If the run's requester can't be determined, it doesn't alert. |
+| `enabled` | bool | `true` | Pause without deleting. |
+| `createdAt` | timestamp | required | Baseline: runs that finished before it never alert. Settings sets it when you add a pipeline and resets it on every edit and re-enable. |
+
 ## `rules[]`
 
 First matching rule wins. See [workflows.md](workflows.md#how-rules-pick-a-profile).
@@ -121,7 +141,7 @@ First matching rule wins. See [workflows.md](workflows.md#how-rules-pick-a-profi
 
 ## `defaultProfiles`
 
-Maps an item kind to a profile name. Kinds: `ReviewRequested`, `ApprovalPending`, `MyPrCiFailing`, `MyPrNeedsResponse`,
+Maps an item kind to a profile name. Kinds: `PipelineRun` (explicit only; never a default), `ReviewRequested`, `ApprovalPending`, `MyPrCiFailing`, `MyPrNeedsResponse`,
 `MyPrReadyToMerge`, `MyPrWaiting`. Built-in defaults when a kind isn't listed: `ReviewRequested` → `review`;
 `MyPrCiFailing` and `MyPrNeedsResponse` → `diagnose-ci`; the rest have none.
 

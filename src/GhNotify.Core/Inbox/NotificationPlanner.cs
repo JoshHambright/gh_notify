@@ -5,7 +5,7 @@ public sealed record NotificationPlan(IReadOnlyList<ToastRequest> Toasts, string
 public static class NotificationPlanner
 {
     static readonly ItemKind[] Priority =
-        [ItemKind.ApprovalPending, ItemKind.MyPrCiFailing, ItemKind.ReviewRequested, ItemKind.MyPrNeedsResponse, ItemKind.MyPrReadyToMerge];
+        [ItemKind.ApprovalPending, ItemKind.MyPrCiFailing, ItemKind.ReviewRequested, ItemKind.MyPrNeedsResponse, ItemKind.MyPrReadyToMerge, ItemKind.PipelineRun];
 
     public static SoundRule? RuleFor(InboxItem item, AppConfig cfg) =>
         cfg.Notifications.Sounds.FirstOrDefault(r => ItemMatcher.Matches(r.Match, item));
@@ -27,6 +27,7 @@ public static class NotificationPlanner
 
         var winner = candidates.Where(c => (c.Rule?.Sound ?? "default") != "none")
             .OrderBy(c => Array.IndexOf(Priority, c.Item.Kind) is var i && i < 0 ? int.MaxValue : i)
+            .ThenBy(c => c.Item.Kind == ItemKind.PipelineRun && c.Item.Detail != nameof(PipelineOutcome.Failed) ? 1 : 0) // failures first
             .ThenBy(c => c.Item.UpdatedAt)
             .Select(c => (c.Item.Key, Sound: c.Rule?.Sound ?? "default"))
             .FirstOrDefault();
@@ -41,7 +42,7 @@ public static class NotificationPlanner
 
         if (inWorkHours)
         {
-            var initial = diff.InitialLoad.Where(i => view.AttentionFor(i.Key) == Attention.Normal && i.Kind != ItemKind.MyPrWaiting).ToList();
+            var initial = diff.InitialLoad.Where(i => view.AttentionFor(i.Key) == Attention.Normal && i.Kind is not (ItemKind.MyPrWaiting or ItemKind.PipelineRun)).ToList();
             if (initial.Count > 0)
             {
                 var n = initial.Count;

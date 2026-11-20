@@ -35,6 +35,9 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     readonly object _filterGate = new();
     List<TimedMute> _mutes;
     List<Snooze> _snoozes;
+    List<DismissedRun> _dismissed;
+    readonly AdoPipelineFeed _adoPipelines;
+    readonly GitHubPipelineFeed _gitHubPipelines;
     bool _waitingExpanded;
     bool _snoozedExpanded;
     bool _mutedExpanded;
@@ -85,6 +88,9 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         _themeMode = state.ThemeMode;
         _mutes = state.Mutes.ToList();
         _snoozes = state.Snoozes.ToList();
+        // A dismissal outlives its retention window while the snapshot still holds its row, or a long shutdown would bring the row back.
+        var snapshotKeys = state.Snapshot.Values.SelectMany(items => items).Select(i => i.Key).ToHashSet(StringComparer.Ordinal);
+        _dismissed = PipelineSource.PruneDismissed(state.DismissedPipelineRuns, DateTimeOffset.Now, snapshotKeys).ToList();
         _waitingExpanded = state.WaitingExpanded;
         _snoozedExpanded = state.SnoozedExpanded;
         _mutedExpanded = state.MutedExpanded;
@@ -105,6 +111,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
             () => _reconciler.ItemsFor("GitHub"));
         var adoClient = new AdoClient(new HttpClient { Timeout = TimeSpan.FromSeconds(25) }, new AzTokenProvider(runner, config: () => _config.Current.Ado));
         var directory = new AdoDirectory(adoClient);
+        _adoPipelines = new AdoPipelineFeed(adoClient, directory);
+        _gitHubPipelines = new GitHubPipelineFeed(ghClient);
         _actions = new CompositeItemActions(new Dictionary<Provider, IItemActions>
         {
             [Provider.GitHub] = new GitHubItemActions(ghClient),
@@ -116,7 +124,12 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
             new StaticCatalog(() => _config.Current.GitHub.Enabled ? [ghSource] : []),
             new AdoSourceCatalog(directory, () => _config.Current.Ado,
                 org => new AdoOrgSource(org, adoClient, directory, () => _config.Current.Ado,
-                    () => _reconciler.ItemsFor($"ADO:{org}"))));
+                    () => _reconciler.ItemsFor($"ADO:{org}"))),
+            new PipelineSourceCatalog(() => _config.Current,
+                org => PipelineSourceFor($"ADO-Pipelines:{org}", _adoPipelines,
+                    () => _config.Current.PipelineSubscriptions.Where(s => s.Provider == Provider.Ado && string.Equals(s.Org, org, StringComparison.OrdinalIgnoreCase)).ToList()),
+                () => PipelineSourceFor(SourceRetirement.GitHubPipelines, _gitHubPipelines,
+                    () => _config.Current.PipelineSubscriptions.Where(s => s.Provider == Provider.GitHub).ToList())));
         _poller = new Poller(catalog, _reconciler, TimeSpan.FromSeconds(30));
         _poller.Polled += HandleDiff;
 
@@ -185,11 +198,14 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         _ = RefreshAsync();
     }
 
+    PipelineSource PipelineSourceFor(string name, IPipelineRunFeed feed, Func<IReadOnlyList<PipelineSubscription>> subscriptions) =>
+        new(name, feed, subscriptions, () => DismissedPipelineKeys, () => _reconciler.ItemsFor(name));
+
     bool IsDisabledSource(string name) => SourceRetirement.IsDisabled(name, _config.Current);
 
     void HandleDiff(InboxDiff diff)
     {
-        ProcessDiff(diff);
+        ProcessDiff(diff.WithPipelineInitialAsAdded());
         // A source disabled (config reload) while a poll was in flight is re-added by that poll's diff; retire it again.
         var disabled = _reconciler.RetireWhere(IsDisabledSource);
         if (disabled.Removed.Count > 0) ProcessDiff(disabled);
@@ -212,6 +228,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
             _snoozes = result.Kept.ToList();
             woken = result.Woken;
             _mutes = Snoozes.PruneMutes(_mutes, now).ToList();
+            _dismissed = PipelineSource.PruneDismissed(_dismissed, now, _reconciler.Entries.Select(e => e.Item.Key).ToHashSet(StringComparer.Ordinal)).ToList();
         }
         var view = CurrentView();
         var plan = NotificationPlanner.Plan(diff, woken, view, cfg, WorkHours.IsWithin(cfg.WorkHours, DateTime.Now));
@@ -318,14 +335,18 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
 
     InboxView CurrentView()
     {
-        var entries = _doneHidden.IsEmpty ? _reconciler.Entries : _reconciler.Entries.Where(e => !_doneHidden.ContainsKey(e.Item.Key)).ToList();
         TimedMute[] mutes;
         Snooze[] snoozes;
+        HashSet<string> dismissed;
         lock (_filterGate)
         {
             mutes = _mutes.ToArray();
             snoozes = _snoozes.ToArray();
+            dismissed = _dismissed.Select(d => d.Key).ToHashSet(StringComparer.Ordinal);
         }
+        var entries = _doneHidden.IsEmpty && dismissed.Count == 0
+            ? _reconciler.Entries
+            : _reconciler.Entries.Where(e => !_doneHidden.ContainsKey(e.Item.Key) && !dismissed.Contains(e.Item.Key)).ToList();
         return InboxView.Compose(entries, _config.Current.Filters, mutes, snoozes, DateTimeOffset.Now);
     }
 
@@ -333,7 +354,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     {
         var searching = !string.IsNullOrWhiteSpace(query);
         var sections = InboxFilter.Apply(Present(searching), query);
-        if (searching) sections = sections.Select(s => s.BatchButtons ? s with { BatchButtons = false } : s).ToList();
+        if (searching) sections = sections.Select(s => s.BatchButtons || s.DismissAll ? s with { BatchButtons = false, DismissAll = false } : s).ToList();
         if (!Batch.Active) return sections;
         return BatchApproval.Lock(sections, key => Find(key)?.Kind == ItemKind.ApprovalPending, BatchBusy);
     }
@@ -547,6 +568,45 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.For(key)));
         _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.ForAgent(key)));
         _rowStates.TryRemove(key, out _);
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Keys of dismissed pipeline rows; the pipeline sources stop returning them.</summary>
+    public IReadOnlySet<string> DismissedPipelineKeys
+    {
+        get { lock (_filterGate) return _dismissed.Select(d => d.Key).ToHashSet(StringComparer.Ordinal); }
+    }
+
+    public void DismissPipeline(string key)
+    {
+        if (Find(key) is not { Kind: ItemKind.PipelineRun } item) return;
+        Dismiss([item]);
+    }
+
+    public void DismissAllPipelines()
+    {
+        var view = CurrentView();
+        Dismiss(view.Active.Where(v => v.Entry.Item.Kind == ItemKind.PipelineRun).Select(v => v.Entry.Item).ToList());
+    }
+
+    static DateTimeOffset Later(DateTimeOffset a, DateTimeOffset b) => a > b ? a : b;
+
+    void Dismiss(IReadOnlyList<InboxItem> items)
+    {
+        if (items.Count == 0) return;
+        lock (_filterGate)
+            foreach (var i in items)
+            {
+                _dismissed.RemoveAll(d => d.Key == i.Key);
+                _dismissed.Add(new DismissedRun(i.Key, Later(i.Finished ?? i.UpdatedAt, DateTimeOffset.Now))); // retention counts from the dismissal, not the run
+            }
+        foreach (var i in items)
+        {
+            _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.For(i.Key)));
+            _toasts.Apply(new ToastRequest(ToastAction.Remove, ItemTag.ForAgent(i.Key)));
+            _rowStates.TryRemove(i.Key, out _);
+        }
         Save();
         Changed?.Invoke();
     }
@@ -768,6 +828,17 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         AfterConfigChanged();
     }
 
+    public Task<IReadOnlyList<string>> ListAdoProjectsAsync(string org) => _adoPipelines.ListProjectsAsync(org, _cts.Token);
+
+    public Task<IReadOnlyList<PipelinePick>> ListAdoPipelinesAsync(string org, string project) => _adoPipelines.ListPipelinesAsync(org, project, _cts.Token);
+
+    public Task<IReadOnlyList<PipelinePick>> ListGitHubWorkflowsAsync(string repo) => _gitHubPipelines.ListWorkflowsAsync(repo, _cts.Token);
+
+    public IReadOnlyList<string> KnownGitHubRepos() =>
+        _config.Current.GitHub.WatchRepos.Concat(_reconciler.Entries.Where(e => e.Item.Provider == Provider.GitHub && e.Item.Kind != ItemKind.PipelineRun).Select(e => e.Item.Repo))
+            .Concat(_config.Current.PipelineSubscriptions.Where(s => s.Provider == Provider.GitHub).Select(s => s.Repo ?? ""))
+            .Where(r => r.Contains('/')).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToList();
+
     public IReadOnlyList<string> DiscoveredAdoOrgs() =>
         _reconciler.Statuses.Where(s => s.Name.StartsWith("ADO:", StringComparison.Ordinal)).Select(s => s.Name["ADO:".Length..]).ToList();
 
@@ -875,6 +946,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
                         ThemeMode = _themeMode,
                         Mutes = _mutes.ToList(),
                         Snoozes = _snoozes.ToList(),
+                        DismissedPipelineRuns = _dismissed.ToList(),
                         WaitingExpanded = _waitingExpanded,
                         SnoozedExpanded = _snoozedExpanded,
                         MutedExpanded = _mutedExpanded,

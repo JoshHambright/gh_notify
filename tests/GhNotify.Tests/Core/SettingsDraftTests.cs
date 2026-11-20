@@ -154,4 +154,59 @@ public class SettingsDraftTests
         Assert.Equal("No profile named 'nope'.", d.RenameProfile("nope", "x"));
         Assert.Equal("No profile named 'review'.", d.RenameProfile("review", "x"));
     }
+
+    static PipelineSubscription PSub(Action<PipelineSubscription>? edit = null)
+    {
+        var s = new PipelineSubscription { Provider = Provider.Ado, Org = "acme", Project = "Platform", PipelineId = 42, Pipeline = "Deploy", On = [PipelineOutcome.Failed] };
+        edit?.Invoke(s);
+        return s;
+    }
+
+    [Fact]
+    public void Adding_a_pipeline_subscription_gives_it_an_id_and_a_baseline_and_dirties_the_draft()
+    {
+        var d = new SettingsDraft(new AppConfig(), null);
+        var now = DateTimeOffset.Parse("2026-11-20T09:00:00Z");
+        var added = d.AddPipelineSubscription(PSub(), now);
+        Assert.True(Guid.TryParse(added.Id, out _));
+        Assert.Equal(now, added.CreatedAt);
+        Assert.True(added.Enabled);
+        Assert.Same(added, d.Config.PipelineSubscriptions.Single());
+        Assert.True(d.IsDirty);
+        Assert.NotEqual(added.Id, d.AddPipelineSubscription(PSub(), now).Id);
+    }
+
+    [Fact]
+    public void Removing_a_pipeline_subscription_by_id()
+    {
+        var d = new SettingsDraft(new AppConfig(), null);
+        var a = d.AddPipelineSubscription(PSub(), DateTimeOffset.UnixEpoch);
+        var b = d.AddPipelineSubscription(PSub(), DateTimeOffset.UnixEpoch);
+        Assert.True(d.RemovePipelineSubscription(a.Id));
+        Assert.Equal([b.Id], d.Config.PipelineSubscriptions.Select(s => s.Id));
+        Assert.False(d.RemovePipelineSubscription("nope"));
+    }
+
+    [Theory]
+    [InlineData("Deploy · acme/Platform · Failed", "")]
+    [InlineData("Deploy · acme/Platform · Failed on PROD*", "stages")]
+    [InlineData("Deploy · acme/Platform · Failed, With issues on PROD*, QA · main, release/* · mine", "all")]
+    public void The_summary_names_pipeline_outcomes_stages_branches_and_mine(string expected, string variant)
+    {
+        var s = PSub(s =>
+        {
+            if (variant == "stages") s.Stages = ["PROD*"];
+            if (variant == "all") { s.On = [PipelineOutcome.Failed, PipelineOutcome.PartiallySucceeded]; s.Stages = ["PROD*", "QA"]; s.Branches = ["main", "release/*"]; s.OnlyMine = true; }
+        });
+        Assert.Equal(expected, SettingsDraft.PipelineSubscriptionSummary(s));
+    }
+
+    [Fact]
+    public void Pipeline_errors_belong_to_the_pipelines_page()
+    {
+        Assert.Equal(SettingsPage.Pipelines, SettingsDraft.PageFor("pipelineSubscriptions[0].on"));
+        var d = new SettingsDraft(new AppConfig(), null);
+        d.Config.PipelineSubscriptions.Add(PSub(s => s.On = []));
+        Assert.Contains(d.Validate(), e => e.Page == SettingsPage.Pipelines);
+    }
 }

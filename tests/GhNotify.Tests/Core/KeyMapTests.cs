@@ -185,4 +185,13 @@ public class KeyMapTests
 
     [Fact]
     public void Unknown_key_does_nothing() => Assert.Equal(KeyCommand.None, R("Z", List(RowMode.Collapsed, Approvals)));
+
+    [Fact]
+    public void D_dismisses_a_dismissable_row_only()
+    {
+        Assert.Equal(K(KeyCommandKind.Dismiss), R("D", List() with { SelectedRowCanDismiss = true }));
+        Assert.Equal(KeyCommand.None, R("D", List()));
+        Assert.Equal(KeyCommand.None, R("D", List(RowMode.Sending) with { SelectedRowCanDismiss = true }));
+        Assert.Equal(KeyCommand.None, R("D", new PopupContext(SelectedRowCanDismiss: true)));
+    }
 }

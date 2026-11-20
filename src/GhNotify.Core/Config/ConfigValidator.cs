@@ -28,6 +28,32 @@ public static class ConfigValidator
         }
         if (NotNull(c.GitHub, "github")) Entries(c.GitHub.WatchRepos, "github.watchRepos");
         if (NotNull(c.Ado, "ado")) { Entries(c.Ado.Orgs, "ado.orgs"); Entries(c.Ado.ExcludeOrgs, "ado.excludeOrgs"); }
+        if (Entries(c.PipelineSubscriptions, "pipelineSubscriptions"))
+        {
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            for (var i = 0; i < c.PipelineSubscriptions.Count; i++)
+            {
+                var s = c.PipelineSubscriptions[i];
+                var f = $"pipelineSubscriptions[{i}]";
+                if (string.IsNullOrWhiteSpace(s.Id)) Add($"{f}.id", $"{f}.id must not be empty");
+                else if (!ids.Add(s.Id)) Add($"{f}.id", $"{f}.id '{s.Id}' is used twice");
+                if (s.Provider == Provider.Ado)
+                {
+                    if (string.IsNullOrWhiteSpace(s.Org)) Add($"{f}.org", $"{f}.org must name an Azure DevOps organization");
+                    if (string.IsNullOrWhiteSpace(s.Project)) Add($"{f}.project", $"{f}.project must name a project");
+                }
+                else if (s.Repo is not { } r || r.Split('/') is not [{ Length: > 0 }, { Length: > 0 }])
+                    Add($"{f}.repo", $"{f}.repo must be owner/repo");
+                if (s.CreatedAt == default) Add($"{f}.createdAt", $"{f}.createdAt must be set (the time you started following it)");
+                if (s.PipelineId <= 0) Add($"{f}.pipelineId", $"{f}.pipelineId must be a pipeline id");
+                if (!NotNull(s.On, $"{f}.on") || !Entries(s.On, $"{f}.on")) continue;
+                if (s.On.Count == 0) Add($"{f}.on", $"{f}.on must list at least one outcome");
+                if (s.Provider == Provider.GitHub && s.On.Contains(PipelineOutcome.PartiallySucceeded))
+                    Add($"{f}.on", $"{f}.on: GitHub has no partially-succeeded outcome");
+                if (NotNull(s.Stages, $"{f}.stages")) Entries(s.Stages, $"{f}.stages");
+                if (NotNull(s.Branches, $"{f}.branches")) Entries(s.Branches, $"{f}.branches");
+            }
+        }
         Entries(c.RepoRoots, "repoRoots");
         Entries(c.AgentAllowedTools, "agentAllowedTools");
 

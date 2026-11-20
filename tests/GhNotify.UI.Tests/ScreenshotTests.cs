@@ -42,6 +42,7 @@ public class ScreenshotTests
         Popup(ThemeVariant.Dark, new SampleHost(), Path.Combine(dir, "filters.png"));
         Settings(ThemeVariant.Dark, SettingsPage.Workflows, Path.Combine(dir, "settings-workflows.png"));
         Settings(ThemeVariant.Light, SettingsPage.Notifications, Path.Combine(dir, "settings-notifications.png"));
+        Settings(ThemeVariant.Dark, SettingsPage.Pipelines, Path.Combine(dir, "settings-pipelines.png"));
 
         Save(TrayIconRenderer.Render(32, null, false), Path.Combine(dir, "tray-calm.png"));
         Save(TrayIconRenderer.Render(32, "7", true), Path.Combine(dir, "tray-waiting.png"));

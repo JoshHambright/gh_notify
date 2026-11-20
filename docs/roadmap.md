@@ -91,6 +91,7 @@ Not planned for now: code signing, and Teams/Slack notifications. Revisit them a
 | **More hosts** | GitHub Enterprise Server (host + `gh` auth per host) and multiple GitHub accounts, each a source with its own label. |
 | **Aging and escalation** | Rows show their age. Past a threshold per kind (in work hours, e.g. review > 4h), a row turns amber, then red, and re-toasts once. |
 | **Morning digest** | One summary toast at the start of work hours ("3 reviews · 1 approval · oldest 2d"), and optionally an end-of-day one. |
+| **Pipeline subscriptions** | ✅ Done: follow an ADO pipeline or GitHub Actions workflow and alert on failed, succeeded or partially succeeded runs, scoped by stage, branch and requester ([pipelines.md](pipelines.md)). |
 | **Focus-aware alerts** | Respect Windows Focus Assist and macOS Focus: toasts are held and summarized afterwards. **Snooze everything for 1h** from the tray menu. |
 
 **Builds on:** the source → reconcile → NotificationPlanner pipeline, WorkHours, Snoozes and RulesEngine.

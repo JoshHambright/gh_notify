@@ -14,12 +14,13 @@ public sealed record PopupContext(
     IReadOnlyList<ItemAction>? SelectedRowActions = null,
     bool ConfirmOpen = false,
     bool BatchOpen = false,
-    bool ButtonFocused = false);
+    bool ButtonFocused = false,
+    bool SelectedRowCanDismiss = false);
 
 public enum KeyCommandKind
 {
     None, MoveUp, MoveDown, First, Last, ToggleExpand, Open, BeginAction, OpenSnoozeMenu,
-    Confirm, CancelConfirm, FocusSearch, ClearSearch, HidePopup,
+    Confirm, CancelConfirm, FocusSearch, ClearSearch, HidePopup, Dismiss,
 }
 
 public readonly record struct KeyCommand(KeyCommandKind Kind, ItemAction? Action = null)
@@ -76,6 +77,7 @@ public static class KeyMap
             "M" => Begin(ctx, usable, ItemAction.Merge),
             "C" => Begin(ctx, usable, ItemAction.RerunFailed),
             "S" => row ? new(KeyCommandKind.OpenSnoozeMenu) : KeyCommand.None,
+            "D" => ctx.SelectedRowCanDismiss && usable ? new(KeyCommandKind.Dismiss) : KeyCommand.None,
             _ => KeyCommand.None,
         };
     }

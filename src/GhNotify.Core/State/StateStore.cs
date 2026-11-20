@@ -4,6 +4,8 @@ namespace GhNotify.Core;
 
 public sealed record TimedMute(string Pattern, DateTimeOffset? Until);
 public sealed record Snooze(string Key, DateTimeOffset? Until, bool UntilChange);
+/// <summary>A pipeline row the user dismissed; <paramref name="Finished"/> (the run's finish time) is what pruning uses.</summary>
+public sealed record DismissedRun(string Key, DateTimeOffset Finished);
 
 public sealed class AppState
 {
@@ -12,6 +14,7 @@ public sealed class AppState
     public ThemeMode ThemeMode { get; set; } = ThemeMode.System;
     public List<TimedMute> Mutes { get; set; } = [];
     public List<Snooze> Snoozes { get; set; } = [];
+    public List<DismissedRun> DismissedPipelineRuns { get; set; } = [];
     public bool WaitingExpanded { get; set; }
     public bool SnoozedExpanded { get; set; }
     /// <summary>The Muted section is expanded (it starts collapsed).</summary>
@@ -58,12 +61,14 @@ public sealed class StateStore(string path)
                 state.AgentRuns ??= [];
                 state.Mutes ??= [];
                 state.Snoozes ??= [];
+                state.DismissedPipelineRuns ??= [];
                 foreach (var key in state.Snapshot.Where(kv => kv.Value is null).Select(kv => kv.Key).ToList())
                     state.Snapshot.Remove(key);
                 foreach (var list in state.Snapshot.Values) list.RemoveAll(i => i is null);
                 state.AgentRuns.RemoveAll(r => r is null);
                 state.Mutes.RemoveAll(m => m is null);
                 state.Snoozes.RemoveAll(s => s is null);
+                state.DismissedPipelineRuns.RemoveAll(d => d is null);
                 return state;
             }
             catch (Exception ex)
