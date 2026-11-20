@@ -44,7 +44,10 @@ let notificationDelegate = NotificationDelegate()
 
 /// UNUserNotificationCenter throws an Objective-C exception (which Swift can't catch) when the process has no bundle, e.g. under
 /// `dotnet test`. Only use it from the packaged .app.
-func notificationsAvailable() -> Bool { Bundle.main.bundleIdentifier != nil }
+///
+/// A bundle identifier alone is not enough: under `dotnet test` on CI the main bundle is the .dotnet folder, and UNUserNotificationCenter
+/// still aborted the test host there ("bundleProxyForCurrentProcess is nil"). Require a real .app bundle.
+func notificationsAvailable() -> Bool { Bundle.main.bundleIdentifier != nil && Bundle.main.bundleURL.pathExtension == "app" }
 
 /// Installs the delegate (clicks, including the one that launched the app) and asks for permission once; -1 without a bundle.
 @_cdecl("ghn_notify_init")
