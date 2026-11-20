@@ -15,6 +15,8 @@ public sealed class AppState
     public List<TimedMute> Mutes { get; set; } = [];
     public List<Snooze> Snoozes { get; set; } = [];
     public List<DismissedRun> DismissedPipelineRuns { get; set; } = [];
+    /// <summary>Toasts and sounds are paused by hand until this time (null = not paused).</summary>
+    public DateTimeOffset? ToastsPausedUntil { get; set; }
     public bool WaitingExpanded { get; set; }
     public bool SnoozedExpanded { get; set; }
     /// <summary>The Muted section is expanded (it starts collapsed).</summary>

@@ -26,7 +26,7 @@ For tests and development, `GHNOTIFY_CONFIG_DIR` and `GHNOTIFY_DATA_DIR` overrid
 | `actions` | object | see below | In-tray actions. |
 | `display` | object | see below | Popup display. |
 | `updates` | object | see below | Auto-update. |
-| `notifications` | object | `{ "sounds": [] }` | Sound rules. |
+| `notifications` | object | `{ "sounds": [], "holdWhilePresenting": true }` | Sound rules, and whether toasts are held while presenting (below). |
 | `filters` | object | `{ "mute": [], "hide": [] }` | Mute and hide patterns. |
 | `pipelineSubscriptions` | object[] | `[]` | Pipelines you follow; see [`pipelineSubscriptions[]`](#pipelinesubscriptions). |
 | `rules` | object[] | `[]` | Which profile runs for which item. |
@@ -89,6 +89,10 @@ The popup width and text size are not in config.json. Drag the popup's left edge
 |---|---|---|---|
 | `enabled` | bool | `true` | Check for and download updates (installed builds only). |
 | `checkHours` | int | `4` | Hours between checks. 1–168. |
+
+## `notifications.holdWhilePresenting`
+
+`true` (default): toasts and sounds are held while Windows reports a full-screen app, a D3D game or presentation mode. Items still reach the popup and badge. See [notifications.md](notifications.md#presenting-and-pausing-toasts). It has no effect on macOS.
 
 ## `notifications.sounds[]`
 

@@ -51,6 +51,17 @@ the things you'd genuinely want to be woken up for, such as production approvals
 
 Muted items never toast or play, whatever the sound rules say.
 
+## Presenting and pausing toasts
+
+While you share your screen, a toast for a new PR or failing pipeline can show up in front of everyone. Two things hold toasts and sounds back:
+
+- **Automatically (Windows).** With `notifications.holdWhilePresenting` on (the default), toasts and sounds are held while Windows reports a full-screen app,
+  a full-screen game or presentation mode. Turn it off in **Settings › Notifications**. A Teams window share does not always set that Windows state, so it can miss one.
+- **By hand.** Right-click the tray icon and choose **Pause toasts for 1 hour**. The same item then reads **Resume toasts**. The pause survives a restart
+  and ends by itself after the hour.
+
+Held items still appear in the popup and count in the badge. Nothing replays when the hold ends, so there is no burst of toasts when you stop sharing.
+
 ## Mute, hide and snooze
 
 | | Applies to | Still visible? | Toast / sound / auto-agent | Counted in badge | Comes back |

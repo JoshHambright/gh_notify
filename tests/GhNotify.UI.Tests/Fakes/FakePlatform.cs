@@ -80,8 +80,15 @@ public sealed class InlineDispatcher : IUiDispatcher
 }
 
 /// <summary>A full set of fakes, keeping typed handles to each.</summary>
+public sealed class FakePresenceService : IPresenceService
+{
+    public bool Presenting { get; set; }
+    public bool IsPresenting => Presenting;
+}
+
 public sealed class FakePlatform
 {
+    public FakePresenceService Presence { get; } = new();
     public FakeNotifier Notifier { get; } = new();
     public FakeHotkeyService Hotkey { get; } = new();
     public FakeStartupService Startup { get; } = new();
@@ -89,5 +96,5 @@ public sealed class FakePlatform
     public FakeSystemTheme Theme { get; } = new();
     public FakeShell Shell { get; } = new();
 
-    public PlatformServices Services => new(Notifier, Hotkey, Startup, Sound, Theme, Shell);
+    public PlatformServices Services => new(Notifier, Hotkey, Startup, Sound, Theme, Shell, Presence);
 }
