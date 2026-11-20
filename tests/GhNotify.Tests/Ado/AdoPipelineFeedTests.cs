@@ -13,8 +13,14 @@ public class AdoPipelineFeedTests
     {
         var s = new PipelineSubscription
         {
-            Id = "s1", Provider = Provider.Ado, Org = "acme", Project = "Core Platform", PipelineId = 42, Pipeline = "Deploy",
-            On = [PipelineOutcome.Failed], CreatedAt = Since,
+            Id = "s1",
+            Provider = Provider.Ado,
+            Org = "acme",
+            Project = "Core Platform",
+            PipelineId = 42,
+            Pipeline = "Deploy",
+            On = [PipelineOutcome.Failed],
+            CreatedAt = Since,
         };
         edit?.Invoke(s);
         return s;
@@ -76,7 +82,7 @@ public class AdoPipelineFeedTests
         Assert.Equal("Deploy", failed.Pipeline);
         Assert.Equal("1001", failed.RunId);
         Assert.Equal("20261120.1", failed.RunNumber);
-        Assert.True(failed.Attempt > 1); // the completion minute: a stage retry completes the build again
+        Assert.True(failed.Attempt > 1); // the completion second: a stage retry completes the build again
         Assert.Equal("main", failed.Branch);
         Assert.Equal("Me", failed.RequestedBy);
         Assert.Equal("abc123", failed.CommitSha);
@@ -225,5 +231,18 @@ public class AdoPipelineFeedTests
         var second = (await feed.RecentRunsAsync(Sub(), Since, false, default)).Single();
         Assert.NotEqual(PipelineMatcher.Key(first, null), PipelineMatcher.Key(second, null));
         Assert.Equal(PipelineMatcher.Key(first, null), PipelineMatcher.Key(first, null));
+    }
+
+    [Fact]
+    public async Task Two_completions_within_the_same_minute_get_different_keys()
+    {
+        string builds = OneBuild("2026-11-20T10:00:05Z");
+        var http = new FakeHttpHandler().On(r => r.RequestUri!.AbsoluteUri.Contains("_apis/build/builds?"), _ => FakeHttpHandler.Respond(HttpStatusCode.OK, builds));
+        var client = new AdoClient(new HttpClient(http), new FakeTokenProvider());
+        var feed = new AdoPipelineFeed(client, new AdoDirectory(client));
+        var first = (await feed.RecentRunsAsync(Sub(), Since, false, default)).Single();
+        builds = OneBuild("2026-11-20T10:00:55Z");
+        var second = (await feed.RecentRunsAsync(Sub(), Since, false, default)).Single();
+        Assert.NotEqual(PipelineMatcher.Key(first, null), PipelineMatcher.Key(second, null));
     }
 }

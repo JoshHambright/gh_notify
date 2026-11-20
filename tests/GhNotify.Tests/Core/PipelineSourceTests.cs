@@ -27,8 +27,14 @@ public class PipelineSourceTests
     {
         var s = new PipelineSubscription
         {
-            Id = id, Provider = Provider.Ado, Org = "acme", Project = "P", PipelineId = pipelineId, Pipeline = "Deploy",
-            On = [PipelineOutcome.Failed], CreatedAt = Created,
+            Id = id,
+            Provider = Provider.Ado,
+            Org = "acme",
+            Project = "P",
+            PipelineId = pipelineId,
+            Pipeline = "Deploy",
+            On = [PipelineOutcome.Failed],
+            CreatedAt = Created,
         };
         edit?.Invoke(s);
         return s;

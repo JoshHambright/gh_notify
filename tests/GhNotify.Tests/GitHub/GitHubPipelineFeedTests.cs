@@ -13,8 +13,13 @@ public class GitHubPipelineFeedTests
     {
         var s = new PipelineSubscription
         {
-            Id = "s1", Provider = Provider.GitHub, Repo = "acme/shop", PipelineId = 555, Pipeline = "Deploy",
-            On = [PipelineOutcome.Failed], CreatedAt = Since,
+            Id = "s1",
+            Provider = Provider.GitHub,
+            Repo = "acme/shop",
+            PipelineId = 555,
+            Pipeline = "Deploy",
+            On = [PipelineOutcome.Failed],
+            CreatedAt = Since,
         };
         edit?.Invoke(s);
         return s;

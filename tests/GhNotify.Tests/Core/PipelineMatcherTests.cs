@@ -11,8 +11,14 @@ public class PipelineMatcherTests
     {
         var s = new PipelineSubscription
         {
-            Id = "s1", Provider = Provider.Ado, Org = "acme", Project = "P", PipelineId = 42, Pipeline = "Deploy",
-            On = [PipelineOutcome.Failed], CreatedAt = Created,
+            Id = "s1",
+            Provider = Provider.Ado,
+            Org = "acme",
+            Project = "P",
+            PipelineId = 42,
+            Pipeline = "Deploy",
+            On = [PipelineOutcome.Failed],
+            CreatedAt = Created,
         };
         edit?.Invoke(s);
         return s;

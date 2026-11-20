@@ -61,7 +61,11 @@ public sealed class AdoPipelineFeed(AdoClient client, AdoDirectory directory) : 
                 return new PipelineStageInfo(r.Str("name")!, outcome, outcome is null ? null : r.Date("finishTime"), r.Int("attempt") ?? 0);
             })
             .ToList();
-        if (completed) _completedTimelines[(org, project, build, finished)] = stages;
+        if (completed)
+        {
+            if (_completedTimelines.Count >= MaxCachedTimelines) _completedTimelines.Clear(); // bounded: a long-running tray app must not keep every run it ever saw
+            _completedTimelines[(org, project, build, finished)] = stages;
+        }
         return stages;
     }
 
@@ -76,11 +80,13 @@ public sealed class AdoPipelineFeed(AdoClient client, AdoDirectory directory) : 
             .OfType<PipelinePick>().ToList();
     }
 
+    const int MaxCachedTimelines = 500;
+
     static readonly DateTimeOffset AttemptEpoch = new(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
-    /// <summary>ADO builds have no run attempt, and a stage retry completes the same build again, so a completed run's attempt is the minute it finished.</summary>
+    /// <summary>ADO builds have no run attempt, and a stage retry completes the same build again, so a completed run's attempt is the second it finished.</summary>
     static int RunAttempt(bool completed, DateTimeOffset? finished) =>
-        completed && finished is { } f ? Math.Max(1, (int)Math.Min(int.MaxValue, (f - AttemptEpoch).TotalMinutes)) : 1;
+        completed && finished is { } f ? Math.Max(1, (int)Math.Min(int.MaxValue, (f - AttemptEpoch).TotalSeconds)) : 1;
 
     static string ProjectUrl(string org, string project) => $"https://dev.azure.com/{org}/{Uri.EscapeDataString(project)}";
 

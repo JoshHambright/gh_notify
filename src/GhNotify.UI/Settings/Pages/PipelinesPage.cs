@@ -25,7 +25,8 @@ public sealed class PipelinesPage : SettingsPageBase
 
     PipelineSubscription? _editing;
     Provider _provider = Provider.Ado;
-    List<PipelinePick> _picks = [];
+    List<PipelinePick> _adoPicks = [];
+    List<PipelinePick> _ghPicks = []; // separate lists: an entry index from one provider must never resolve against the other's
     PipelinePick? _chosen;
     bool _loading;
     int _generation; // bumped whenever a selection changes, so a slow picker result for an older selection is dropped
@@ -172,7 +173,7 @@ public sealed class PipelinesPage : SettingsPageBase
             if (sub.Provider == Provider.GitHub) _gitHubRadio.IsChecked = true; else _adoRadio.IsChecked = true;
             Choose(sub.Provider);
             _chosen = new PipelinePick(sub.PipelineId, sub.Pipeline);
-            _picks = [_chosen];
+            _adoPicks = _ghPicks = [_chosen];
             if (sub.Provider == Provider.Ado)
             {
                 FillOrgs(sub.Org);
@@ -207,6 +208,7 @@ public sealed class PipelinesPage : SettingsPageBase
     internal void CancelForm()
     {
         _form.IsVisible = false;
+        _generation++;
         _editing = null;
         _message.Text = "";
     }
@@ -217,7 +219,9 @@ public sealed class PipelinesPage : SettingsPageBase
         try
         {
             _chosen = null;
-            _picks = [];
+            _adoPicks = [];
+            _ghPicks = [];
+            _generation++;
             _message.Text = "";
             OrgCombo.ItemsSource = new List<string>();
             ProjectCombo.ItemsSource = new List<string>();
@@ -264,6 +268,7 @@ public sealed class PipelinesPage : SettingsPageBase
         if (_adoRadio.IsChecked != (provider == Provider.Ado)) _adoRadio.IsChecked = provider == Provider.Ado;
         if (!_loading)
         {
+            _generation++;
             _chosen = null;
             _message.Text = "";
         }
@@ -277,7 +282,7 @@ public sealed class PipelinesPage : SettingsPageBase
         if (_loading) return;
         _generation++;
         _chosen = null; // a workflow id belongs to the repo it was listed for
-        _picks = [];
+        _ghPicks = [];
         WorkflowCombo.ItemsSource = new List<string>();
         UpdateSave();
     }
@@ -305,10 +310,12 @@ public sealed class PipelinesPage : SettingsPageBase
         if (OrgCombo.SelectedItem is string org && ProjectCombo.SelectedItem is string project) _ = LoadPipelinesAsync(org, project);
     }
 
+    List<PipelinePick> Picks(ComboBox combo) => combo == WorkflowCombo ? _ghPicks : _adoPicks;
+
     void OnPickChanged(ComboBox combo)
     {
         if (_loading) return;
-        _chosen = combo.SelectedIndex >= 0 && combo.SelectedIndex < _picks.Count ? _picks[combo.SelectedIndex] : null;
+        _chosen = combo.SelectedIndex >= 0 && combo.SelectedIndex < Picks(combo).Count ? Picks(combo)[combo.SelectedIndex] : null;
         UpdateSave();
     }
 
@@ -333,10 +340,10 @@ public sealed class PipelinesPage : SettingsPageBase
         {
             var picks = (await Host.ListAdoPipelinesAsync(org, project)).ToList();
             if (gen != _generation) return;
-            _picks = picks;
-            PipelineCombo.ItemsSource = _picks.Select(p => p.Name).ToList();
+            _adoPicks = picks;
+            PipelineCombo.ItemsSource = _adoPicks.Select(p => p.Name).ToList();
             PipelineCombo.SelectedIndex = -1;
-            if (_picks.Count == 0) _message.Text = $"{project} has no build pipelines you can see.";
+            if (_adoPicks.Count == 0) _message.Text = $"{project} has no build pipelines you can see.";
         }
         catch (Exception ex) when (ex is not OperationCanceledException) { _message.Text = $"Couldn't load pipelines: {ex.Message}"; }
     }
@@ -351,12 +358,12 @@ public sealed class PipelinesPage : SettingsPageBase
         {
             var picks = (await Host.ListGitHubWorkflowsAsync(repo)).ToList();
             if (gen != _generation) return;
-            _picks = picks;
-            WorkflowCombo.ItemsSource = _picks.Select(p => p.Name).ToList();
+            _ghPicks = picks;
+            WorkflowCombo.ItemsSource = _ghPicks.Select(p => p.Name).ToList();
             WorkflowCombo.SelectedIndex = -1;
             _chosen = null;
             UpdateSave();
-            if (_picks.Count == 0) _message.Text = $"{repo} has no active workflows you can see.";
+            if (_ghPicks.Count == 0) _message.Text = $"{repo} has no active workflows you can see.";
         }
         catch (Exception ex) when (ex is not OperationCanceledException) { _message.Text = $"Couldn't load workflows: {ex.Message}"; }
     }

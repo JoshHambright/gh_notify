@@ -182,6 +182,24 @@ public class PipelinesPageTests
     }
 
     [AvaloniaFact]
+    public void Workflows_listed_for_github_are_not_reused_as_ado_pipelines_after_switching_provider()
+    {
+        var (w, page) = Open();
+        page.BeginAdd();
+        page.OrgCombo.SelectedIndex = 0;
+        page.ProjectCombo.SelectedIndex = 0; // ADO pipelines: Deploy 42, CI 7
+        page.Choose(Provider.GitHub);
+        page.RepoBox.Text = "acme/api";
+        Click(page.FindWorkflowsButton); // GitHub workflows: Deploy 555, CI 556
+        page.Choose(Provider.Ado);
+        page.PipelineCombo.SelectedIndex = 1; // the ADO entry "CI"
+        Click(page.SaveButton);
+        var s = Assert.Single(w.Draft.Config.PipelineSubscriptions);
+        Assert.Equal(7, s.PipelineId);
+        w.Discard();
+    }
+
+    [AvaloniaFact]
     public void A_picker_failure_is_shown_inline_and_nothing_is_saved()
     {
         SettingsTokens.Ensure();

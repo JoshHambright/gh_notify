@@ -13,6 +13,8 @@ public sealed class GitHubPipelineFeed(GitHubClient client) : IPipelineRunFeed
     const int PageSize = 50;
 
     // Jobs of a completed run attempt never change, so each is read once. Running runs are re-read every poll.
+    const int MaxCachedRuns = 500;
+
     readonly ConcurrentDictionary<(string Repo, long Run, int Attempt), IReadOnlyList<PipelineStageInfo>> _completedJobs = new();
     string? _viewer;
 
@@ -68,7 +70,11 @@ public sealed class GitHubPipelineFeed(GitHubClient client) : IPipelineRunFeed
                 return new PipelineStageInfo(j.Str("name")!, outcome, outcome is null ? null : j.Date("completed_at"), j.Int("run_attempt") ?? 0);
             })
             .ToList();
-        if (completed) _completedJobs[(repo, run, attempt)] = stages;
+        if (completed)
+        {
+            if (_completedJobs.Count >= MaxCachedRuns) _completedJobs.Clear(); // bounded: a long-running tray app must not keep every run it ever saw
+            _completedJobs[(repo, run, attempt)] = stages;
+        }
         return stages;
     }
 
