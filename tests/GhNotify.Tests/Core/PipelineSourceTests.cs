@@ -186,7 +186,7 @@ public class PipelineSourceTests
 
         var first = await Poll(reconciler);
         var plan = NotificationPlanner.Plan(first, [], ViewOf(reconciler), new AppConfig(), true);
-        var toast = Assert.Single(plan.Toasts.Where(t => t.Action == ToastAction.Show));
+        var toast = Assert.Single(plan.Toasts, t => t.Action == ToastAction.Show);
         Assert.Equal("Pipeline failed", toast.Title);
 
         var restarted = new Reconciler(reconciler.Snapshot().ToDictionary(kv => kv.Key, kv => (IReadOnlyList<InboxItem>)kv.Value));
