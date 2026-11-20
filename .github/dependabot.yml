@@ -8,6 +8,14 @@ updates:
       # Avalonia's packages must move together; a lone bump (e.g. Headless.XUnit) doesn't build.
       avalonia:
         patterns: ["Avalonia*"]
+      # Everything else: one PR for the week's minor and patch bumps, and one for major bumps, so a major can be held back
+      # (for example .NET 11 packages while the app is on .NET 10) without blocking the routine ones.
+      nuget-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      nuget-major:
+        patterns: ["*"]
+        update-types: ["major"]
     ignore:
       # A major Avalonia version (12 brings xunit v3 to the headless tests) is a planned port, not a weekly bump.
       - dependency-name: "Avalonia*"
@@ -16,3 +24,6 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
