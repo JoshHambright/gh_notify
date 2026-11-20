@@ -21,8 +21,12 @@ public static class PipelineMatcher
         return hits;
     }
 
-    public static string Key(PipelineRunInfo run, string? stage) =>
-        $"pipe:{(run.Provider == Provider.Ado ? "ado" : "gh")}:{run.Scope}:{run.PipelineId}:{run.RunId}:{run.Attempt}" + (stage is null ? "" : ":" + stage);
+    /// <summary>A retried ADO stage carries its own attempt, so its new result is a new row while the other stages keep their keys.</summary>
+    public static string Key(PipelineRunInfo run, string? stage)
+    {
+        var attempt = stage is not null && run.Stages.FirstOrDefault(s => s.Name == stage) is { Attempt: > 0 } st ? st.Attempt : run.Attempt;
+        return $"pipe:{(run.Provider == Provider.Ado ? "ado" : "gh")}:{run.Scope}:{run.PipelineId}:{run.RunId}:{attempt}" + (stage is null ? "" : ":" + stage);
+    }
 
     public static InboxItem ToItem(PipelineSubscription sub, PipelineRunInfo run, PipelineHit hit) =>
         new(Key(run, hit.Stage), run.Provider, ItemKind.PipelineRun, run.Scope,

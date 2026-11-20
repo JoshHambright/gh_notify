@@ -128,4 +128,13 @@ public class PipelineMatcherTests
         Assert.Equal("Deploy · PROD", item.Title);
         Assert.EndsWith(":PROD", item.Key);
     }
+
+    [Fact]
+    public void A_retried_stage_gets_its_own_key_while_other_stages_keep_theirs()
+    {
+        var run = Run(stages: [new PipelineStageInfo("PROD", PipelineOutcome.Failed, After, 2), new PipelineStageInfo("QA", PipelineOutcome.Failed, After, 1)]);
+        Assert.Equal("pipe:ado:acme/P:42:1001:2:PROD", PipelineMatcher.Key(run, "PROD"));
+        Assert.Equal("pipe:ado:acme/P:42:1001:1:QA", PipelineMatcher.Key(run, "QA"));
+        Assert.Equal("pipe:ado:acme/P:42:1001:1", PipelineMatcher.Key(run, null));
+    }
 }
