@@ -8,12 +8,10 @@ namespace GhNotify.UI.Tests;
 /// <summary>Settings › Pipelines, headless: the list, the add/edit form and its pickers. The sample host answers the pickers instantly.</summary>
 public class PipelinesPageTests
 {
-    static (SettingsWindow Window, PipelinesPage Page) Open(string? configJson = null)
+    static (SettingsWindow Window, PipelinesPage Page) Open(string configJson = "{}")
     {
         SettingsTokens.Ensure();
         ISettingsHost host;
-        if (configJson is null) host = new SampleSettingsHost();
-        else
         {
             var dir = Path.Combine(Path.GetTempPath(), "ghnotify-pipes-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(dir);

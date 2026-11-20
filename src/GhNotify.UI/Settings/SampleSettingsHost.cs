@@ -31,6 +31,11 @@ public sealed class SampleSettingsHost : ISettingsHost
             ],
         },
         Filters = new FiltersConfig { Mute = ["acme/legacy-*"], Hide = ["gh:fabrikam/sandbox"] },
+        PipelineSubscriptions =
+        [
+            new PipelineSubscription { Id = "sample-1", Provider = Provider.Ado, Org = "contoso", Project = "Core Platform", PipelineId = 42, Pipeline = "Deploy", On = [PipelineOutcome.Failed], Stages = ["PROD*"], CreatedAt = DateTimeOffset.UnixEpoch },
+            new PipelineSubscription { Id = "sample-2", Provider = Provider.GitHub, Repo = "acme/api", PipelineId = 556, Pipeline = "CI", On = [PipelineOutcome.Failed, PipelineOutcome.Succeeded], Branches = ["main"], OnlyMine = true, CreatedAt = DateTimeOffset.UnixEpoch },
+        ],
         Rules =
         [
             new Rule { Match = new ItemMatch { Kind = ItemKind.ReviewRequested, Repo = "acme/*", MaxChangedLines = 400 }, Agent = AgentMode.Auto, Profile = "peer-review" },
