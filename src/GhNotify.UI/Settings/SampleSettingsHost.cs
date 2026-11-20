@@ -62,6 +62,12 @@ public sealed class SampleSettingsHost : ISettingsHost
     }
 
     public IReadOnlyList<string> DiscoveredAdoOrgs() => ["contoso", "fabrikam"];
+    public Task<IReadOnlyList<string>> ListAdoProjectsAsync(string org) => Task.FromResult<IReadOnlyList<string>>(["Core Platform", "Portal"]);
+    public Task<IReadOnlyList<PipelinePick>> ListAdoPipelinesAsync(string org, string project) =>
+        Task.FromResult<IReadOnlyList<PipelinePick>>([new PipelinePick(42, "Deploy"), new PipelinePick(7, "CI")]);
+    public Task<IReadOnlyList<PipelinePick>> ListGitHubWorkflowsAsync(string repo) =>
+        Task.FromResult<IReadOnlyList<PipelinePick>>([new PipelinePick(555, "Deploy"), new PipelinePick(556, "CI")]);
+    public IReadOnlyList<string> KnownGitHubRepos() => ["acme/api", "acme/web"];
     public Task<string> TestAdoSignInAsync(string? subscription, string? tenant) => Task.FromResult("✓ Signed in");
     readonly HashSet<string> _skills = ["peer-review", "pr-shepherd"];
     public SkillStatus GetSkillStatus(string skill) =>

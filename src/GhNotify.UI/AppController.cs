@@ -36,6 +36,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     List<TimedMute> _mutes;
     List<Snooze> _snoozes;
     List<DismissedRun> _dismissed;
+    readonly AdoPipelineFeed _adoPipelines;
+    readonly GitHubPipelineFeed _gitHubPipelines;
     bool _waitingExpanded;
     bool _snoozedExpanded;
     bool _mutedExpanded;
@@ -107,6 +109,8 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
             () => _reconciler.ItemsFor("GitHub"));
         var adoClient = new AdoClient(new HttpClient { Timeout = TimeSpan.FromSeconds(25) }, new AzTokenProvider(runner, config: () => _config.Current.Ado));
         var directory = new AdoDirectory(adoClient);
+        _adoPipelines = new AdoPipelineFeed(adoClient, directory);
+        _gitHubPipelines = new GitHubPipelineFeed(ghClient);
         _actions = new CompositeItemActions(new Dictionary<Provider, IItemActions>
         {
             [Provider.GitHub] = new GitHubItemActions(ghClient),
@@ -118,7 +122,12 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
             new StaticCatalog(() => _config.Current.GitHub.Enabled ? [ghSource] : []),
             new AdoSourceCatalog(directory, () => _config.Current.Ado,
                 org => new AdoOrgSource(org, adoClient, directory, () => _config.Current.Ado,
-                    () => _reconciler.ItemsFor($"ADO:{org}"))));
+                    () => _reconciler.ItemsFor($"ADO:{org}"))),
+            new PipelineSourceCatalog(() => _config.Current,
+                org => PipelineSourceFor($"ADO-Pipelines:{org}", _adoPipelines,
+                    () => _config.Current.PipelineSubscriptions.Where(s => s.Provider == Provider.Ado && string.Equals(s.Org, org, StringComparison.OrdinalIgnoreCase)).ToList()),
+                () => PipelineSourceFor(SourceRetirement.GitHubPipelines, _gitHubPipelines,
+                    () => _config.Current.PipelineSubscriptions.Where(s => s.Provider == Provider.GitHub).ToList())));
         _poller = new Poller(catalog, _reconciler, TimeSpan.FromSeconds(30));
         _poller.Polled += HandleDiff;
 
@@ -187,11 +196,14 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         _ = RefreshAsync();
     }
 
+    PipelineSource PipelineSourceFor(string name, IPipelineRunFeed feed, Func<IReadOnlyList<PipelineSubscription>> subscriptions) =>
+        new(name, feed, subscriptions, () => DismissedPipelineKeys, () => _reconciler.ItemsFor(name));
+
     bool IsDisabledSource(string name) => SourceRetirement.IsDisabled(name, _config.Current);
 
     void HandleDiff(InboxDiff diff)
     {
-        ProcessDiff(diff);
+        ProcessDiff(diff.WithPipelineInitialAsAdded());
         // A source disabled (config reload) while a poll was in flight is re-added by that poll's diff; retire it again.
         var disabled = _reconciler.RetireWhere(IsDisabledSource);
         if (disabled.Removed.Count > 0) ProcessDiff(disabled);
@@ -811,6 +823,17 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         _config.Save(config, expectedHash);
         AfterConfigChanged();
     }
+
+    public Task<IReadOnlyList<string>> ListAdoProjectsAsync(string org) => _adoPipelines.ListProjectsAsync(org, _cts.Token);
+
+    public Task<IReadOnlyList<PipelinePick>> ListAdoPipelinesAsync(string org, string project) => _adoPipelines.ListPipelinesAsync(org, project, _cts.Token);
+
+    public Task<IReadOnlyList<PipelinePick>> ListGitHubWorkflowsAsync(string repo) => _gitHubPipelines.ListWorkflowsAsync(repo, _cts.Token);
+
+    public IReadOnlyList<string> KnownGitHubRepos() =>
+        _config.Current.GitHub.WatchRepos.Concat(_reconciler.Entries.Where(e => e.Item.Provider == Provider.GitHub && e.Item.Kind != ItemKind.PipelineRun).Select(e => e.Item.Repo))
+            .Concat(_config.Current.PipelineSubscriptions.Where(s => s.Provider == Provider.GitHub).Select(s => s.Repo ?? ""))
+            .Where(r => r.Contains('/')).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToList();
 
     public IReadOnlyList<string> DiscoveredAdoOrgs() =>
         _reconciler.Statuses.Where(s => s.Name.StartsWith("ADO:", StringComparison.Ordinal)).Select(s => s.Name["ADO:".Length..]).ToList();

@@ -170,4 +170,33 @@ public class PipelineSourceTests
         var old = new DismissedRun("b", Now.AddDays(-15));
         Assert.Equal([kept], PipelineSource.PruneDismissed([kept, old], Now));
     }
+
+    [Fact]
+    public async Task A_new_failure_toasts_once_survives_a_restart_without_a_second_toast_and_goes_when_dismissed()
+    {
+        var feed = new FakeFeed();
+        feed.Runs["s1"] = [Run("1001")];
+        var subs = new[] { Sub() };
+        var reconciler = new Reconciler();
+        var dismissed = new HashSet<string>();
+        PipelineSource Make(Reconciler r) => new("ADO-Pipelines:acme", feed, () => subs, () => dismissed, () => r.ItemsFor("ADO-Pipelines:acme"), new FakeTimeProvider(Now));
+        async Task<InboxDiff> Poll(Reconciler r) =>
+            r.Apply(new Dictionary<string, SourceResult> { ["ADO-Pipelines:acme"] = await Make(r).FetchAsync(default) }, Now).WithPipelineInitialAsAdded();
+        static InboxView ViewOf(Reconciler r) => InboxView.Compose(r.Entries, new FiltersConfig(), [], [], Now);
+
+        var first = await Poll(reconciler);
+        var plan = NotificationPlanner.Plan(first, [], ViewOf(reconciler), new AppConfig(), true);
+        var toast = Assert.Single(plan.Toasts.Where(t => t.Action == ToastAction.Show));
+        Assert.Equal("Pipeline failed", toast.Title);
+
+        var restarted = new Reconciler(reconciler.Snapshot().ToDictionary(kv => kv.Key, kv => (IReadOnlyList<InboxItem>)kv.Value));
+        feed.Runs["s1"] = [];
+        Assert.True((await Poll(restarted)).IsEmpty); // the row is carried forward: no removal, no new toast
+        Assert.Single(restarted.Entries);
+
+        dismissed.Add(PipelineMatcher.Key(Run("1001"), null));
+        var gone = await Poll(restarted);
+        Assert.Single(gone.Removed);
+        Assert.Empty(restarted.Entries);
+    }
 }
