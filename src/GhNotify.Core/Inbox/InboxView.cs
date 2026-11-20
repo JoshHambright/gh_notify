@@ -12,7 +12,10 @@ public sealed class InboxView
     public IReadOnlyList<ViewEntry> Active { get; }
     public IReadOnlyList<ViewEntry> Waiting { get; }
     public IReadOnlyList<SnoozedEntry> Snoozed { get; }
-    public int BadgeCount => Active.Count(e => e.Attention == Attention.Normal);
+    /// <summary>Rows needing action: Normal ones, except that only a failed pipeline run counts (a green run is news, not work).</summary>
+    public int BadgeCount => Active.Count(e => e.Attention == Attention.Normal && CountsTowardBadge(e.Entry.Item));
+
+    static bool CountsTowardBadge(InboxItem i) => i.Kind != ItemKind.PipelineRun || i.Detail == nameof(PipelineOutcome.Failed);
 
     InboxView(List<ViewEntry> active, List<ViewEntry> waiting, List<SnoozedEntry> snoozed, Dictionary<string, Attention> attention)
     {

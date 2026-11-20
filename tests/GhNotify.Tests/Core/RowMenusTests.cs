@@ -31,4 +31,13 @@ public class RowMenusTests
     [Fact]
     public void Snoozed_row_only_unsnoozes() =>
         Assert.Equal(new RowMenuCommand(RowMenuKind.Unsnooze), Assert.Single(RowMenus.For(Row("GH", "30m left"))).Command);
+
+    [Fact]
+    public void A_dismissable_row_leads_with_dismiss_and_others_never_offer_it()
+    {
+        var menu = RowMenus.For(Row("ADO") with { CanDismiss = true });
+        Assert.Equal("Dismiss", menu[0].Header);
+        Assert.Equal(new RowMenuCommand(RowMenuKind.Dismiss), menu[0].Command);
+        Assert.DoesNotContain(RowMenus.For(Row("ADO")), m => m.Header == "Dismiss");
+    }
 }

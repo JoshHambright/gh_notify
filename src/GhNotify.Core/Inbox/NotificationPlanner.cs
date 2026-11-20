@@ -42,7 +42,7 @@ public static class NotificationPlanner
 
         if (inWorkHours)
         {
-            var initial = diff.InitialLoad.Where(i => view.AttentionFor(i.Key) == Attention.Normal && i.Kind != ItemKind.MyPrWaiting).ToList();
+            var initial = diff.InitialLoad.Where(i => view.AttentionFor(i.Key) == Attention.Normal && i.Kind is not (ItemKind.MyPrWaiting or ItemKind.PipelineRun)).ToList();
             if (initial.Count > 0)
             {
                 var n = initial.Count;

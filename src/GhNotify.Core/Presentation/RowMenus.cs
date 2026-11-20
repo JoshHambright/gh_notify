@@ -1,6 +1,6 @@
 namespace GhNotify.Core;
 
-public enum RowMenuKind { Snooze, Mute, Unsnooze, Hide }
+public enum RowMenuKind { Snooze, Mute, Unsnooze, Hide, Dismiss }
 public sealed record RowMenuCommand(RowMenuKind Kind, SnoozeChoice? Snooze = null, MuteScope? Scope = null, MuteDuration? Duration = null);
 public sealed record RowMenuEntry(string Header, RowMenuCommand? Command, IReadOnlyList<RowMenuEntry> Children);
 
@@ -10,7 +10,9 @@ public static class RowMenus
     public static IReadOnlyList<RowMenuEntry> For(InboxRow row)
     {
         if (row.SnoozeText is not null) return [Leaf("Unsnooze", new(RowMenuKind.Unsnooze))];
-        var menu = new List<RowMenuEntry>
+        var menu = new List<RowMenuEntry>();
+        if (row.CanDismiss) menu.Add(Leaf("Dismiss", new(RowMenuKind.Dismiss)));
+        menu.AddRange(new List<RowMenuEntry>
         {
             new("Snooze", null,
             [
@@ -21,7 +23,7 @@ public static class RowMenus
                 Leaf("Until it changes", new(RowMenuKind.Snooze, SnoozeChoice.UntilChange)),
             ]),
             Mute("Mute repo", MuteScope.Repo),
-        };
+        });
         if (row.ProviderGlyph == "ADO") menu.Add(Mute("Mute project", MuteScope.Project));
         menu.Add(Mute("Mute org", MuteScope.Org));
         // Hide has no duration: the item is gone until its pattern is removed in Settings → Filters (or Undo in the footer).

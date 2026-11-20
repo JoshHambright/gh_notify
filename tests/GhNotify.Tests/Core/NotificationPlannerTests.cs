@@ -190,4 +190,15 @@ public class NotificationPlannerTests
         Assert.False(Shown(p2).Single(t => t.Tag == ItemTag.For("bad")).Silent);
         Assert.True(Shown(p2).Single(t => t.Tag == ItemTag.For("ok")).Silent);
     }
+
+    [Fact]
+    public void Pipeline_items_on_a_first_poll_make_no_summary_toast()
+    {
+        var a = Pipe("a", "Failed");
+        var pr = It("pr");
+        var onlyPipes = NotificationPlanner.Plan(new InboxDiff([], [], [], [a]), [], View([a]), new AppConfig(), true);
+        Assert.Empty(Shown(onlyPipes));
+        var mixed = NotificationPlanner.Plan(new InboxDiff([], [], [], [a, pr]), [], View([a, pr]), new AppConfig(), true);
+        Assert.Equal("1 item waiting on you", Shown(mixed).Single().Title);
+    }
 }

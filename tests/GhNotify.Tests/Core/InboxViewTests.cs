@@ -63,4 +63,22 @@ public class InboxViewTests
     [Fact]
     public void Invalid_patterns_are_ignored_not_thrown() =>
         Assert.Equal(Attention.Normal, V([E("a", "acme/api")], new FiltersConfig { Mute = ["acme//"] }).AttentionFor("a"));
+
+    static InboxEntry Pipe(string key, string outcome) =>
+        new(new InboxItem(key, Provider.Ado, ItemKind.PipelineRun, "acme/P", "T", "https://u", "alice", Now, null, null, outcome), "ADO-Pipelines:acme", false);
+
+    [Fact]
+    public void Only_failed_pipeline_rows_count_toward_the_badge()
+    {
+        var v = V([Pipe("f", "Failed"), Pipe("s", "Succeeded"), Pipe("p", "PartiallySucceeded"), E("pr", "acme/api")]);
+        Assert.Equal(4, v.Active.Count);
+        Assert.Equal(2, v.BadgeCount); // the failed pipeline and the PR
+    }
+
+    [Fact]
+    public void A_muted_failed_pipeline_does_not_count()
+    {
+        var v = V([Pipe("f", "Failed")], new FiltersConfig { Mute = ["ado:acme"] });
+        Assert.Equal(0, v.BadgeCount);
+    }
 }
