@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0](https://github.com/JoshHambright/gh_notify/compare/v2.3.0...v2.4.0) (2026-11-23)
+
+
+### Features
+
+* hold toasts while presenting and pause them from the tray ([#46](https://github.com/JoshHambright/gh_notify/issues/46)) ([b9ce247](https://github.com/JoshHambright/gh_notify/commit/b9ce247d2410085f0a0bc1fdc95c89b5a997eb88)), closes [#24](https://github.com/JoshHambright/gh_notify/issues/24)
+
 ## [2.3.0](https://github.com/JoshHambright/gh_notify/compare/v2.2.0...v2.3.0) (2026-11-20)
 
 
