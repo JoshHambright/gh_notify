@@ -91,6 +91,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
         // A dismissal outlives its retention window while the snapshot still holds its row, or a long shutdown would bring the row back.
         var snapshotKeys = state.Snapshot.Values.SelectMany(items => items).Select(i => i.Key).ToHashSet(StringComparer.Ordinal);
         _dismissed = PipelineSource.PruneDismissed(state.DismissedPipelineRuns, DateTimeOffset.Now, snapshotKeys).ToList();
+        _toastsPausedUntil = state.ToastsPausedUntil;
         _waitingExpanded = state.WaitingExpanded;
         _snoozedExpanded = state.SnoozedExpanded;
         _mutedExpanded = state.MutedExpanded;
@@ -231,7 +232,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
             _dismissed = PipelineSource.PruneDismissed(_dismissed, now, _reconciler.Entries.Select(e => e.Item.Key).ToHashSet(StringComparer.Ordinal)).ToList();
         }
         var view = CurrentView();
-        var plan = NotificationPlanner.Plan(diff, woken, view, cfg, WorkHours.IsWithin(cfg.WorkHours, DateTime.Now));
+        var plan = ToastHold.Apply(NotificationPlanner.Plan(diff, woken, view, cfg, WorkHours.IsWithin(cfg.WorkHours, DateTime.Now)), ToastsHeld);
         foreach (var t in plan.Toasts) _toasts.Apply(t);
         if (plan.Sound is { } sound) _runtime.Dispatcher.Post(() => _platform.Sound.Play(sound));
         // Hidden items fire nothing: no toast or sound (the planner), no auto-agent (MaybeAutoRun) and no hooks.
@@ -284,7 +285,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
                 Find(run.Key) is { } item && TryMarkAnnounced(run.Key, finished) && !InboxView.IsHidden(item, _config.Current.Filters))
             {
                 var label = InboxPresenter.LabelFor(run.Profile);
-                if (WorkHours.IsWithin(_config.Current.WorkHours, DateTime.Now))
+                if (WorkHours.IsWithin(_config.Current.WorkHours, DateTime.Now) && !ToastsHeld)
                     _toasts.Apply(new ToastRequest(ToastAction.Show, ItemTag.ForAgent(run.Key),
                         $"{label} {(run.State == AgentState.Ready ? "ready" : "failed")}: {ItemText.RepoAndNumber(item)}",
                         $"{item.Title}\n{run.Summary ?? run.Error}", item.Url));
@@ -385,6 +386,31 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
     public string? ConfigError => _config.Error;
 
     public ThemeMode ThemeMode => _themeMode;
+
+    DateTimeOffset? _toastsPausedUntil;
+
+    /// <summary>The manual pause's end, or null when toasts are not paused (an expired pause counts as none).</summary>
+    public DateTimeOffset? ToastsPausedUntil
+    {
+        get { lock (_filterGate) return _toastsPausedUntil is { } u && u > DateTimeOffset.Now ? u : null; }
+    }
+
+    /// <summary>Toasts and sounds are held: paused by hand, or presenting with the setting on. Items still reach the popup and badge.</summary>
+    public bool ToastsHeld => ToastHold.IsHeld(ToastsPausedUntil, _config.Current.Notifications.HoldWhilePresenting, _platform.Presence?.IsPresenting ?? false, DateTimeOffset.Now);
+
+    public void PauseToasts(TimeSpan duration)
+    {
+        lock (_filterGate) _toastsPausedUntil = DateTimeOffset.Now + duration;
+        Save();
+        Changed?.Invoke();
+    }
+
+    public void ResumeToasts()
+    {
+        lock (_filterGate) _toastsPausedUntil = null;
+        Save();
+        Changed?.Invoke();
+    }
 
     const string StaleMessage = "Source is unavailable — can't act right now";
 
@@ -947,6 +973,7 @@ public sealed class AppController : IPopupHost, ISettingsHost, IDisposable
                         Mutes = _mutes.ToList(),
                         Snoozes = _snoozes.ToList(),
                         DismissedPipelineRuns = _dismissed.ToList(),
+                        ToastsPausedUntil = _toastsPausedUntil,
                         WaitingExpanded = _waitingExpanded,
                         SnoozedExpanded = _snoozedExpanded,
                         MutedExpanded = _mutedExpanded,

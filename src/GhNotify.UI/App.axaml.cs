@@ -206,7 +206,7 @@ public partial class App : Application
         tip += "\nv" + (_options?.Version ?? "dev");
         if (_tray.ToolTipText != tip) _tray.ToolTipText = tip;
         _trayMenu ??= new TrayMenu(this, _controller);
-        _trayMenu.Update(_controller.Update);
+        _trayMenu.Update(_controller.Update, _controller.ToastsPausedUntil);
         if (_tray.Menu != _trayMenu.Menu) _tray.Menu = _trayMenu.Menu;
     }
 
@@ -221,6 +221,7 @@ public partial class App : Application
     {
         readonly NativeMenuItem _check;
         readonly NativeMenuItem _restart;
+        readonly NativeMenuItem _pause;
 
         public NativeMenu Menu { get; } = new();
 
@@ -237,6 +238,13 @@ public partial class App : Application
             var whatsNew = new NativeMenuItem(UpdateUi.WhatsNewItem);
             whatsNew.Click += (_, _) => controller.OpenWhatsNew();
             Menu.Add(whatsNew);
+
+            _pause = new NativeMenuItem();
+            _pause.Click += (_, _) =>
+            {
+                if (controller.ToastsPausedUntil is null) controller.PauseToasts(TimeSpan.FromHours(1)); else controller.ResumeToasts();
+            };
+            Menu.Add(_pause);
 
             var about = new NativeMenuItem(AboutLinks.Header) { Menu = new NativeMenu() };
             about.Menu.Add(new NativeMenuItem(UpdateUi.VersionHeader(controller.Version)) { IsEnabled = false });
@@ -265,8 +273,11 @@ public partial class App : Application
             Menu.Add(quit);
         }
 
-        public void Update(UpdateStatus update)
+        public void Update(UpdateStatus update, DateTimeOffset? pausedUntil)
         {
+            var pauseText = pausedUntil is { } until ? $"Resume toasts (paused until {until.ToLocalTime():t})" : "Pause toasts for 1 hour";
+            if (_pause.Header != pauseText) _pause.Header = pauseText;
+
             var (header, enabled, _) = UpdateUi.CheckItem(update);
             if (_check.Header != header) _check.Header = header;
             if (_check.IsEnabled != enabled) _check.IsEnabled = enabled;

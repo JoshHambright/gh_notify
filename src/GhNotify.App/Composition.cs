@@ -17,7 +17,8 @@ static class Composition
             new RunKeyStartupService(),
             new WinSoundService(),
             new WinSystemTheme(),
-            new WinShell(new ProcessRunner()));
+            new WinShell(new ProcessRunner()),
+            new WinPresenceService());
         var dirs = new AppDirs(AppPaths.DataDir, AppPaths.Logs, AppPaths.Worktrees, AppPaths.Scratch);
         return new AppOptions(platform, dirs, AppPaths.ConfigFile, AppPaths.StateFile, AppVersion.Current, new VelopackUpdateClient());
     }

@@ -13,6 +13,18 @@ public sealed class NotificationsPage : SettingsPageBase
 
     public NotificationsPage(SettingsDraft draft, ISettingsHost host, Action changed) : base(draft, host, changed)
     {
+        Body.Children.Add(Ui.Section("PRESENTING", 8));
+        var hold = Ui.Check("Hold toasts and sounds while presenting or full-screen (Windows)", Config.Notifications.HoldWhilePresenting, v =>
+        {
+            Config.Notifications.HoldWhilePresenting = v;
+            Changed();
+        });
+        hold.Margin = new Thickness(0, 0, 0, 4);
+        Body.Children.Add(hold);
+        var holdNote = Ui.Text("Items still reach the popup and badge; nothing replays afterwards. A Teams window share may not be detected: use the tray's Pause toasts for 1 hour.", "muted", "small");
+        holdNote.Margin = new Thickness(0, 0, 0, 16);
+        Body.Children.Add(holdNote);
+
         Body.Children.Add(Ui.Section("SOUND RULES · FIRST MATCH WINS"));
         Body.Children.Add(_rules);
         var add = Ui.Btn("+ Add sound rule", () =>
